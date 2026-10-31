@@ -1,0 +1,89 @@
+@{
+    ViewData["Title"] = "Quản lý Cư dân & Hợp đồng lưu trú";
+}
+
+<div class="card-custom mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-person-lines-fill me-2 text-primary"></i>HỢP ĐỒNG LƯU TRÚ</h6>
+            <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill">Đang hiệu lực: 28</span>
+            <span class="badge bg-warning-subtle text-warning px-3 py-2 rounded-pill">Sắp hết hạn: 1</span>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary rounded-3" onclick="alert('Đã tải mẫu Excel danh sách cư dân!')">
+                <i class="bi bi-file-earmark-excel me-1"></i> Import Excel
+            </button>
+            <button class="btn btn-sm btn-primary rounded-3" onclick="alert('Mở biểu mẫu Lập hợp đồng lưu trú mới theo quy trình UC 2-4.1')">
+                <i class="bi bi-file-earmark-plus me-1"></i> Lập hợp đồng mới
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card-custom">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light fs-8">
+                <tr>
+                    <th>MÃ HỢP ĐỒNG</th>
+                    <th>PHÒNG</th>
+                    <th>CƯ DÂN ĐẠI DIỆN</th>
+                    <th>SỐ ĐIỆN THOẠI</th>
+                    <th>THỜI HẠN THUÊ</th>
+                    <th>GIÁ THUÊ</th>
+                    <th>TIỀN CỌC</th>
+                    <th>TRẠNG THÁI</th>
+                    <th class="text-end">THAO TÁC</th>
+                </tr>
+            </thead>
+            <tbody class="fs-7">
+                <!-- Hồ Ngọc Bảo -->
+                <tr class="table-primary-subtle">
+                    <td class="fw-bold">HD-2026-0305</td>
+                    <td><span class="badge bg-primary text-white">P.305</span></td>
+                    <td class="fw-bold">Hồ Ngọc Bảo</td>
+                    <td>0901234567</td>
+                    <td>01/08/2026 - 31/07/2027 (12 tháng)</td>
+                    <td class="fw-bold text-primary">3.500.000 đ</td>
+                    <td class="fw-bold">7.000.000 đ</td>
+                    <td><span class="badge bg-success-subtle text-success">Đang hiệu lực</span></td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary rounded-3 py-1 fs-8" onclick="alert('Đã xuất hợp đồng điện tử PDF theo mẫu chuẩn!')">
+                            <i class="bi bi-file-earmark-pdf me-1"></i> Xuất PDF
+                        </button>
+                    </td>
+                </tr>
+
+                <!-- P.301 -->
+                <tr>
+                    <td class="fw-bold">HD-2026-0301</td>
+                    <td><span class="badge bg-primary-subtle text-primary">P.301</span></td>
+                    <td>Trần Văn Nam</td>
+                    <td>0912345678</td>
+                    <td>01/05/2026 - 30/04/2027</td>
+                    <td>3.500.000 đ</td>
+                    <td>7.000.000 đ</td>
+                    <td><span class="badge bg-success-subtle text-success">Đang hiệu lực</span></td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary rounded-3 py-1 fs-8"><i class="bi bi-file-earmark-pdf me-1"></i> Xuất PDF</button>
+                    </td>
+                </tr>
+
+                <!-- P.302 (Sắp hết hạn) -->
+                <tr>
+                    <td class="fw-bold text-warning">HD-2026-0302</td>
+                    <td><span class="badge bg-primary-subtle text-primary">P.302</span></td>
+                    <td>Lê Thị Hoa</td>
+                    <td>0933445566</td>
+                    <td>05/11/2025 - 05/11/2026 (Còn 6 ngày)</td>
+                    <td>3.500.000 đ</td>
+                    <td>7.000.000 đ</td>
+                    <td><span class="badge bg-warning-subtle text-warning">Sắp hết hạn</span></td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-warning rounded-3 py-1 fs-8" onclick="alert('Đã chuyển sang quy trình gia hạn hợp đồng!')">Gia hạn</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

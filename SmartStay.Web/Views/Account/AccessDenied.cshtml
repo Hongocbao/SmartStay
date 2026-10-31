@@ -1,0 +1,19 @@
+@{
+    ViewData["Title"] = "Không Có Quyền Truy Cập";
+}
+
+<div class="card-custom text-center py-5">
+    <div class="mb-3">
+        <i class="bi bi-shield-x text-danger" style="font-size: 64px;"></i>
+    </div>
+    <h3 class="fw-bold text-slate-900 mb-2">Truy Cập Bị Từ Chối</h3>
+    <p class="text-muted mb-4">Tài khoản của bạn không có đủ thẩm quyền để xem khu vực quản trị này.</p>
+    <div>
+        <a href="/" class="btn btn-primary px-4 py-2 rounded-3">
+            <i class="bi bi-house-door-fill me-1"></i> Quay về Trang chủ
+        </a>
+        <a href="/Account/Logout" class="btn btn-outline-danger px-4 py-2 rounded-3 ms-2">
+            <i class="bi bi-box-arrow-right me-1"></i> Đổi tài khoản khác
+        </a>
+    </div>
+</div>

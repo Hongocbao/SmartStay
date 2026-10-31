@@ -1,0 +1,70 @@
+@{
+    ViewData["Title"] = "Quản lý Truyền thông, Bảng tin & Sự kiện";
+}
+
+<div class="card-custom mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-megaphone me-2 text-primary"></i>TRUYỀN THÔNG NỘI BỘ</h6>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary rounded-3" onclick="alert('Đã kích hoạt đẩy thông báo hẹn giờ qua Firebase Cloud Messaging!')">
+                <i class="bi bi-clock-history me-1"></i> Lên lịch thông báo
+            </button>
+            <button class="btn btn-sm btn-primary rounded-3" onclick="alert('Soạn thông báo mới tới toàn hệ sinh thái cư dân')">
+                <i class="bi bi-plus-lg me-1"></i> Soạn thông báo mới
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Cột Thông báo -->
+    <div class="col-lg-6">
+        <div class="card-custom h-100">
+            <h6 class="fw-bold mb-3"><i class="bi bi-bell-fill text-warning me-2"></i>Thông báo đang phát sóng</h6>
+            <div class="list-group list-group-flush">
+                <div class="list-group-item px-0 py-3">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <span class="badge bg-danger text-white fs-9">Quan trọng</span>
+                        <span class="fs-8 text-muted">29/10/2026 08:00</span>
+                    </div>
+                    <h6 class="fw-bold fs-7 mb-1">Bảo trì hệ thống thang máy Tòa nhà A</h6>
+                    <p class="text-muted fs-8 mb-1">Bảo dưỡng định kỳ thang máy số 1 từ 14:00 đến 16:30 Chủ Nhật ngày 01/11/2026.</p>
+                    <span class="fs-9 text-primary fw-semibold">Phạm vi: Tòa nhà A • Đã gửi qua Firebase FCM</span>
+                </div>
+
+                <div class="list-group-item px-0 py-3">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <span class="badge bg-primary-subtle text-primary fs-9">Tài chính</span>
+                        <span class="fs-8 text-muted">25/10/2026 10:00</span>
+                    </div>
+                    <h6 class="fw-bold fs-7 mb-1">Thông báo phát hành hóa đơn kỳ tháng 10/2026</h6>
+                    <p class="text-muted fs-8 mb-1">Hệ thống đã tự động chốt chỉ số điện nước và gửi mã VietQR động đến từng phòng.</p>
+                    <span class="fs-9 text-primary fw-semibold">Phạm vi: Toàn hệ sinh thái (28 phòng)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cột Sự kiện -->
+    <div class="col-lg-6">
+        <div class="card-custom h-100">
+            <h6 class="fw-bold mb-3"><i class="bi bi-calendar-check-fill text-success me-2"></i>Sự kiện cộng đồng nội khu</h6>
+            <div class="p-3 rounded-3 bg-light border mb-3">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge bg-success text-white">Sắp diễn ra</span>
+                    <span class="fw-bold text-primary fs-8">42/60 cư dân đã đăng ký</span>
+                </div>
+                <h6 class="fw-bold fs-6 mb-1 text-slate-900">Giải chạy bộ nội khu KTXRace 2026</h6>
+                <p class="text-muted fs-8 mb-2">Chạy phong trào 5km công viên ven sông, áo đấu miễn phí & tiệc nướng BBQ tầng thượng.</p>
+                <div class="fs-8 text-muted mb-2"><i class="bi bi-calendar3 me-1"></i> Khởi tranh: 06:00 - Chủ Nhật 08/11/2026</div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-success rounded-3 fs-8" onclick="alert('Đã xuất file Excel danh sách 42 cư dân đăng ký tham gia để in số Bib thi đấu!')">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Xuất danh sách điểm danh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

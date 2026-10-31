@@ -1,0 +1,41 @@
+# .NET Core / Visual Studio
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.userprefs
+*.docstates
+
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+android/app/build/
+android/.gradle/
+ios/.symlinks/
+*.lock
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Android specific
+**/android/local.properties
+**/android/key.properties
+*.keystore
+*.jks
+
+# Logs and databases
+*.log
+*.tmp
+*.bak
+*.zip
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini

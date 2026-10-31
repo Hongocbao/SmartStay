@@ -1,0 +1,20 @@
+name: smartstay
+description: "Ứng dụng di động SmartStay dành cho Cư dân - Hệ thống quản trị hệ sinh thái lưu trú thông minh đa nền tảng."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

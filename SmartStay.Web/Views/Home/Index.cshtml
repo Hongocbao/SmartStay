@@ -1,0 +1,238 @@
+@{
+    ViewData["Title"] = "Dashboard Tổng quan Hệ thống";
+}
+
+<!-- Top KPI Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-xl-3 col-sm-6">
+        <div class="card-custom mb-0 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="text-muted fw-semibold fs-7">TỶ LỆ LẤP ĐẦY PHÒNG</span>
+                <span class="badge bg-primary-subtle text-primary p-2 rounded-3"><i class="bi bi-pie-chart-fill fs-5"></i></span>
+            </div>
+            <div class="d-flex align-items-baseline gap-2">
+                <h3 class="fw-bold mb-0 text-slate-900">87.5%</h3>
+                <span class="badge bg-success-subtle text-success fs-8"><i class="bi bi-arrow-up-short"></i> +4.2%</span>
+            </div>
+            <p class="text-muted fs-8 mt-2 mb-0">Đang ở: <strong>28</strong> / 32 phòng (Tòa nhà A & B)</p>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-sm-6">
+        <div class="card-custom mb-0 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="text-muted fw-semibold fs-7">DOANH THU THÁNG 10</span>
+                <span class="badge bg-success-subtle text-success p-2 rounded-3"><i class="bi bi-wallet2 fs-5"></i></span>
+            </div>
+            <div class="d-flex align-items-baseline gap-2">
+                <h3 class="fw-bold mb-0 text-slate-900">118.500.000 đ</h3>
+            </div>
+            <p class="text-muted fs-8 mt-2 mb-0">Đã thu qua VietQR: <strong>102.080.000 đ</strong> (86%)</p>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-sm-6">
+        <div class="card-custom mb-0 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="text-muted fw-semibold fs-7">CÔNG NỢ CHƯA THU</span>
+                <span class="badge bg-danger-subtle text-danger p-2 rounded-3"><i class="bi bi-clock-history fs-5"></i></span>
+            </div>
+            <div class="d-flex align-items-baseline gap-2">
+                <h3 class="fw-bold mb-0 text-danger">16.420.000 đ</h3>
+                <span class="badge bg-warning-subtle text-warning fs-8">4 phòng</span>
+            </div>
+            <p class="text-muted fs-8 mt-2 mb-0">Hạn chót thanh toán: <strong>05/11/2026</strong></p>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-sm-6">
+        <div class="card-custom mb-0 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="text-muted fw-semibold fs-7">SỰ CỐ KANBAN</span>
+                <span class="badge bg-warning-subtle text-warning p-2 rounded-3"><i class="bi bi-tools fs-5"></i></span>
+            </div>
+            <div class="d-flex align-items-baseline gap-2">
+                <h3 class="fw-bold mb-0 text-slate-900">3 phiếu</h3>
+                <span class="badge bg-danger-subtle text-danger fs-8">1 Khẩn cấp</span>
+            </div>
+            <p class="text-muted fs-8 mt-2 mb-0">2 phiếu đang sửa, 1 chờ phân công</p>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="row g-4 mb-4">
+    <!-- Doanh thu 6 tháng gần nhất -->
+    <div class="col-lg-8">
+        <div class="card-custom h-100">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h6 class="fw-bold mb-1">Thống kê Doanh thu & Công nợ (6 tháng gần nhất)</h6>
+                    <p class="text-muted fs-8 mb-0">Theo dõi doanh thu phòng, điện nước và dịch vụ</p>
+                </div>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle rounded-3" type="button" data-bs-toggle="dropdown">
+                        Tất cả tòa nhà
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item active" href="#">Tất cả tòa nhà</a></li>
+                        <li><a class="dropdown-item" href="#">Tòa nhà A</a></li>
+                        <li><a class="dropdown-item" href="#">Tòa nhà B</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div style="height: 310px;">
+                <canvas id="revenueChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tỷ lệ trạng thái phòng -->
+    <div class="col-lg-4">
+        <div class="card-custom h-100">
+            <h6 class="fw-bold mb-1">Tỷ lệ Trạng thái Phòng</h6>
+            <p class="text-muted fs-8 mb-4">Tổng cộng: 32 phòng trong hệ sinh thái</p>
+            <div style="height: 230px; position: relative;">
+                <canvas id="roomStatusChart"></canvas>
+            </div>
+            <div class="d-flex justify-content-around mt-4 pt-2 border-top">
+                <div class="text-center">
+                    <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: #4F46E5;"></span>
+                    <span class="fs-8 text-muted">Đang ở</span>
+                    <p class="fw-bold mb-0 fs-7">28</p>
+                </div>
+                <div class="text-center">
+                    <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: #10B981;"></span>
+                    <span class="fs-8 text-muted">Trống</span>
+                    <p class="fw-bold mb-0 fs-7">2</p>
+                </div>
+                <div class="text-center">
+                    <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: #F59E0B;"></span>
+                    <span class="fs-8 text-muted">Bảo trì</span>
+                    <p class="fw-bold mb-0 fs-7">1</p>
+                </div>
+                <div class="text-center">
+                    <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: #8B5CF6;"></span>
+                    <span class="fs-8 text-muted">Đã đặt</span>
+                    <p class="fw-bold mb-0 fs-7">1</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Việc cần xử lý ngay -->
+<div class="card-custom">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-bold mb-0"><i class="bi bi-lightning-charge-fill text-warning me-2"></i>Nhiệm vụ cần Ban Quản lý xử lý ngay</h6>
+        <span class="badge bg-danger-subtle text-danger px-3 py-1 rounded-pill">4 việc cấp bách</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light fs-8">
+                <tr>
+                    <th>PHÂN LOẠI</th>
+                    <th>NỘI DUNG / MÃ PHIẾU</th>
+                    <th>PHÒNG</th>
+                    <th>CƯ DÂN / NGƯỜI LIÊN HỆ</th>
+                    <th>HẠN XỬ LÝ</th>
+                    <th>TRẠNG THÁI</th>
+                    <th class="text-end">THAO TÁC</th>
+                </tr>
+            </thead>
+            <tbody class="fs-7">
+                <tr>
+                    <td><span class="badge bg-danger text-white">Sự cố khẩn cấp</span></td>
+                    <td class="fw-bold">SC-2026-089: Máy lạnh chảy nước dàn lạnh</td>
+                    <td><span class="badge bg-primary-subtle text-primary">P.305</span></td>
+                    <td>Hồ Ngọc Bảo (0901234567)</td>
+                    <td>Hôm nay 17:00</td>
+                    <td><span class="badge badge-status badge-baotri">Đang sửa</span></td>
+                    <td class="text-end">
+                        <a href="/SuCo/Kanban" class="btn btn-sm btn-primary rounded-3">Xem Kanban</a>
+                    </td>
+                </tr>
+                <tr>
+                    <td><span class="badge bg-warning text-dark">Đối soát VietQR</span></td>
+                    <td class="fw-bold">Biên lai chuyển khoản: 4.159.000 đ</td>
+                    <td><span class="badge bg-primary-subtle text-primary">P.305</span></td>
+                    <td>Hồ Ngọc Bảo</td>
+                    <td>Chờ duyệt 15 phút trước</td>
+                    <td><span class="badge bg-info-subtle text-info">Chờ xác nhận</span></td>
+                    <td class="text-end">
+                        <a href="/HoaDon/Index" class="btn btn-sm btn-outline-success rounded-3"><i class="bi bi-check2-circle"></i> Duyệt ngay</a>
+                    </td>
+                </tr>
+                <tr>
+                    <td><span class="badge bg-info text-dark">Hợp đồng</span></td>
+                    <td class="fw-bold">HD-2026-0302 sắp hết hạn thuê</td>
+                    <td><span class="badge bg-primary-subtle text-primary">P.302</span></td>
+                    <td>Trần Văn Nam</td>
+                    <td>Còn 5 ngày</td>
+                    <td><span class="badge bg-warning-subtle text-warning">Sắp hết hạn</span></td>
+                    <td class="text-end">
+                        <a href="/HopDong/Index" class="btn btn-sm btn-outline-secondary rounded-3">Gia hạn / Thanh lý</a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // 1. Chart Doanh thu
+    const ctxRev = document.getElementById('revenueChart').getContext('2d');
+    new Chart(ctxRev, {
+        type: 'bar',
+        data: {
+            labels: ['Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10'],
+            datasets: [
+                {
+                    label: 'Đã thu (triệu đồng)',
+                    data: [98, 105, 110, 115, 114, 102],
+                    backgroundColor: '#4F46E5',
+                    borderRadius: 8
+                },
+                {
+                    label: 'Công nợ (triệu đồng)',
+                    data: [8, 5, 4, 3, 2, 16.4],
+                    backgroundColor: '#F87171',
+                    borderRadius: 8
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { font: { family: 'Plus Jakarta Sans', size: 12 } } }
+            },
+            scales: {
+                y: { grid: { color: '#F1F5F9' }, ticks: { font: { family: 'Plus Jakarta Sans' } } },
+                x: { grid: { display: false }, ticks: { font: { family: 'Plus Jakarta Sans' } } }
+            }
+        }
+    });
+
+    // 2. Chart Trạng thái phòng
+    const ctxRoom = document.getElementById('roomStatusChart').getContext('2d');
+    new Chart(ctxRoom, {
+        type: 'doughnut',
+        data: {
+            labels: ['Đang ở', 'Trống', 'Bảo trì', 'Đã đặt'],
+            datasets: [{
+                data: [28, 2, 1, 1],
+                backgroundColor: ['#4F46E5', '#10B981', '#F59E0B', '#8B5CF6'],
+                borderWidth: 0,
+                cutout: '76%'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } }
+        }
+    });
+</script>
+}

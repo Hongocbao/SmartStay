@@ -1,0 +1,112 @@
+@{
+    ViewData["Title"] = "Quản lý Hóa đơn & Đối soát VietQR";
+}
+
+<div class="card-custom mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-calendar3 me-2 text-primary"></i>KỲ HÓA ĐƠN: THÁNG 10/2026</h6>
+            <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill">Đã phát hành: 28/28</span>
+            <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill">Đã thu: 24/28</span>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary rounded-3" onclick="alert('Đang tự động chốt chỉ số công tơ điện nước và tính giá bậc thang theo biểu giá hiệu lực...')">
+                <i class="bi bi-calculator me-1"></i> Tính bậc thang tự động
+            </button>
+            <button class="btn btn-sm btn-primary rounded-3" onclick="alert('Tất cả hóa đơn đã được sinh mã VietQR động NAPAS 247!')">
+                <i class="bi bi-qr-code me-1"></i> Phát hành VietQR hàng loạt
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Bảng danh sách hóa đơn -->
+<div class="card-custom">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light fs-8">
+                <tr>
+                    <th>MÃ HÓA ĐƠN</th>
+                    <th>PHÒNG</th>
+                    <th>CƯ DÂN ĐẠI DIỆN</th>
+                    <th>TIỀN PHÒNG</th>
+                    <th>ĐIỆN (BẬC THANG)</th>
+                    <th>NƯỚC (BẬC THANG)</th>
+                    <th>DỊCH VỤ CỐ ĐỊNH</th>
+                    <th>TỔNG TIỀN</th>
+                    <th>VIETQR ĐỘNG</th>
+                    <th>TRẠNG THÁI</th>
+                    <th class="text-end">THAO TÁC</th>
+                </tr>
+            </thead>
+            <tbody class="fs-7">
+                <!-- Hóa đơn của Hồ Ngọc Bảo (P.305) -->
+                <tr class="table-primary-subtle">
+                    <td class="fw-bold">HD-2026-10-305</td>
+                    <td><span class="badge bg-primary text-white">P.305</span></td>
+                    <td class="fw-bold">Hồ Ngọc Bảo</td>
+                    <td>3.500.000 đ</td>
+                    <td>
+                        <span class="text-primary fw-bold">254.000 đ</span>
+                        <div class="fs-9 text-muted">120 kWh (Bậc 1, 2, 3)</div>
+                    </td>
+                    <td>
+                        <span class="text-info fw-bold">105.000 đ</span>
+                        <div class="fs-9 text-muted">8 m³ (Bậc 1, 2)</div>
+                    </td>
+                    <td>300.000 đ</td>
+                    <td class="fw-bold fs-6 text-danger">4.159.000 đ</td>
+                    <td>
+                        <a href="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=4159000&addInfo=HD1026%20P305%20HONGOCBAO&accountName=SMARTSTAY%20MANAGEMENT" target="_blank" class="badge bg-light text-primary border">
+                            <i class="bi bi-qr-code-scan me-1"></i> Xem VietQR
+                        </a>
+                    </td>
+                    <td><span class="badge bg-warning-subtle text-warning">Chờ đối soát</span></td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-success rounded-pill px-3 py-1 fs-8" onclick="alert('Đã xác nhận biên lai thanh toán 4.159.000 đ của phòng P.305 thành công! Trạng thái hóa đơn đã chuyển sang Đã thanh toán.')">
+                            <i class="bi bi-check2-circle me-1"></i> Duyệt biên lai
+                        </button>
+                    </td>
+                </tr>
+
+                <!-- Hóa đơn P.301 -->
+                <tr>
+                    <td class="fw-bold">HD-2026-10-301</td>
+                    <td><span class="badge bg-primary-subtle text-primary">P.301</span></td>
+                    <td>Trần Văn Nam</td>
+                    <td>3.500.000 đ</td>
+                    <td>210.000 đ</td>
+                    <td>90.000 đ</td>
+                    <td>300.000 đ</td>
+                    <td class="fw-bold">4.100.000 đ</td>
+                    <td>
+                        <span class="badge bg-light text-muted border"><i class="bi bi-check me-1"></i> Đã quét</span>
+                    </td>
+                    <td><span class="badge bg-success-subtle text-success">Đã thanh toán</span></td>
+                    <td class="text-end">
+                        <span class="text-muted fs-8"><i class="bi bi-check-all text-success"></i> Đã đối soát</span>
+                    </td>
+                </tr>
+
+                <!-- Hóa đơn P.401 -->
+                <tr>
+                    <td class="fw-bold">HD-2026-10-401</td>
+                    <td><span class="badge bg-primary-subtle text-primary">P.401</span></td>
+                    <td>Lê Văn Cường</td>
+                    <td>5.000.000 đ</td>
+                    <td>340.000 đ</td>
+                    <td>145.000 đ</td>
+                    <td>350.000 đ</td>
+                    <td class="fw-bold">5.835.000 đ</td>
+                    <td>
+                        <span class="badge bg-light text-muted border"><i class="bi bi-check me-1"></i> Đã quét</span>
+                    </td>
+                    <td><span class="badge bg-success-subtle text-success">Đã thanh toán</span></td>
+                    <td class="text-end">
+                        <span class="text-muted fs-8"><i class="bi bi-check-all text-success"></i> Đã đối soát</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

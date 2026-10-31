@@ -1,0 +1,367 @@
+@{
+    var isAuth = User.Identity?.IsAuthenticated == true;
+    var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Admin";
+    var fullName = User.FindFirst("FullName")?.Value ?? (isAuth ? User.Identity?.Name : "Quản Trị Viên");
+    var roleName = User.FindFirst("RoleName")?.Value ?? (role == "Admin" ? "Quản Trị Viên" : (role == "KyThuat" ? "Kỹ Thuật Viên" : "Cư Dân"));
+    var roomCode = User.FindFirst("RoomCode")?.Value;
+    var userInitial = string.IsNullOrEmpty(fullName) ? "AD" : (fullName.Length >= 2 ? fullName.Substring(0, 2).ToUpper() : fullName.ToUpper());
+}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - SmartStay Quản Trị Hệ Sinh Thái Lưu Trú</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Bootstrap 5 & Icons -->
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --sidebar-bg: #0F172A;
+            --sidebar-text: #94A3B8;
+            --sidebar-active: #6366F1;
+            --body-bg: #F8FAFC;
+            --card-border: #E2E8F0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--body-bg);
+            color: #1E293B;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            width: 260px;
+            height: 100vh;
+            background-color: var(--sidebar-bg);
+            position: fixed;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-brand {
+            padding: 24px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .brand-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #6366F1, #3B82F6);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+        }
+
+        .brand-text {
+            color: #fff;
+            font-size: 19px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin: 0;
+        }
+
+        .brand-sub {
+            color: #64748B;
+            font-size: 11px;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        .sidebar-menu {
+            padding: 20px 14px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .menu-label {
+            color: #475569;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            padding: 0 12px 10px 12px;
+            margin-top: 14px;
+        }
+
+        .nav-link-custom {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 14px;
+            color: var(--sidebar-text);
+            text-decoration: none;
+            font-size: 13.5px;
+            font-weight: 500;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+            margin-bottom: 4px;
+        }
+
+        .nav-link-custom:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .nav-link-custom.active {
+            color: #fff;
+            background: var(--primary);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+            font-weight: 600;
+        }
+
+        .nav-link-custom i {
+            font-size: 18px;
+        }
+
+        /* Main Content */
+        .main-wrapper {
+            margin-left: 260px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Topbar */
+        .topbar {
+            height: 70px;
+            background: #fff;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            position: sticky;
+            top: 0;
+            z-index: 900;
+        }
+
+        .page-title-box h5 {
+            margin: 0;
+            font-weight: 700;
+            color: #0F172A;
+            font-size: 18px;
+        }
+
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .user-pill {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 14px 6px 6px;
+            background: #F1F5F9;
+            border-radius: 30px;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            color: #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .content-body {
+            padding: 28px;
+            flex-grow: 1;
+        }
+
+        /* Card Custom */
+        .card-custom {
+            background: #fff;
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        /* Badge Custom */
+        .badge-status {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-trong { background: #ECFDF5; color: #059669; }
+        .badge-dango { background: #EEF2FF; color: #4F46E5; }
+        .badge-baotri { background: #FFFBEB; color: #D97706; }
+        .badge-dadat { background: #F5F3FF; color: #7C3AED; }
+
+        /* Kanban Styles */
+        .kanban-col {
+            background: #F1F5F9;
+            border-radius: 14px;
+            padding: 16px;
+            min-height: 520px;
+        }
+        .kanban-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+            transition: transform 0.2s;
+        }
+        .kanban-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.06);
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">
+                <i class="bi bi-buildings-fill"></i>
+            </div>
+            <div>
+                <p class="brand-text">SmartStay</p>
+                <p class="brand-sub">Hệ sinh thái Quản trị Lưu trú</p>
+            </div>
+        </div>
+
+        <div class="sidebar-menu">
+            @if (role == "Admin")
+            {
+                <div class="menu-label">Vận hành cốt lõi</div>
+                <a href="/" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "Home" ? "active" : "")">
+                    <i class="bi bi-grid-1x2-fill"></i> Dashboard Tổng quan
+                </a>
+                <a href="/Phong/SoDo" class="nav-link-custom @(ViewContext.RouteData.Values["Action"]?.ToString() == "SoDo" ? "active" : "")">
+                    <i class="bi bi-diagram-3-fill"></i> Sơ đồ phòng (Matrix)
+                </a>
+                <a href="/SuCo/Kanban" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "SuCo" ? "active" : "")">
+                    <i class="bi bi-kanban-fill"></i> Sự cố Kanban
+                </a>
+
+                <div class="menu-label">Tài chính & Dịch vụ</div>
+                <a href="/HoaDon/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "HoaDon" ? "active" : "")">
+                    <i class="bi bi-receipt-cutoff"></i> Hóa đơn & VietQR
+                </a>
+                <a href="/HopDong/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "HopDong" ? "active" : "")">
+                    <i class="bi bi-file-earmark-text-fill"></i> Hợp đồng & Cư dân
+                </a>
+
+                <div class="menu-label">Truyền thông & Hệ thống</div>
+                <a href="/ThongBao/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "ThongBao" ? "active" : "")">
+                    <i class="bi bi-megaphone-fill"></i> Bảng tin & Sự kiện
+                </a>
+                <a href="/HeThong/CauHinh" class="nav-link-custom">
+                    <i class="bi bi-gear-fill"></i> Cấu hình & Ngân hàng
+                </a>
+            }
+            else if (role == "KyThuat")
+            {
+                <div class="menu-label">Nhiệm vụ Kỹ thuật</div>
+                <a href="/SuCo/Kanban" class="nav-link-custom active">
+                    <i class="bi bi-kanban-fill"></i> Kanban Sự Cố & Lệnh Sửa
+                </a>
+                <a href="/Phong/SoDo" class="nav-link-custom">
+                    <i class="bi bi-diagram-3-fill"></i> Tình trạng Thiết bị Phòng
+                </a>
+                <div class="menu-label">Thông tin chung</div>
+                <a href="/ThongBao/Index" class="nav-link-custom">
+                    <i class="bi bi-megaphone-fill"></i> Bảng tin & Thông báo
+                </a>
+            }
+            else
+            {
+                <div class="menu-label">Cổng Cư Dân (@(roomCode ?? "P.305"))</div>
+                <a href="/HoaDon/Index" class="nav-link-custom active">
+                    <i class="bi bi-receipt-cutoff"></i> Hóa đơn & VietQR của tôi
+                </a>
+                <a href="/SuCo/Kanban" class="nav-link-custom">
+                    <i class="bi bi-wrench-adjustable"></i> Báo cáo & Theo dõi Sự cố
+                </a>
+                <a href="/ThongBao/Index" class="nav-link-custom">
+                    <i class="bi bi-megaphone-fill"></i> Thông báo & Nội quy
+                </a>
+            }
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-wrapper">
+        <!-- Topbar -->
+        <header class="topbar">
+            <div class="page-title-box">
+                <h5>@ViewData["Title"]</h5>
+            </div>
+
+            <div class="topbar-actions">
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill d-none d-md-inline-block">
+                    <i class="bi bi-database-check me-1"></i> SQL Server: SmartStayDB
+                </span>
+
+                <div class="user-pill">
+                    <div class="user-avatar" style="@(role == "Admin" ? "background: #8B5CF6;" : (role == "KyThuat" ? "background: #10B981;" : "background: #2563EB;"))">
+                        @userInitial
+                    </div>
+                    <div>
+                        <div style="font-size: 13px; font-weight: 700; line-height: 1.2;">@fullName</div>
+                        <div style="font-size: 11px; color: #64748B;">
+                            <span class="badge @(role == "Admin" ? "bg-purple text-dark" : (role == "KyThuat" ? "bg-success text-white" : "bg-primary text-white")) px-2 py-0" style="font-size: 10px;">
+                                @roleName
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <a href="/Account/Logout" class="btn btn-sm btn-outline-danger px-3 py-1 rounded-pill" title="Đăng xuất khỏi hệ thống">
+                    <i class="bi bi-box-arrow-right me-1"></i> Đăng xuất
+                </a>
+            </div>
+        </header>
+
+        <!-- Body -->
+        <main class="content-body">
+            @RenderBody()
+        </main>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
