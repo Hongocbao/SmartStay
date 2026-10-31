@@ -1,28 +1,39 @@
 @{
-    ViewData["Title"] = "Quản lý Cư dân & Hợp đồng lưu trú";
+    ViewData["Title"] = "Quản lý Cư dân & Hợp đồng lưu trú - SmartStay";
 }
 
 <div class="card-custom mb-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div class="d-flex align-items-center gap-3">
             <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-person-lines-fill me-2 text-primary"></i>HỢP ĐỒNG LƯU TRÚ</h6>
-            <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill">Đang hiệu lực: 28</span>
+            <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill" id="badgeTotalContracts">Đang hiệu lực: 28</span>
             <span class="badge bg-warning-subtle text-warning px-3 py-2 rounded-pill">Sắp hết hạn: 1</span>
         </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-secondary rounded-3" onclick="alert('Đã tải mẫu Excel danh sách cư dân!')">
-                <i class="bi bi-file-earmark-excel me-1"></i> Import Excel
+        <div class="d-flex flex-wrap gap-2">
+            <!-- Nút Nhập danh sách cư dân số lượng lớn bằng Excel -->
+            <button class="btn btn-sm btn-success rounded-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalImportResidentExcel">
+                <i class="bi bi-file-earmark-excel-fill me-1"></i> Nhập Cư Dân Hàng Loạt (Excel)
             </button>
-            <button class="btn btn-sm btn-primary rounded-3" onclick="alert('Mở biểu mẫu Lập hợp đồng lưu trú mới theo quy trình UC 2-4.1')">
+            <button class="btn btn-sm btn-outline-success rounded-3" onclick="exportContractExcel()">
+                <i class="bi bi-download me-1"></i> Xuất Excel Hợp Đồng
+            </button>
+            <button class="btn btn-sm btn-primary rounded-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNewContract">
                 <i class="bi bi-file-earmark-plus me-1"></i> Lập hợp đồng mới
             </button>
         </div>
     </div>
 </div>
 
+<!-- Alert thông báo -->
+<div id="contractAlert" class="alert alert-success alert-dismissible fade d-none rounded-3 shadow-sm" role="alert">
+    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+    <span id="contractAlertText">Thông báo</span>
+    <button type="button" class="btn-close" onclick="document.getElementById('contractAlert').classList.add('d-none')"></button>
+</div>
+
 <div class="card-custom">
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0" id="contractTable">
             <thead class="table-light fs-8">
                 <tr>
                     <th>MÃ HỢP ĐỒNG</th>
@@ -36,9 +47,9 @@
                     <th class="text-end">THAO TÁC</th>
                 </tr>
             </thead>
-            <tbody class="fs-7">
+            <tbody class="fs-7" id="contractTbody">
                 <!-- Hồ Ngọc Bảo -->
-                <tr class="table-primary-subtle">
+                <tr class="table-primary-subtle" id="contract-305">
                     <td class="fw-bold">HD-2026-0305</td>
                     <td><span class="badge bg-primary text-white">P.305</span></td>
                     <td class="fw-bold">Hồ Ngọc Bảo</td>
@@ -48,8 +59,8 @@
                     <td class="fw-bold">7.000.000 đ</td>
                     <td><span class="badge bg-success-subtle text-success">Đang hiệu lực</span></td>
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-primary rounded-3 py-1 fs-8" onclick="alert('Đã xuất hợp đồng điện tử PDF theo mẫu chuẩn!')">
-                            <i class="bi bi-file-earmark-pdf me-1"></i> Xuất PDF
+                        <button class="btn btn-sm btn-outline-primary rounded-3 py-1 fs-8" onclick="viewPdfContract('HD-2026-0305', 'Hồ Ngọc Bảo', 'P.305', '3.500.000 đ', '01/08/2026', '31/07/2027')">
+                            <i class="bi bi-file-earmark-pdf me-1"></i> Xem PDF
                         </button>
                     </td>
                 </tr>
@@ -65,25 +76,408 @@
                     <td>7.000.000 đ</td>
                     <td><span class="badge bg-success-subtle text-success">Đang hiệu lực</span></td>
                     <td class="text-end">
-                        <button class="btn btn-sm btn-outline-secondary rounded-3 py-1 fs-8"><i class="bi bi-file-earmark-pdf me-1"></i> Xuất PDF</button>
+                        <button class="btn btn-sm btn-outline-secondary rounded-3 py-1 fs-8" onclick="viewPdfContract('HD-2026-0301', 'Trần Văn Nam', 'P.301', '3.500.000 đ', '01/05/2026', '30/04/2027')">
+                            <i class="bi bi-file-earmark-pdf me-1"></i> Xem PDF
+                        </button>
+                    </td>
+                </tr>
+
+                <!-- P.201 -->
+                <tr>
+                    <td class="fw-bold">HD-2026-0201</td>
+                    <td><span class="badge bg-primary-subtle text-primary">P.201</span></td>
+                    <td>Nguyễn Dương Bảo</td>
+                    <td>0902234567</td>
+                    <td>01/09/2026 - 31/08/2027</td>
+                    <td>3.800.000 đ</td>
+                    <td>7.600.000 đ</td>
+                    <td><span class="badge bg-success-subtle text-success">Đang hiệu lực</span></td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary rounded-3 py-1 fs-8" onclick="viewPdfContract('HD-2026-0201', 'Nguyễn Dương Bảo', 'P.201', '3.800.000 đ', '01/09/2026', '31/08/2027')">
+                            <i class="bi bi-file-earmark-pdf me-1"></i> Xem PDF
+                        </button>
+                    </td>
+                </tr>
+
+                <!-- P.401 -->
+                <tr>
+                    <td class="fw-bold">HD-2026-0401</td>
+                    <td><span class="badge bg-primary-subtle text-primary">P.401</span></td>
+                    <td>Trần Hoàng Gia Bảo</td>
+                    <td>0903234567</td>
+                    <td>15/07/2026 - 14/07/2027</td>
+                    <td>5.000.000 đ</td>
+                    <td>10.000.000 đ</td>
+                    <td><span class="badge bg-success-subtle text-success">Đang hiệu lực</span></td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-secondary rounded-3 py-1 fs-8" onclick="viewPdfContract('HD-2026-0401', 'Trần Hoàng Gia Bảo', 'P.401', '5.000.000 đ', '15/07/2026', '14/07/2027')">
+                            <i class="bi bi-file-earmark-pdf me-1"></i> Xem PDF
+                        </button>
                     </td>
                 </tr>
 
                 <!-- P.302 (Sắp hết hạn) -->
-                <tr>
+                <tr id="contract-302">
                     <td class="fw-bold text-warning">HD-2026-0302</td>
                     <td><span class="badge bg-primary-subtle text-primary">P.302</span></td>
                     <td>Lê Thị Hoa</td>
                     <td>0933445566</td>
-                    <td>05/11/2025 - 05/11/2026 (Còn 6 ngày)</td>
+                    <td>05/11/2025 - 05/11/2026 (Còn 5 ngày)</td>
                     <td>3.500.000 đ</td>
                     <td>7.000.000 đ</td>
-                    <td><span class="badge bg-warning-subtle text-warning">Sắp hết hạn</span></td>
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-warning rounded-3 py-1 fs-8" onclick="alert('Đã chuyển sang quy trình gia hạn hợp đồng!')">Gia hạn</button>
+                    <td id="status-302"><span class="badge bg-warning text-dark">Sắp hết hạn</span></td>
+                    <td class="text-end" id="action-302">
+                        <button class="btn btn-sm btn-warning rounded-3 py-1 fs-8 shadow-sm" onclick="renewContract('HD-2026-0302', 'Lê Thị Hoa', 'P.302')">
+                            <i class="bi bi-arrow-repeat me-1"></i> Gia hạn
+                        </button>
                     </td>
                 </tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<!-- ================= MODAL NHẬP CƯ DÂN SỐ LƯỢNG LỚN BẰNG EXCEL ================= -->
+<div class="modal fade" id="modalImportResidentExcel" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom px-4 pt-4 pb-3 bg-light rounded-top-4">
+                <div>
+                    <h5 class="modal-title fw-bold text-success">
+                        <i class="bi bi-file-earmark-excel-fill me-2"></i>Nhập Danh Sách Cư Dân & Hợp Đồng Bằng Excel
+                    </h5>
+                    <p class="text-muted fs-8 mb-0">Hỗ trợ tải lên file Excel hoặc nhập liệu hàng loạt cư dân mới vào hệ thống</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 p-3 rounded-3 bg-light border mb-4">
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="btn btn-sm btn-primary rounded-3 cursor-pointer mb-0">
+                            <i class="bi bi-upload me-1"></i> Chọn File Excel Cư Dân (.xlsx / .csv)
+                            <input type="file" id="fileResidentExcel" accept=".xlsx, .xls, .csv" style="display: none;" onchange="handleResidentExcelUpload(this)">
+                        </label>
+                        <button class="btn btn-sm btn-outline-success rounded-3" onclick="downloadResidentTemplate()">
+                            <i class="bi bi-file-arrow-down me-1"></i> Tải Mẫu Excel Cư Dân
+                        </button>
+                    </div>
+                    <span class="badge bg-success-subtle text-success border px-3 py-2 rounded-pill fs-8">
+                        <i class="bi bi-check2-circle me-1"></i> Tự động đồng bộ Supabase Cloud
+                    </span>
+                </div>
+
+                <div class="table-responsive border rounded-3" style="max-height: 380px; overflow-y: auto;">
+                    <table class="table table-bordered table-sm align-middle mb-0 text-center" id="residentExcelTable">
+                        <thead class="table-secondary fs-8 sticky-top">
+                            <tr>
+                                <th style="width: 50px;">STT</th>
+                                <th>HỌ VÀ TÊN</th>
+                                <th>SỐ ĐIỆN THOẠI</th>
+                                <th>SỐ CCCD</th>
+                                <th>MÃ PHÒNG</th>
+                                <th>NGÀY VÀO Ở</th>
+                                <th>GIÁ THUÊ</th>
+                                <th>TIỀN CỌC</th>
+                            </tr>
+                        </thead>
+                        <tbody class="fs-8" id="residentExcelTbody">
+                            <tr>
+                                <td>1</td>
+                                <td><input type="text" class="form-control form-control-sm" value="Nguyễn Văn Hùng"></td>
+                                <td><input type="text" class="form-control form-control-sm" value="0987112233"></td>
+                                <td><input type="text" class="form-control form-control-sm" value="079203001234"></td>
+                                <td><input type="text" class="form-control form-control-sm text-center fw-bold text-primary" value="P.102"></td>
+                                <td><input type="date" class="form-control form-control-sm" value="2026-11-01"></td>
+                                <td><input type="text" class="form-control form-control-sm" value="3.500.000 đ"></td>
+                                <td><input type="text" class="form-control form-control-sm" value="7.000.000 đ"></td>
+                            </tr>
+                            <tr>
+                                <td>2</td>
+                                <td><input type="text" class="form-control form-control-sm" value="Trần Thị Mai"></td>
+                                <td><input type="text" class="form-control form-control-sm" value="0977223344"></td>
+                                <td><input type="text" class="form-control form-control-sm" value="079203005678"></td>
+                                <td><input type="text" class="form-control form-control-sm text-center fw-bold text-primary" value="P.202"></td>
+                                <td><input type="date" class="form-control form-control-sm" value="2026-11-01"></td>
+                                <td><input type="text" class="form-control form-control-sm" value="3.800.000 đ"></td>
+                                <td><input type="text" class="form-control form-control-sm" value="7.600.000 đ"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer px-4 pb-4 pt-0 border-0 bg-light rounded-bottom-4">
+                <button type="button" class="btn btn-outline-secondary rounded-3 btn-sm" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-success rounded-3 btn-sm px-4 fw-semibold shadow-sm" onclick="applyResidentBatch()">
+                    <i class="bi bi-person-check-fill me-1"></i> Lưu Cư Dân & Tạo Hợp Đồng Hàng Loạt
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL LẬP HỢP ĐỒNG MỚI ================= -->
+<div class="modal fade" id="modalNewContract" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom px-4 pt-4 pb-3">
+                <div>
+                    <h5 class="modal-title fw-bold text-slate-900">Lập Hợp Đồng Lưu Trú Mới</h5>
+                    <p class="text-muted fs-8 mb-0">Tạo hồ sơ cư trú và kích hoạt tài khoản cư dân vào phòng</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="newContractForm" onsubmit="handleCreateContract(event)">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold fs-7">Họ và tên cư dân đại diện</label>
+                            <input type="text" id="ncName" class="form-control rounded-3" placeholder="Ví dụ: Hoàng Minh Đức" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold fs-7">Số điện thoại liên hệ</label>
+                            <input type="text" id="ncPhone" class="form-control rounded-3" placeholder="0909888999" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold fs-7">Số CCCD / CMND</label>
+                            <input type="text" id="ncCccd" class="form-control rounded-3" placeholder="07920300xxxx" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold fs-7">Chọn phòng cho thuê</label>
+                            <select id="ncRoom" class="form-select rounded-3">
+                                <option value="P.102">P.102 (Phòng Standard - Tầng 1)</option>
+                                <option value="P.202">P.202 (Studio Ban Công - Tầng 2)</option>
+                                <option value="P.302">P.302 (Studio Ban Công - Tầng 3)</option>
+                                <option value="P.402">P.402 (Duplex 2 Giường - Tầng 4)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold fs-7">Ngày bắt đầu thuê</label>
+                            <input type="date" id="ncStartDate" class="form-control rounded-3" value="2026-11-01" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold fs-7">Thời hạn hợp đồng</label>
+                            <select id="ncDuration" class="form-select rounded-3">
+                                <option value="6 tháng">6 tháng</option>
+                                <option value="12 tháng" selected>12 tháng (1 năm)</option>
+                                <option value="24 tháng">24 tháng (2 năm)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold fs-7">Giá thuê hàng tháng (VNĐ)</label>
+                            <input type="text" id="ncRentPrice" class="form-control rounded-3" value="3.500.000 đ" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold fs-7">Tiền cọc đảm bảo (VNĐ)</label>
+                            <input type="text" id="ncDeposit" class="form-control rounded-3" value="7.000.000 đ" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer px-0 pb-0 pt-4 border-0">
+                        <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary rounded-3 px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-check2-circle me-1"></i> Tạo Hợp Đồng & Ký Điện Tử
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL XEM HỢP ĐỒNG ĐIỆN TỬ PDF ================= -->
+<div class="modal fade" id="modalViewPdf" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom px-4 pt-3 pb-2 bg-light rounded-top-4">
+                <div>
+                    <h5 class="modal-title fw-bold text-slate-900"><i class="bi bi-file-earmark-pdf-fill text-danger me-2"></i>Bản Hợp Đồng Điện Tử Lưu Trú</h5>
+                    <span class="fs-8 text-muted" id="pdfContractCode">HD-2026-0305</span>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 bg-white" style="font-family: 'Times New Roman', serif; line-height: 1.6; color: #111;">
+                <div class="text-center mb-3">
+                    <h6 class="fw-bold mb-0">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</h6>
+                    <div class="fw-bold fs-7">Độc lập - Tự do - Hạnh phúc</div>
+                    <div class="my-2">***</div>
+                    <h5 class="fw-bold text-uppercase mt-2">HỢP ĐỒNG THUÊ PHÒNG LƯU TRÚ CO-LIVING</h5>
+                    <div class="fst-italic fs-8 text-muted">Số: <span id="pdfContractNum">HD-2026-0305</span>/HĐT-SMARTSTAY</div>
+                </div>
+
+                <div class="fs-7 mb-2"><strong>BÊN CHO THUÊ (BÊN A):</strong> BAN QUẢN LÝ TÒA NHÀ SMARTSTAY</div>
+                <div class="fs-7 mb-3">Đại diện: <strong>Ông Nguyễn Hoàng Nam</strong> • Hotline: 1900 888 999</div>
+
+                <div class="fs-7 mb-2"><strong>BÊN THUÊ (BÊN B):</strong> <span id="pdfResidentName" class="fw-bold">Hồ Ngọc Bảo</span></div>
+                <div class="fs-7 mb-3">Căn hộ/Phòng thuê: <strong id="pdfRoomCode" class="text-primary">P.305</strong> • Thời hạn: <span id="pdfDuration">01/08/2026 đến 31/07/2027</span></div>
+
+                <div class="fs-7 mb-2"><strong>ĐIỀU KHOẢN TÀI CHÍNH:</strong></div>
+                <ul class="fs-8 mb-3">
+                    <li>Giá thuê hàng tháng: <strong id="pdfRentPrice">3.500.000 VNĐ/tháng</strong> (thanh toán từ ngày 01 đến ngày 05 qua VietQR).</li>
+                    <li>Tiền cọc thế chân: <strong>7.000.000 VNĐ</strong> (hoàn trả khi thanh lý hợp đồng và nghiệm thu tài sản).</li>
+                    <li>Điện nước: Thanh toán theo chỉ số công tơ thực tế áp dụng biểu giá bậc thang Bộ Công Thương.</li>
+                </ul>
+
+                <div class="d-flex justify-content-between text-center mt-4 pt-3 border-top">
+                    <div>
+                        <div class="fw-bold fs-7">ĐẠI DIỆN BÊN A</div>
+                        <div class="fst-italic fs-8 text-muted mb-4">(Ký, đóng dấu điện tử)</div>
+                        <div class="badge bg-success-subtle text-success border border-success p-2">ĐÃ KÝ SỐ CA: BAN QUẢN LÝ</div>
+                    </div>
+                    <div>
+                        <div class="fw-bold fs-7">ĐẠI DIỆN BÊN B</div>
+                        <div class="fst-italic fs-8 text-muted mb-4">(Ký tên điện tử)</div>
+                        <div class="badge bg-primary-subtle text-primary border border-primary p-2">XÁC THỰC OTP: CƯ DÂN</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer px-4 pb-3 pt-2 border-0 bg-light rounded-bottom-4">
+                <button type="button" class="btn btn-outline-secondary rounded-3 btn-sm" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-primary rounded-3 btn-sm" onclick="window.print()">
+                    <i class="bi bi-printer me-1"></i> In / Lưu Hợp Đồng PDF
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function viewPdfContract(code, name, room, price, start, end) {
+        document.getElementById('pdfContractCode').innerText = code;
+        document.getElementById('pdfContractNum').innerText = code;
+        document.getElementById('pdfResidentName').innerText = name;
+        document.getElementById('pdfRoomCode').innerText = room;
+        document.getElementById('pdfRentPrice').innerText = price;
+        document.getElementById('pdfDuration').innerText = `${start} đến ${end}`;
+        
+        new bootstrap.Modal(document.getElementById('modalViewPdf')).show();
+    }
+
+    function renewContract(code, name, room) {
+        document.getElementById('status-302').innerHTML = '<span class="badge bg-success text-white"><i class="bi bi-check-circle me-1"></i>Đã gia hạn (Đến 2027)</span>';
+        document.getElementById('action-302').innerHTML = '<span class="text-success fs-8 fw-semibold"><i class="bi bi-shield-check"></i> Hiệu lực 12 tháng</span>';
+        showContractAlert(`Đã gia hạn hợp đồng ${code} cho cư dân ${name} (${room}) thêm 12 tháng thành công!`);
+    }
+
+    function handleCreateContract(e) {
+        e.preventDefault();
+        const name = document.getElementById('ncName').value;
+        const phone = document.getElementById('ncPhone').value;
+        const room = document.getElementById('ncRoom').value;
+        const rentPrice = document.getElementById('ncRentPrice').value;
+        const deposit = document.getElementById('ncDeposit').value;
+        const duration = document.getElementById('ncDuration').value;
+
+        const newRow = `
+            <tr class="table-success-subtle">
+                <td class="fw-bold">HD-2026-0${room.replace('P.', '')}</td>
+                <td><span class="badge bg-success text-white">${room}</span></td>
+                <td class="fw-bold">${name}</td>
+                <td>${phone}</td>
+                <td>01/11/2026 - 31/10/2027 (${duration})</td>
+                <td class="fw-bold text-primary">${rentPrice}</td>
+                <td class="fw-bold">${deposit}</td>
+                <td><span class="badge bg-success-subtle text-success">Đang hiệu lực</span></td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary rounded-3 py-1 fs-8" onclick="viewPdfContract('HD-2026-0${room.replace('P.', '')}', '${name}', '${room}', '${rentPrice}', '01/11/2026', '31/10/2027')">
+                        <i class="bi bi-file-earmark-pdf me-1"></i> Xem PDF
+                    </button>
+                </td>
+            </tr>
+        `;
+
+        document.getElementById('contractTbody').insertAdjacentHTML('afterbegin', newRow);
+        bootstrap.Modal.getInstance(document.getElementById('modalNewContract')).hide();
+        document.getElementById('badgeTotalContracts').innerText = 'Đang hiệu lực: 29';
+        showContractAlert(`Đã lập thành công hợp đồng cho cư dân ${name} tại phòng ${room}! Tài khoản cư dân đã được kích hoạt.`);
+    }
+
+    function applyResidentBatch() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalImportResidentExcel'));
+        if (modal) modal.hide();
+        
+        const newRows = `
+            <tr class="table-info-subtle">
+                <td class="fw-bold">HD-2026-0102</td>
+                <td><span class="badge bg-primary text-white">P.102</span></td>
+                <td class="fw-bold">Nguyễn Văn Hùng</td>
+                <td>0987112233</td>
+                <td>01/11/2026 - 31/10/2027</td>
+                <td class="fw-bold text-primary">3.500.000 đ</td>
+                <td class="fw-bold">7.000.000 đ</td>
+                <td><span class="badge bg-success-subtle text-success">Đang hiệu lực</span></td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary rounded-3 py-1 fs-8" onclick="viewPdfContract('HD-2026-0102', 'Nguyễn Văn Hùng', 'P.102', '3.500.000 đ', '01/11/2026', '31/10/2027')">
+                        <i class="bi bi-file-earmark-pdf me-1"></i> Xem PDF
+                    </button>
+                </td>
+            </tr>
+            <tr class="table-info-subtle">
+                <td class="fw-bold">HD-2026-0202</td>
+                <td><span class="badge bg-primary text-white">P.202</span></td>
+                <td class="fw-bold">Trần Thị Mai</td>
+                <td>0977223344</td>
+                <td>01/11/2026 - 31/10/2027</td>
+                <td class="fw-bold text-primary">3.800.000 đ</td>
+                <td class="fw-bold">7.600.000 đ</td>
+                <td><span class="badge bg-success-subtle text-success">Đang hiệu lực</span></td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary rounded-3 py-1 fs-8" onclick="viewPdfContract('HD-2026-0202', 'Trần Thị Mai', 'P.202', '3.800.000 đ', '01/11/2026', '31/10/2027')">
+                        <i class="bi bi-file-earmark-pdf me-1"></i> Xem PDF
+                    </button>
+                </td>
+            </tr>
+        `;
+        document.getElementById('contractTbody').insertAdjacentHTML('afterbegin', newRows);
+        document.getElementById('badgeTotalContracts').innerText = 'Đang hiệu lực: 30';
+        showContractAlert('Đã nhập thành công 2 cư dân và tạo hợp đồng hàng loạt từ file Excel vào cơ sở dữ liệu Supabase!');
+    }
+
+    function handleResidentExcelUpload(input) {
+        if (input.files && input.files[0]) {
+            showContractAlert(`Đã đọc dữ liệu thành công từ file Excel: "${input.files[0].name}". Dữ liệu cư dân đã sẵn sàng vào bảng tính!`);
+        }
+    }
+
+    function downloadResidentTemplate() {
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF"
+            + "STT,HoTen,SoDienThoai,SoCCCD,MaPhong,NgayVaoO,GiaThue,TienCoc\n"
+            + "1,Nguyen Van Hung,0987112233,079203001234,P.102,2026-11-01,3500000,7000000\n"
+            + "2,Tran Thi Mai,0977223344,079203005678,P.202,2026-11-01,3800000,7600000\n";
+        
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "Template_CuDan_HopDong_SmartStay.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function exportContractExcel() {
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF"
+            + "MaHopDong,Phong,CuDanDaiDien,SoDienThoai,ThoiHanThue,GiaThue,TienCoc,TrangThai\n"
+            + "HD-2026-0305,P.305,Ho Ngoc Bao,0901234567,12 thang,3500000,7000000,Dang hieu luc\n"
+            + "HD-2026-0301,P.301,Tran Van Nam,0912345678,12 thang,3500000,7000000,Dang hieu luc\n"
+            + "HD-2026-0201,P.201,Nguyen Duong Bao,0902234567,12 thang,3800000,7600000,Dang hieu luc\n"
+            + "HD-2026-0401,P.401,Tran Hoang Gia Bao,0903234567,12 thang,5000000,10000000,Dang hieu luc\n";
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "DanhSach_HopDong_SmartStay_2026.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showContractAlert('Đã xuất toàn bộ danh sách hợp đồng lưu trú ra file Excel (.CSV) thành công!');
+    }
+
+    function showContractAlert(msg) {
+        const alertBox = document.getElementById('contractAlert');
+        document.getElementById('contractAlertText').innerText = msg;
+        alertBox.classList.remove('d-none');
+        alertBox.classList.add('show');
+        setTimeout(() => {
+            alertBox.classList.remove('show');
+            alertBox.classList.add('d-none');
+        }, 5000);
+    }
+</script>

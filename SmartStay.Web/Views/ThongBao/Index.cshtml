@@ -1,17 +1,25 @@
 @{
-    ViewData["Title"] = "Quản lý Truyền thông, Bảng tin & Sự kiện";
+    ViewData["Title"] = "Quản lý Truyền thông, Bảng tin & Sự kiện - SmartStay";
 }
+
+<!-- Alert thông báo -->
+<div id="notifyAlert" class="alert alert-success alert-dismissible fade d-none rounded-3 shadow-sm mb-4" role="alert">
+    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+    <span id="notifyAlertText">Thông báo</span>
+    <button type="button" class="btn-close" onclick="document.getElementById('notifyAlert').classList.add('d-none')"></button>
+</div>
 
 <div class="card-custom mb-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div class="d-flex align-items-center gap-3">
-            <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-megaphone me-2 text-primary"></i>TRUYỀN THÔNG NỘI BỘ</h6>
+            <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-megaphone me-2 text-primary"></i>TRUYỀN THÔNG NỘI BỘ & SỰ KIỆN CỘNG ĐỒNG</h6>
+            <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill">Firebase FCM: Hoạt động</span>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-primary rounded-3" onclick="alert('Đã kích hoạt đẩy thông báo hẹn giờ qua Firebase Cloud Messaging!')">
+            <button class="btn btn-sm btn-outline-primary rounded-3" onclick="scheduleNotification()">
                 <i class="bi bi-clock-history me-1"></i> Lên lịch thông báo
             </button>
-            <button class="btn btn-sm btn-primary rounded-3" onclick="alert('Soạn thông báo mới tới toàn hệ sinh thái cư dân')">
+            <button class="btn btn-sm btn-primary rounded-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNewNotice">
                 <i class="bi bi-plus-lg me-1"></i> Soạn thông báo mới
             </button>
         </div>
@@ -23,7 +31,7 @@
     <div class="col-lg-6">
         <div class="card-custom h-100">
             <h6 class="fw-bold mb-3"><i class="bi bi-bell-fill text-warning me-2"></i>Thông báo đang phát sóng</h6>
-            <div class="list-group list-group-flush">
+            <div class="list-group list-group-flush" id="noticeList">
                 <div class="list-group-item px-0 py-3">
                     <div class="d-flex justify-content-between align-items-start mb-1">
                         <span class="badge bg-danger text-white fs-9">Quan trọng</span>
@@ -58,13 +66,126 @@
                 </div>
                 <h6 class="fw-bold fs-6 mb-1 text-slate-900">Giải chạy bộ nội khu KTXRace 2026</h6>
                 <p class="text-muted fs-8 mb-2">Chạy phong trào 5km công viên ven sông, áo đấu miễn phí & tiệc nướng BBQ tầng thượng.</p>
-                <div class="fs-8 text-muted mb-2"><i class="bi bi-calendar3 me-1"></i> Khởi tranh: 06:00 - Chủ Nhật 08/11/2026</div>
+                <div class="fs-8 text-muted mb-3"><i class="bi bi-calendar3 me-1"></i> Khởi tranh: 06:00 - Chủ Nhật 08/11/2026</div>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-success rounded-3 fs-8" onclick="alert('Đã xuất file Excel danh sách 42 cư dân đăng ký tham gia để in số Bib thi đấu!')">
-                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Xuất danh sách điểm danh
+                    <button class="btn btn-sm btn-outline-success rounded-3 fs-8" onclick="exportEventAttendance()">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Xuất danh sách điểm danh (Excel)
                     </button>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- ================= MODAL SOẠN THÔNG BÁO MỚI ================= -->
+<div class="modal fade" id="modalNewNotice" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom px-4 pt-4 pb-3">
+                <h5 class="modal-title fw-bold text-slate-900">Soạn Thông Báo Phát Sóng Mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="createNoticeForm" onsubmit="handleCreateNotice(event)">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Tiêu đề thông báo</label>
+                        <input type="text" id="ntTitle" class="form-control rounded-3" placeholder="Ví dụ: Lịch thu gom rác & dọn vệ sinh hành lang" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Phạm vi gửi</label>
+                            <select id="ntScope" class="form-select rounded-3">
+                                <option value="Toàn hệ sinh thái (Tất cả tòa nhà)">Toàn hệ sinh thái</option>
+                                <option value="Tòa nhà A - Sapphire">Tòa nhà A</option>
+                                <option value="Tòa nhà B - Ruby">Tòa nhà B</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Mức độ ưu tiên</label>
+                            <select id="ntPriority" class="form-select rounded-3">
+                                <option value="Quan trọng">Quan trọng</option>
+                                <option value="Tài chính">Tài chính</option>
+                                <option value="Thông thường" selected>Thông thường</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Nội dung chi tiết thông báo</label>
+                        <textarea id="ntContent" class="form-control rounded-3" rows="4" placeholder="Nhập nội dung cần truyền tải tới cư dân..." required></textarea>
+                    </div>
+                    <div class="modal-footer px-0 pb-0 pt-3 border-0">
+                        <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary rounded-3 px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-broadcast me-1"></i> Phát Sóng Thông Báo Ngay
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function scheduleNotification() {
+        const time = prompt("Nhập thời gian lên lịch phát thông báo tự động (Ví dụ: 08:00 - 05/11/2026):", "08:00 - 05/11/2026");
+        if (time) {
+            showNotifyAlert(`Đã kích hoạt lên lịch phát sóng tự động vào [${time}]. Hệ thống sẽ gửi Push Notification qua Firebase tới tất cả ứng dụng cư dân!`);
+        }
+    }
+
+    function handleCreateNotice(e) {
+        e.preventDefault();
+        const title = document.getElementById('ntTitle').value;
+        const scope = document.getElementById('ntScope').value;
+        const priority = document.getElementById('ntPriority').value;
+        const content = document.getElementById('ntContent').value;
+
+        const badgeClass = priority === 'Quan trọng' ? 'bg-danger text-white' : (priority === 'Tài chính' ? 'bg-primary-subtle text-primary' : 'bg-secondary-subtle text-secondary');
+
+        const newNoticeHtml = `
+            <div class="list-group-item px-0 py-3 bg-light rounded-3 p-3 mb-2 border">
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <span class="badge ${badgeClass} fs-9">${priority}</span>
+                    <span class="fs-8 text-muted">Vừa xong (01/11/2026)</span>
+                </div>
+                <h6 class="fw-bold fs-7 mb-1 text-primary">${title}</h6>
+                <p class="text-muted fs-8 mb-1">${content}</p>
+                <span class="fs-9 text-success fw-semibold"><i class="bi bi-send-check me-1"></i>Phạm vi: ${scope} • Đã đẩy thành công tới Mobile App</span>
+            </div>
+        `;
+
+        document.getElementById('noticeList').insertAdjacentHTML('afterbegin', newNoticeHtml);
+        bootstrap.Modal.getInstance(document.getElementById('modalNewNotice')).hide();
+        showNotifyAlert(`Đã phát sóng thông báo "${title}" tới toàn bộ cư dân thành công!`);
+    }
+
+    function exportEventAttendance() {
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF"
+            + "STT,SoBib,HoTen,Phong,SoDienThoai,SizeAo,TrangThaiDiemDanh\n"
+            + "1,BIB-01,Ho Ngoc Bao,P.305,0901234567,L,Da xac nhan\n"
+            + "2,BIB-02,Nguyen Duong Bao,P.201,0902234567,XL,Da xac nhan\n"
+            + "3,BIB-03,Tran Hoang Gia Bao,P.401,0903234567,M,Da xac nhan\n"
+            + "4,BIB-04,Tran Van Nam,P.301,0912345678,L,Da xac nhan\n"
+            + "5,BIB-05,Le Van Cuong,P.401,0919223344,M,Da xac nhan\n";
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "DanhSach_DiemDanh_KTXRace_2026.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showNotifyAlert('Đã xuất danh sách 42 cư dân tham gia sự kiện KTXRace 2026 ra file Excel (.CSV) để in số BIB!');
+    }
+
+    function showNotifyAlert(msg) {
+        const alertBox = document.getElementById('notifyAlert');
+        document.getElementById('notifyAlertText').innerText = msg;
+        alertBox.classList.remove('d-none');
+        alertBox.classList.add('show');
+        setTimeout(() => {
+            alertBox.classList.remove('show');
+            alertBox.classList.add('d-none');
+        }, 5000);
+    }
+</script>

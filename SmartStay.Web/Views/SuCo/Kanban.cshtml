@@ -1,6 +1,13 @@
 @{
-    ViewData["Title"] = "Điều phối Sự cố Kỹ thuật (Bảng Kanban)";
+    ViewData["Title"] = "Điều phối Sự cố Kỹ thuật (Bảng Kanban) - SmartStay";
 }
+
+<!-- Alert thông báo tương tác -->
+<div id="kanbanAlert" class="alert alert-success alert-dismissible fade d-none rounded-3 shadow-sm mb-4" role="alert">
+    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+    <span id="kanbanAlertText">Thông báo</span>
+    <button type="button" class="btn-close" onclick="document.getElementById('kanbanAlert').classList.add('d-none')"></button>
+</div>
 
 <div class="card-custom mb-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -12,7 +19,7 @@
             <i class="bi bi-arrow-right text-muted"></i>
             <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill">3. Hoàn thành & Đánh giá</span>
         </div>
-        <button class="btn btn-sm btn-primary rounded-3" data-bs-toggle="modal" data-bs-target="#newTicketModal">
+        <button class="btn btn-sm btn-primary rounded-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#newTicketModal">
             <i class="bi bi-plus-lg me-1"></i> Tạo phiếu sự cố mới
         </button>
     </div>
@@ -27,22 +34,24 @@
                 <h6 class="fw-bold mb-0 text-slate-800">
                     <span class="badge bg-warning text-dark me-2">1</span> CHỜ XỬ LÝ
                 </h6>
-                <span class="badge bg-white text-muted border px-2 py-1 fs-9 rounded-pill">1 Ticket</span>
+                <span class="badge bg-white text-muted border px-2 py-1 fs-9 rounded-pill" id="badgeCol1">1 Ticket</span>
             </div>
 
-            <!-- Card SC 091 -->
-            <div class="kanban-card">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <span class="badge bg-danger text-white fs-9">Khẩn cấp</span>
-                    <span class="fs-8 fw-bold text-muted">SC-2026-091</span>
-                </div>
-                <h6 class="fw-bold fs-7 text-slate-900 mb-1">Vòi sen phòng tắm bị rò rỉ áp lực mạnh</h6>
-                <p class="text-muted fs-8 mb-2">Khóa van tổng không ngắt được nước hoàn toàn, gây ướt sàn nhà tắm.</p>
-                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                    <span class="badge bg-primary-subtle text-primary fs-8">P.401</span>
-                    <button class="btn btn-xs btn-outline-primary rounded-pill px-3 py-1 fs-8" onclick="alert('Đã gán cho Kỹ thuật viên Nguyễn Văn Bình!')">
-                        <i class="bi bi-person-plus me-1"></i> Gán kỹ thuật
-                    </button>
+            <div id="colPending">
+                <!-- Card SC 091 -->
+                <div class="kanban-card" id="card-sc091">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge bg-danger text-white fs-9">Khẩn cấp</span>
+                        <span class="fs-8 fw-bold text-muted">SC-2026-091</span>
+                    </div>
+                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">Vòi sen phòng tắm bị rò rỉ áp lực mạnh</h6>
+                    <p class="text-muted fs-8 mb-2">Khóa van tổng không ngắt được nước hoàn toàn, gây ướt sàn nhà tắm.</p>
+                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                        <span class="badge bg-primary-subtle text-primary fs-8">P.401</span>
+                        <button class="btn btn-xs btn-outline-primary rounded-pill px-3 py-1 fs-8 shadow-sm" onclick="assignTechnician('card-sc091', 'SC-2026-091', 'P.401', 'Vòi sen phòng tắm bị rò rỉ', 'Khẩn cấp')">
+                            <i class="bi bi-person-plus me-1"></i> Gán kỹ thuật
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -55,47 +64,49 @@
                 <h6 class="fw-bold mb-0 text-primary">
                     <span class="badge bg-primary text-white me-2">2</span> ĐANG SỬA CHỮA
                 </h6>
-                <span class="badge bg-white text-primary border border-primary-subtle px-2 py-1 fs-9 rounded-pill">2 Tickets</span>
+                <span class="badge bg-white text-primary border border-primary-subtle px-2 py-1 fs-9 rounded-pill" id="badgeCol2">2 Tickets</span>
             </div>
 
-            <!-- Card SC 089 (Máy lạnh của Hồ Ngọc Bảo P.305) -->
-            <div class="kanban-card border-primary-subtle shadow-sm">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <span class="badge bg-warning text-dark fs-9">Ưu tiên Cao</span>
-                    <span class="fs-8 fw-bold text-muted">SC-2026-089</span>
-                </div>
-                <h6 class="fw-bold fs-7 text-slate-900 mb-1">Máy lạnh không lạnh, chảy nước ở dàn lạnh</h6>
-                <p class="text-muted fs-8 mb-2">Phòng P.305 (Cư dân: <strong>Hồ Ngọc Bảo</strong>) - Cục lạnh nhỏ giọt nước xuống sàn gỗ.</p>
-                
-                <div class="p-2 rounded-2 bg-light fs-8 text-slate-700 mb-2">
-                    <div><i class="bi bi-person-check-fill text-primary me-1"></i> Kỹ thuật: <strong>Nguyễn Văn Bình</strong></div>
-                    <div><i class="bi bi-clock-history text-muted me-1"></i> Deadline: Hôm nay 17:00</div>
+            <div id="colInProgress">
+                <!-- Card SC 089 (Máy lạnh của Hồ Ngọc Bảo P.305) -->
+                <div class="kanban-card border-primary-subtle shadow-sm" id="card-sc089">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge bg-warning text-dark fs-9">Ưu tiên Cao</span>
+                        <span class="fs-8 fw-bold text-muted">SC-2026-089</span>
+                    </div>
+                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">Máy lạnh không lạnh, chảy nước ở dàn lạnh</h6>
+                    <p class="text-muted fs-8 mb-2">Phòng P.305 (Cư dân: <strong>Hồ Ngọc Bảo</strong>) - Cục lạnh nhỏ giọt nước xuống sàn gỗ.</p>
+                    
+                    <div class="p-2 rounded-2 bg-light fs-8 text-slate-700 mb-2">
+                        <div><i class="bi bi-person-check-fill text-primary me-1"></i> Kỹ thuật: <strong>Nguyễn Văn Bình</strong></div>
+                        <div><i class="bi bi-clock-history text-muted me-1"></i> Deadline: Hôm nay 17:00</div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                        <span class="badge bg-primary-subtle text-primary fs-8">P.305</span>
+                        <button class="btn btn-xs btn-success rounded-pill px-3 py-1 fs-8 shadow-sm" onclick="completeTicket('card-sc089', 'SC-2026-089', 'P.305', 'Hồ Ngọc Bảo', 'Máy lạnh không lạnh')">
+                            <i class="bi bi-check2-circle me-1"></i> Hoàn thành
+                        </button>
+                    </div>
                 </div>
 
-                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                    <span class="badge bg-primary-subtle text-primary fs-8">P.305</span>
-                    <button class="btn btn-xs btn-success rounded-pill px-3 py-1 fs-8" onclick="alert('Đã hoàn thành sửa chữa! Hệ thống đã gửi thông báo nghiệm thu tới App của cư dân Hồ Ngọc Bảo.')">
-                        <i class="bi bi-check2-circle me-1"></i> Hoàn thành
-                    </button>
-                </div>
-            </div>
-
-            <!-- Card SC 085 -->
-            <div class="kanban-card">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <span class="badge bg-secondary-subtle text-secondary fs-9">Trung bình</span>
-                    <span class="fs-8 fw-bold text-muted">SC-2026-085</span>
-                </div>
-                <h6 class="fw-bold fs-7 text-slate-900 mb-1">Bản lề cánh tủ quần áo bị xệ</h6>
-                <p class="text-muted fs-8 mb-2">Cánh tủ đóng khó khít, phát tiếng kêu cọt kẹt.</p>
-                <div class="p-2 rounded-2 bg-light fs-8 text-slate-700 mb-2">
-                    <i class="bi bi-person-check-fill text-primary me-1"></i> Kỹ thuật: <strong>Trần Văn Tuấn</strong>
-                </div>
-                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                    <span class="badge bg-primary-subtle text-primary fs-8">P.301</span>
-                    <button class="btn btn-xs btn-outline-success rounded-pill px-3 py-1 fs-8" onclick="alert('Đã hoàn thành sửa chữa!')">
-                        <i class="bi bi-check2 me-1"></i> Xong
-                    </button>
+                <!-- Card SC 085 -->
+                <div class="kanban-card" id="card-sc085">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge bg-secondary-subtle text-secondary fs-9">Trung bình</span>
+                        <span class="fs-8 fw-bold text-muted">SC-2026-085</span>
+                    </div>
+                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">Bản lề cánh tủ quần áo bị xệ</h6>
+                    <p class="text-muted fs-8 mb-2">Cánh tủ đóng khó khít, phát tiếng kêu cọt kẹt.</p>
+                    <div class="p-2 rounded-2 bg-light fs-8 text-slate-700 mb-2">
+                        <i class="bi bi-person-check-fill text-primary me-1"></i> Kỹ thuật: <strong>Trần Văn Tuấn</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                        <span class="badge bg-primary-subtle text-primary fs-8">P.301</span>
+                        <button class="btn btn-xs btn-outline-success rounded-pill px-3 py-1 fs-8" onclick="completeTicket('card-sc085', 'SC-2026-085', 'P.301', 'Trần Văn Nam', 'Bản lề cánh tủ quần áo')">
+                            <i class="bi bi-check2 me-1"></i> Xong
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -108,35 +119,201 @@
                 <h6 class="fw-bold mb-0 text-success">
                     <span class="badge bg-success text-white me-2">3</span> ĐÃ HOÀN THÀNH
                 </h6>
-                <span class="badge bg-white text-success border border-success-subtle px-2 py-1 fs-9 rounded-pill">1 Ticket</span>
+                <span class="badge bg-white text-success border border-success-subtle px-2 py-1 fs-9 rounded-pill" id="badgeCol3">1 Ticket</span>
             </div>
 
-            <!-- Card SC 074 -->
-            <div class="kanban-card border-success-subtle">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <span class="badge bg-success-subtle text-success fs-9">Đã nghiệm thu</span>
-                    <span class="fs-8 fw-bold text-muted">SC-2026-074</span>
-                </div>
-                <h6 class="fw-bold fs-7 text-slate-900 mb-1">Thay bóng đèn LED bàn học bị chớp nháy</h6>
-                <p class="text-muted fs-8 mb-2">Đã thay thế bộ tăng phô và bóng LED Philips 12W mới.</p>
-                
-                <div class="p-2 rounded-2 bg-warning-subtle text-dark fs-8 mb-2 d-flex align-items-center justify-content-between">
-                    <div>
-                        <i class="bi bi-star-fill text-warning"></i>
-                        <i class="bi bi-star-fill text-warning"></i>
-                        <i class="bi bi-star-fill text-warning"></i>
-                        <i class="bi bi-star-fill text-warning"></i>
-                        <i class="bi bi-star-fill text-warning"></i>
+            <div id="colCompleted">
+                <!-- Card SC 074 -->
+                <div class="kanban-card border-success-subtle">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge bg-success-subtle text-success fs-9">Đã nghiệm thu</span>
+                        <span class="fs-8 fw-bold text-muted">SC-2026-074</span>
                     </div>
-                    <span class="fw-bold">5/5 Sao</span>
-                </div>
-                <div class="fs-8 text-muted fst-italic mb-2">"Anh kỹ thuật đến đúng giờ, nhiệt tình, thay bóng rất sáng."</div>
+                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">Thay bóng đèn LED bàn học bị chớp nháy</h6>
+                    <p class="text-muted fs-8 mb-2">Đã thay thế bộ tăng phô và bóng LED Philips 12W mới.</p>
+                    
+                    <div class="p-2 rounded-2 bg-warning-subtle text-dark fs-8 mb-2 d-flex align-items-center justify-content-between">
+                        <div>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                        </div>
+                        <span class="fw-bold">5/5 Sao</span>
+                    </div>
+                    <div class="fs-8 text-muted fst-italic mb-2">"Anh kỹ thuật đến đúng giờ, nhiệt tình, thay bóng rất sáng."</div>
 
-                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                    <span class="badge bg-primary-subtle text-primary fs-8">P.305</span>
-                    <span class="fs-8 text-muted">Vật tư: 120.000 đ</span>
+                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                        <span class="badge bg-primary-subtle text-primary fs-8">P.305</span>
+                        <span class="fs-8 text-muted">Vật tư: 120.000 đ</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- ================= MODAL TẠO PHIẾU SỰ CỐ MỚI ================= -->
+<div class="modal fade" id="newTicketModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom px-4 pt-4 pb-3">
+                <h5 class="modal-title fw-bold text-slate-900">Tạo Phiếu Sự Cố Kỹ Thuật Mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="createTicketForm" onsubmit="handleCreateTicket(event)">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Căn hộ / Số phòng</label>
+                        <select id="tkRoom" class="form-select rounded-3">
+                            <option value="P.305">P.305 (Cư dân: Hồ Ngọc Bảo)</option>
+                            <option value="P.101">P.101 (Cư dân: Nguyễn Văn An)</option>
+                            <option value="P.201">P.201 (Cư dân: Nguyễn Dương Bảo)</option>
+                            <option value="P.401">P.401 (Cư dân: Lê Văn Cường)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Danh mục hỏng hóc</label>
+                        <select id="tkCategory" class="form-select rounded-3">
+                            <option value="Thiết bị điện (Máy lạnh, đèn, ổ cắm)">Thiết bị điện (Máy lạnh, đèn, ổ cắm)</option>
+                            <option value="Đường ống nước & Vòi sen">Đường ống nước & Vòi sen</option>
+                            <option value="Khóa cửa thông minh & Thẻ từ">Khóa cửa thông minh & Thẻ từ</option>
+                            <option value="Nội thất gỗ & Cửa sổ">Nội thất gỗ & Cửa sổ</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Mức độ ưu tiên</label>
+                        <select id="tkPriority" class="form-select rounded-3">
+                            <option value="Khẩn cấp" class="text-danger fw-bold">Khẩn cấp (Xử lý trong 2h)</option>
+                            <option value="Ưu tiên Cao" selected class="text-warning fw-bold">Ưu tiên Cao (Trong ngày)</option>
+                            <option value="Trung bình" class="text-muted">Trung bình (Trong 48h)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Mô tả tình trạng sự cố</label>
+                        <textarea id="tkDesc" class="form-control rounded-3" rows="3" placeholder="Mô tả chi tiết triệu chứng hỏng hóc..." required></textarea>
+                    </div>
+                    <div class="modal-footer px-0 pb-0 pt-3 border-0">
+                        <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary rounded-3 px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-send-fill me-1"></i> Phát Hành Phiếu Sự Cố
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function assignTechnician(cardId, code, room, desc, priority) {
+        const ktv = prompt(`Chọn Kỹ thuật viên phụ trách phiếu ${code} (${room}):\n1. Nguyễn Văn Bình (Chuyên Điện Lạnh)\n2. Trần Văn Tuấn (Chuyên Điện Nước)\n3. Lê Minh Khang (Chuyên Khóa IoT)`, "Nguyễn Văn Bình");
+        if (ktv) {
+            const cardEl = document.getElementById(cardId);
+            if (cardEl) cardEl.remove();
+
+            const newCard = `
+                <div class="kanban-card border-primary-subtle shadow-sm mb-3" id="${cardId}">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge bg-danger text-white fs-9">${priority}</span>
+                        <span class="fs-8 fw-bold text-muted">${code}</span>
+                    </div>
+                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">${desc}</h6>
+                    <p class="text-muted fs-8 mb-2">Phòng ${room} - Đã phân công KTV tiếp nhận tại căn hộ.</p>
+                    <div class="p-2 rounded-2 bg-light fs-8 text-slate-700 mb-2">
+                        <i class="bi bi-person-check-fill text-primary me-1"></i> Kỹ thuật: <strong>${ktv}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                        <span class="badge bg-primary-subtle text-primary fs-8">${room}</span>
+                        <button class="btn btn-xs btn-success rounded-pill px-3 py-1 fs-8 shadow-sm" onclick="completeTicket('${cardId}', '${code}', '${room}', 'Cư dân', '${desc}')">
+                            <i class="bi bi-check2-circle me-1"></i> Hoàn thành
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('colInProgress').insertAdjacentHTML('afterbegin', newCard);
+            document.getElementById('badgeCol1').innerText = '0 Ticket';
+            document.getElementById('badgeCol2').innerText = '3 Tickets';
+            showKanbanAlert(`Đã phân công thành công kỹ thuật viên [${ktv}] phụ trách phiếu ${code}! Thẻ sự cố đã chuyển sang cột [ĐANG SỬA CHỮA].`);
+        }
+    }
+
+    function completeTicket(cardId, code, room, resident, desc) {
+        const cost = prompt(`Nhập chi phí vật tư thay thế cho phiếu ${code} (VNĐ):`, "150.000 đ");
+        if (cost !== null) {
+            const cardEl = document.getElementById(cardId);
+            if (cardEl) cardEl.remove();
+
+            const completedCard = `
+                <div class="kanban-card border-success-subtle mb-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge bg-success-subtle text-success fs-9">Đã nghiệm thu</span>
+                        <span class="fs-8 fw-bold text-muted">${code}</span>
+                    </div>
+                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">${desc}</h6>
+                    <p class="text-muted fs-8 mb-2">Phòng ${room} - KTV đã hoàn thành sửa chữa và nghiệm thu thực tế.</p>
+                    <div class="p-2 rounded-2 bg-warning-subtle text-dark fs-8 mb-2 d-flex align-items-center justify-content-between">
+                        <div>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                        </div>
+                        <span class="fw-bold">5/5 Sao</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                        <span class="badge bg-primary-subtle text-primary fs-8">${room}</span>
+                        <span class="fs-8 text-muted">Vật tư: ${cost}</span>
+                    </div>
+                </div>
+            `;
+            document.getElementById('colCompleted').insertAdjacentHTML('afterbegin', completedCard);
+            document.getElementById('badgeCol3').innerText = '2 Tickets';
+            showKanbanAlert(`Phiếu ${code} (${room}) đã hoàn thành sửa chữa! Hệ thống đã gửi thông báo nghiệm thu 5★ tới Ứng dụng của cư dân ${resident}.`);
+        }
+    }
+
+    function handleCreateTicket(e) {
+        e.preventDefault();
+        const room = document.getElementById('tkRoom').value;
+        const category = document.getElementById('tkCategory').value;
+        const priority = document.getElementById('tkPriority').value;
+        const desc = document.getElementById('tkDesc').value;
+        const code = `SC-2026-0${Math.floor(100 + Math.random() * 900)}`;
+
+        const newCard = `
+            <div class="kanban-card mb-3" id="card-${code}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge ${priority === 'Khẩn cấp' ? 'bg-danger' : 'bg-warning text-dark'} fs-9">${priority}</span>
+                    <span class="fs-8 fw-bold text-muted">${code}</span>
+                </div>
+                <h6 class="fw-bold fs-7 text-slate-900 mb-1">${desc}</h6>
+                <p class="text-muted fs-8 mb-2">${category}</p>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <span class="badge bg-primary-subtle text-primary fs-8">${room}</span>
+                    <button class="btn btn-xs btn-outline-primary rounded-pill px-3 py-1 fs-8 shadow-sm" onclick="assignTechnician('card-${code}', '${code}', '${room}', '${desc}', '${priority}')">
+                        <i class="bi bi-person-plus me-1"></i> Gán kỹ thuật
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('colPending').insertAdjacentHTML('afterbegin', newCard);
+        bootstrap.Modal.getInstance(document.getElementById('newTicketModal')).hide();
+        document.getElementById('badgeCol1').innerText = '1 Ticket';
+        showKanbanAlert(`Đã tạo thành công phiếu báo hỏng ${code} cho phòng ${room}! Phiếu đã đưa vào cột [CHỜ XỬ LÝ].`);
+    }
+
+    function showKanbanAlert(msg) {
+        const alertBox = document.getElementById('kanbanAlert');
+        document.getElementById('kanbanAlertText').innerText = msg;
+        alertBox.classList.remove('d-none');
+        alertBox.classList.add('show');
+        setTimeout(() => {
+            alertBox.classList.remove('show');
+            alertBox.classList.add('d-none');
+        }, 5000);
+    }
+</script>

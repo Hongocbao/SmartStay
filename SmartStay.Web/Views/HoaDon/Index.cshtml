@@ -1,29 +1,55 @@
 @{
-    ViewData["Title"] = "Quản lý Hóa đơn & Đối soát VietQR";
+    ViewData["Title"] = "Quản lý Hóa đơn & Đối soát VietQR - SmartStay";
 }
 
 <div class="card-custom mb-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div class="d-flex align-items-center gap-3">
             <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-calendar3 me-2 text-primary"></i>KỲ HÓA ĐƠN: THÁNG 10/2026</h6>
-            <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill">Đã phát hành: 28/28</span>
-            <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill">Đã thu: 24/28</span>
+            <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill" id="badgeTotalInvoices">Đã phát hành: 28/28</span>
+            <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill" id="badgePaidInvoices">Đã thu: 24/28</span>
         </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-primary rounded-3" onclick="alert('Đang tự động chốt chỉ số công tơ điện nước và tính giá bậc thang theo biểu giá hiệu lực...')">
+        <div class="d-flex flex-wrap gap-2">
+            <!-- Nút Nhập Excel số lượng lớn -->
+            <button class="btn btn-sm btn-success rounded-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalImportExcel">
+                <i class="bi bi-file-earmark-excel-fill me-1"></i> Nhập Chỉ Số Điện Nước (Excel)
+            </button>
+            <button class="btn btn-sm btn-outline-success rounded-3" onclick="exportToExcel()">
+                <i class="bi bi-download me-1"></i> Xuất Báo Cáo Excel
+            </button>
+            <button class="btn btn-sm btn-outline-primary rounded-3" onclick="calculateTieredBilling()">
                 <i class="bi bi-calculator me-1"></i> Tính bậc thang tự động
             </button>
-            <button class="btn btn-sm btn-primary rounded-3" onclick="alert('Tất cả hóa đơn đã được sinh mã VietQR động NAPAS 247!')">
+            <button class="btn btn-sm btn-primary rounded-3" onclick="publishBatchVietQR()">
                 <i class="bi bi-qr-code me-1"></i> Phát hành VietQR hàng loạt
             </button>
         </div>
     </div>
 </div>
 
+<!-- Alert thông báo tương tác -->
+<div id="actionAlert" class="alert alert-success alert-dismissible fade d-none rounded-3 shadow-sm" role="alert">
+    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+    <span id="alertContent">Thông báo</span>
+    <button type="button" class="btn-close" onclick="document.getElementById('actionAlert').classList.add('d-none')"></button>
+</div>
+
 <!-- Bảng danh sách hóa đơn -->
 <div class="card-custom">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <span class="fw-bold fs-7 text-muted">LỌC TRẠNG THÁI:</span>
+            <button class="btn btn-xs btn-outline-secondary rounded-pill active" onclick="filterTable('all')">Tất cả</button>
+            <button class="btn btn-xs btn-outline-warning rounded-pill" onclick="filterTable('Chờ đối soát')">Chờ đối soát (1)</button>
+            <button class="btn btn-xs btn-outline-success rounded-pill" onclick="filterTable('Đã thanh toán')">Đã thanh toán</button>
+        </div>
+        <div class="fs-8 text-muted">
+            Tổng doanh thu kỳ: <strong class="text-primary fs-7" id="totalAmountText">118.500.000 đ</strong>
+        </div>
+    </div>
+
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0" id="invoiceTable">
             <thead class="table-light fs-8">
                 <tr>
                     <th>MÃ HÓA ĐƠN</th>
@@ -39,74 +65,351 @@
                     <th class="text-end">THAO TÁC</th>
                 </tr>
             </thead>
-            <tbody class="fs-7">
+            <tbody class="fs-7" id="invoiceTbody">
                 <!-- Hóa đơn của Hồ Ngọc Bảo (P.305) -->
-                <tr class="table-primary-subtle">
+                <tr class="table-primary-subtle" id="row-305">
                     <td class="fw-bold">HD-2026-10-305</td>
                     <td><span class="badge bg-primary text-white">P.305</span></td>
                     <td class="fw-bold">Hồ Ngọc Bảo</td>
                     <td>3.500.000 đ</td>
                     <td>
-                        <span class="text-primary fw-bold">254.000 đ</span>
+                        <span class="text-primary fw-bold" id="dien-305">254.000 đ</span>
                         <div class="fs-9 text-muted">120 kWh (Bậc 1, 2, 3)</div>
                     </td>
                     <td>
-                        <span class="text-info fw-bold">105.000 đ</span>
+                        <span class="text-info fw-bold" id="nuoc-305">105.000 đ</span>
                         <div class="fs-9 text-muted">8 m³ (Bậc 1, 2)</div>
                     </td>
                     <td>300.000 đ</td>
-                    <td class="fw-bold fs-6 text-danger">4.159.000 đ</td>
+                    <td class="fw-bold fs-6 text-danger" id="tong-305">4.159.000 đ</td>
                     <td>
-                        <a href="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=4159000&addInfo=HD1026%20P305%20HONGOCBAO&accountName=SMARTSTAY%20MANAGEMENT" target="_blank" class="badge bg-light text-primary border">
+                        <a href="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=4159000&addInfo=HD1026%20P305%20HONGOCBAO&accountName=SMARTSTAY%20MANAGEMENT" target="_blank" class="badge bg-light text-primary border text-decoration-none">
                             <i class="bi bi-qr-code-scan me-1"></i> Xem VietQR
                         </a>
                     </td>
-                    <td><span class="badge bg-warning-subtle text-warning">Chờ đối soát</span></td>
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-success rounded-pill px-3 py-1 fs-8" onclick="alert('Đã xác nhận biên lai thanh toán 4.159.000 đ của phòng P.305 thành công! Trạng thái hóa đơn đã chuyển sang Đã thanh toán.')">
+                    <td id="status-305"><span class="badge bg-warning text-dark status-badge">Chờ đối soát</span></td>
+                    <td class="text-end" id="action-305">
+                        <button class="btn btn-sm btn-success rounded-pill px-3 py-1 fs-8 shadow-sm" onclick="approveReceipt('P.305', 'Hồ Ngọc Bảo', '4.159.000 đ')">
                             <i class="bi bi-check2-circle me-1"></i> Duyệt biên lai
                         </button>
                     </td>
                 </tr>
 
                 <!-- Hóa đơn P.301 -->
-                <tr>
+                <tr id="row-301">
                     <td class="fw-bold">HD-2026-10-301</td>
                     <td><span class="badge bg-primary-subtle text-primary">P.301</span></td>
                     <td>Trần Văn Nam</td>
                     <td>3.500.000 đ</td>
-                    <td>210.000 đ</td>
-                    <td>90.000 đ</td>
+                    <td>210.000 đ <div class="fs-9 text-muted">100 kWh</div></td>
+                    <td>90.000 đ <div class="fs-9 text-muted">7 m³</div></td>
                     <td>300.000 đ</td>
                     <td class="fw-bold">4.100.000 đ</td>
-                    <td>
-                        <span class="badge bg-light text-muted border"><i class="bi bi-check me-1"></i> Đã quét</span>
-                    </td>
-                    <td><span class="badge bg-success-subtle text-success">Đã thanh toán</span></td>
-                    <td class="text-end">
-                        <span class="text-muted fs-8"><i class="bi bi-check-all text-success"></i> Đã đối soát</span>
-                    </td>
+                    <td><span class="badge bg-light text-muted border"><i class="bi bi-check me-1"></i> Đã quét</span></td>
+                    <td><span class="badge bg-success-subtle text-success status-badge">Đã thanh toán</span></td>
+                    <td class="text-end"><span class="text-muted fs-8"><i class="bi bi-check-all text-success"></i> Đã đối soát</span></td>
                 </tr>
 
                 <!-- Hóa đơn P.401 -->
-                <tr>
+                <tr id="row-401">
                     <td class="fw-bold">HD-2026-10-401</td>
                     <td><span class="badge bg-primary-subtle text-primary">P.401</span></td>
                     <td>Lê Văn Cường</td>
                     <td>5.000.000 đ</td>
-                    <td>340.000 đ</td>
-                    <td>145.000 đ</td>
+                    <td>340.000 đ <div class="fs-9 text-muted">155 kWh</div></td>
+                    <td>145.000 đ <div class="fs-9 text-muted">11 m³</div></td>
                     <td>350.000 đ</td>
                     <td class="fw-bold">5.835.000 đ</td>
-                    <td>
-                        <span class="badge bg-light text-muted border"><i class="bi bi-check me-1"></i> Đã quét</span>
-                    </td>
-                    <td><span class="badge bg-success-subtle text-success">Đã thanh toán</span></td>
-                    <td class="text-end">
-                        <span class="text-muted fs-8"><i class="bi bi-check-all text-success"></i> Đã đối soát</span>
-                    </td>
+                    <td><span class="badge bg-light text-muted border"><i class="bi bi-check me-1"></i> Đã quét</span></td>
+                    <td><span class="badge bg-success-subtle text-success status-badge">Đã thanh toán</span></td>
+                    <td class="text-end"><span class="text-muted fs-8"><i class="bi bi-check-all text-success"></i> Đã đối soát</span></td>
+                </tr>
+
+                <!-- Hóa đơn P.201 -->
+                <tr id="row-201">
+                    <td class="fw-bold">HD-2026-10-201</td>
+                    <td><span class="badge bg-primary-subtle text-primary">P.201</span></td>
+                    <td>Nguyễn Dương Bảo</td>
+                    <td>3.800.000 đ</td>
+                    <td>220.000 đ <div class="fs-9 text-muted">105 kWh</div></td>
+                    <td>95.000 đ <div class="fs-9 text-muted">7.5 m³</div></td>
+                    <td>300.000 đ</td>
+                    <td class="fw-bold">4.415.000 đ</td>
+                    <td><span class="badge bg-light text-muted border"><i class="bi bi-check me-1"></i> Đã quét</span></td>
+                    <td><span class="badge bg-success-subtle text-success status-badge">Đã thanh toán</span></td>
+                    <td class="text-end"><span class="text-muted fs-8"><i class="bi bi-check-all text-success"></i> Đã đối soát</span></td>
+                </tr>
+
+                <!-- Hóa đơn P.501 -->
+                <tr id="row-501">
+                    <td class="fw-bold">HD-2026-10-501</td>
+                    <td><span class="badge bg-primary-subtle text-primary">P.501</span></td>
+                    <td>Phạm Hoàng Yến</td>
+                    <td>6.500.000 đ</td>
+                    <td>420.000 đ <div class="fs-9 text-muted">180 kWh</div></td>
+                    <td>160.000 đ <div class="fs-9 text-muted">12 m³</div></td>
+                    <td>400.000 đ</td>
+                    <td class="fw-bold">7.480.000 đ</td>
+                    <td><span class="badge bg-light text-muted border"><i class="bi bi-check me-1"></i> Đã quét</span></td>
+                    <td><span class="badge bg-success-subtle text-success status-badge">Đã thanh toán</span></td>
+                    <td class="text-end"><span class="text-muted fs-8"><i class="bi bi-check-all text-success"></i> Đã đối soát</span></td>
                 </tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<!-- ================= MODAL NHẬP CHỈ SỐ ĐIỆN NƯỚC EXCEL SỐ LƯỢNG LỚN ================= -->
+<div class="modal fade" id="modalImportExcel" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom px-4 pt-4 pb-3 bg-light rounded-top-4">
+                <div>
+                    <h5 class="modal-title fw-bold text-success">
+                        <i class="bi bi-file-earmark-spreadsheet-fill me-2"></i>Bảng Tính Excel - Nhập Chỉ Số Điện Nước Số Lượng Lớn
+                    </h5>
+                    <p class="text-muted fs-8 mb-0">Hỗ trợ tải lên file Excel hoặc nhập liệu trực tiếp trên bảng tính để tự động tính tiền bậc thang</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Thanh công cụ Excel -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 p-3 rounded-3 bg-light border mb-4">
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="btn btn-sm btn-primary rounded-3 cursor-pointer mb-0">
+                            <i class="bi bi-upload me-1"></i> Tải Lên File Excel (.xlsx / .csv)
+                            <input type="file" id="fileExcelInput" accept=".xlsx, .xls, .csv" style="display: none;" onchange="handleExcelUpload(this)">
+                        </label>
+                        <button class="btn btn-sm btn-outline-success rounded-3" onclick="downloadExcelTemplate()">
+                            <i class="bi bi-file-arrow-down me-1"></i> Tải File Mẫu Excel
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-info-subtle text-info border px-3 py-2 rounded-pill fs-8">
+                            <i class="bi bi-lightning-charge me-1"></i> Áp dụng biểu giá bậc thang Bộ Công Thương 2026
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Bảng Excel Grid (Có thể chỉnh sửa trực tiếp) -->
+                <div class="table-responsive border rounded-3" style="max-height: 420px; overflow-y: auto;">
+                    <table class="table table-bordered table-sm align-middle mb-0 text-center" id="excelGridTable">
+                        <thead class="table-secondary fs-8 sticky-top">
+                            <tr>
+                                <th style="width: 50px;">STT</th>
+                                <th style="width: 100px;">MÃ PHÒNG</th>
+                                <th style="width: 180px;">CƯ DÂN</th>
+                                <th style="width: 120px;" class="table-warning">ĐIỆN CŨ (kWh)</th>
+                                <th style="width: 120px;" class="table-warning">ĐIỆN MỚI (kWh)</th>
+                                <th style="width: 120px;" class="table-warning">TIÊU THỤ (kWh)</th>
+                                <th style="width: 120px;" class="table-info">NƯỚC CŨ (m³)</th>
+                                <th style="width: 120px;" class="table-info">NƯỚC MỚI (m³)</th>
+                                <th style="width: 120px;" class="table-info">TIÊU THỤ (m³)</th>
+                                <th style="width: 160px;" class="table-success">THÀNH TIỀN (VNĐ)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="fs-8" id="excelGridBody">
+                            <!-- Dòng P.305 -->
+                            <tr>
+                                <td>1</td>
+                                <td class="fw-bold text-primary">P.305</td>
+                                <td>Hồ Ngọc Bảo</td>
+                                <td><input type="number" class="form-control form-control-sm text-center" value="1420" id="dienCu-305" oninput="recalcRow('305')"></td>
+                                <td><input type="number" class="form-control form-control-sm text-center fw-bold text-danger" value="1540" id="dienMoi-305" oninput="recalcRow('305')"></td>
+                                <td class="fw-bold text-primary" id="dienTieuThu-305">120</td>
+                                <td><input type="number" class="form-control form-control-sm text-center" value="84" id="nuocCu-305" oninput="recalcRow('305')"></td>
+                                <td><input type="number" class="form-control form-control-sm text-center fw-bold text-info" value="92" id="nuocMoi-305" oninput="recalcRow('305')"></td>
+                                <td class="fw-bold text-info" id="nuocTieuThu-305">8</td>
+                                <td class="fw-bold text-success" id="thanhTien-305">359.000 đ</td>
+                            </tr>
+                            <!-- Dòng P.101 -->
+                            <tr>
+                                <td>2</td>
+                                <td class="fw-bold text-primary">P.101</td>
+                                <td>Nguyễn Văn An</td>
+                                <td><input type="number" class="form-control form-control-sm text-center" value="850" id="dienCu-101" oninput="recalcRow('101')"></td>
+                                <td><input type="number" class="form-control form-control-sm text-center fw-bold text-danger" value="935" id="dienMoi-101" oninput="recalcRow('101')"></td>
+                                <td class="fw-bold text-primary" id="dienTieuThu-101">85</td>
+                                <td><input type="number" class="form-control form-control-sm text-center" value="45" id="nuocCu-101" oninput="recalcRow('101')"></td>
+                                <td><input type="number" class="form-control form-control-sm text-center fw-bold text-info" value="51" id="nuocMoi-101" oninput="recalcRow('101')"></td>
+                                <td class="fw-bold text-info" id="nuocTieuThu-101">6</td>
+                                <td class="fw-bold text-success" id="thanhTien-101">245.000 đ</td>
+                            </tr>
+                            <!-- Dòng P.201 -->
+                            <tr>
+                                <td>3</td>
+                                <td class="fw-bold text-primary">P.201</td>
+                                <td>Nguyễn Dương Bảo</td>
+                                <td><input type="number" class="form-control form-control-sm text-center" value="1100" id="dienCu-201" oninput="recalcRow('201')"></td>
+                                <td><input type="number" class="form-control form-control-sm text-center fw-bold text-danger" value="1205" id="dienMoi-201" oninput="recalcRow('201')"></td>
+                                <td class="fw-bold text-primary" id="dienTieuThu-201">105</td>
+                                <td><input type="number" class="form-control form-control-sm text-center" value="62" id="nuocCu-201" oninput="recalcRow('201')"></td>
+                                <td><input type="number" class="form-control form-control-sm text-center fw-bold text-info" value="69" id="nuocMoi-201" oninput="recalcRow('201')"></td>
+                                <td class="fw-bold text-info" id="nuocTieuThu-201">7</td>
+                                <td class="fw-bold text-success" id="thanhTien-201">315.000 đ</td>
+                            </tr>
+                            <!-- Dòng P.301 -->
+                            <tr>
+                                <td>4</td>
+                                <td class="fw-bold text-primary">P.301</td>
+                                <td>Trần Văn Nam</td>
+                                <td><input type="number" class="form-control form-control-sm text-center" value="980" id="dienCu-301" oninput="recalcRow('301')"></td>
+                                <td><input type="number" class="form-control form-control-sm text-center fw-bold text-danger" value="1080" id="dienMoi-301" oninput="recalcRow('301')"></td>
+                                <td class="fw-bold text-primary" id="dienTieuThu-301">100</td>
+                                <td><input type="number" class="form-control form-control-sm text-center" value="55" id="nuocCu-301" oninput="recalcRow('301')"></td>
+                                <td><input type="number" class="form-control form-control-sm text-center fw-bold text-info" value="62" id="nuocMoi-301" oninput="recalcRow('301')"></td>
+                                <td class="fw-bold text-info" id="nuocTieuThu-301">7</td>
+                                <td class="fw-bold text-success" id="thanhTien-301">300.000 đ</td>
+                            </tr>
+                            <!-- Dòng P.401 -->
+                            <tr>
+                                <td>5</td>
+                                <td class="fw-bold text-primary">P.401</td>
+                                <td>Lê Văn Cường</td>
+                                <td><input type="number" class="form-control form-control-sm text-center" value="1300" id="dienCu-401" oninput="recalcRow('401')"></td>
+                                <td><input type="number" class="form-control form-control-sm text-center fw-bold text-danger" value="1455" id="dienMoi-401" oninput="recalcRow('401')"></td>
+                                <td class="fw-bold text-primary" id="dienTieuThu-401">155</td>
+                                <td><input type="number" class="form-control form-control-sm text-center" value="70" id="nuocCu-401" oninput="recalcRow('401')"></td>
+                                <td><input type="number" class="form-control form-control-sm text-center fw-bold text-info" value="81" id="nuocMoi-401" oninput="recalcRow('401')"></td>
+                                <td class="fw-bold text-info" id="nuocTieuThu-401">11</td>
+                                <td class="fw-bold text-success" id="thanhTien-401">485.000 đ</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer px-4 pb-4 pt-0 border-0 bg-light rounded-bottom-4">
+                <button type="button" class="btn btn-outline-secondary rounded-3 btn-sm" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-success rounded-3 btn-sm px-4 fw-semibold shadow-sm" onclick="applyExcelBatch()">
+                    <i class="bi bi-check-circle-fill me-1"></i> Áp Dụng Chỉ Số & Cập Nhật Toàn Bộ Hóa Đơn
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Duyệt biên lai chuyển khoản phòng P.305
+    function approveReceipt(roomCode, residentName, amount) {
+        document.getElementById('status-305').innerHTML = '<span class="badge bg-success text-white status-badge"><i class="bi bi-check-circle me-1"></i>Đã thanh toán</span>';
+        document.getElementById('action-305').innerHTML = '<span class="text-success fs-8 fw-semibold"><i class="bi bi-patch-check-fill text-success"></i> Đã khớp VietQR</span>';
+        document.getElementById('row-305').classList.remove('table-primary-subtle');
+        document.getElementById('badgePaidInvoices').innerText = 'Đã thu: 25/28';
+        
+        showAlert(`Đã duyệt xác nhận biên lai ${amount} của phòng ${roomCode} (${residentName}) thành công! Hóa đơn đã cập nhật trạng thái [Đã thanh toán] trên toàn hệ thống.`);
+    }
+
+    // 2. Tính bậc thang tự động
+    function calculateTieredBilling() {
+        showAlert('Đang tự động đồng bộ chỉ số công tơ điện nước và tính giá bậc thang theo Quyết định Bộ Công Thương 2026. Tất cả 28 hóa đơn đã được cập nhật số liệu chính xác!');
+    }
+
+    // 3. Phát hành VietQR hàng loạt
+    function publishBatchVietQR() {
+        showAlert('Đã phát hành thành công 28 mã VietQR NAPAS 247 động gắn kèm thông tin số tài khoản và nội dung cú pháp thanh toán!');
+    }
+
+    // 4. Lọc trạng thái
+    function filterTable(status) {
+        const rows = document.querySelectorAll('#invoiceTbody tr');
+        rows.forEach(r => {
+            if (status === 'all') {
+                r.style.display = '';
+            } else {
+                const text = r.innerText;
+                r.style.display = text.includes(status) ? '' : 'none';
+            }
+        });
+    }
+
+    // 5. Tính toán dòng Excel
+    function recalcRow(id) {
+        const dienCu = parseFloat(document.getElementById('dienCu-' + id).value) || 0;
+        const dienMoi = parseFloat(document.getElementById('dienMoi-' + id).value) || 0;
+        const nuocCu = parseFloat(document.getElementById('nuocCu-' + id).value) || 0;
+        const nuocMoi = parseFloat(document.getElementById('nuocMoi-' + id).value) || 0;
+
+        const dienTieuThu = Math.max(0, dienMoi - dienCu);
+        const nuocTieuThu = Math.max(0, nuocMoi - nuocCu);
+
+        document.getElementById('dienTieuThu-' + id).innerText = dienTieuThu;
+        document.getElementById('nuocTieuThu-' + id).innerText = nuocTieuThu;
+
+        // Công thức tính bậc thang sơ bộ
+        let tienDien = 0;
+        if (dienTieuThu <= 50) tienDien = dienTieuThu * 1806;
+        else if (dienTieuThu <= 100) tienDien = 50 * 1806 + (dienTieuThu - 50) * 1866;
+        else tienDien = 50 * 1806 + 50 * 1866 + (dienTieuThu - 100) * 2167;
+
+        let tienNuoc = nuocTieuThu <= 10 ? nuocTieuThu * 12000 : 10 * 12000 + (nuocTieuThu - 10) * 15000;
+        let tongTien = Math.round(tienDien + tienNuoc);
+
+        document.getElementById('thanhTien-' + id).innerText = tongTien.toLocaleString('vi-VN') + ' đ';
+    }
+
+    // 6. Áp dụng bảng tính Excel vào danh sách
+    function applyExcelBatch() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalImportExcel'));
+        if (modal) modal.hide();
+        showAlert('Đã nhập và áp dụng thành công bảng chỉ số điện nước từ Excel cho toàn bộ phòng! Các hóa đơn đã được tính toán lại theo biểu giá lũy tiến mới.');
+    }
+
+    // 7. Xử lý tải file Excel lên
+    function handleExcelUpload(input) {
+        if (input.files && input.files[0]) {
+            const fileName = input.files[0].name;
+            showAlert(`Đã đọc thành công dữ liệu từ file Excel: "${fileName}". Các chỉ số điện nước đã được điền tự động vào bảng tính!`);
+        }
+    }
+
+    // 8. Tải file Excel mẫu
+    function downloadExcelTemplate() {
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF"
+            + "STT,MaPhong,TenCuDan,ChiSoDienCu,ChiSoDienMoi,ChiSoNuocCu,ChiSoNuocMoi\n"
+            + "1,P.305,Ho Ngoc Bao,1420,1540,84,92\n"
+            + "2,P.101,Nguyen Van An,850,935,45,51\n"
+            + "3,P.201,Nguyen Duong Bao,1100,1205,62,69\n"
+            + "4,P.301,Tran Van Nam,980,1080,55,62\n"
+            + "5,P.401,Le Van Cuong,1300,1455,70,81\n";
+        
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "Template_ChiSoDienNuoc_SmartStay.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // 9. Xuất danh sách hóa đơn ra Excel
+    function exportToExcel() {
+        const csvContent = "data:text/csv;charset=utf-8,\uFEFF"
+            + "MaHoaDon,Phong,CuDan,TienPhong,TienDien,TienNuoc,DichVu,TongTien,TrangThai\n"
+            + "HD-2026-10-305,P.305,Ho Ngoc Bao,3500000,254000,105000,300000,4159000,Cho doi soat\n"
+            + "HD-2026-10-301,P.301,Tran Van Nam,3500000,210000,90000,300000,4100000,Da thanh toan\n"
+            + "HD-2026-10-401,P.401,Le Van Cuong,5000000,340000,145000,350000,5835000,Da thanh toan\n"
+            + "HD-2026-10-201,P.201,Nguyen Duong Bao,3800000,220000,95000,300000,4415000,Da thanh toan\n"
+            + "HD-2026-10-501,P.501,Pham Hoang Yen,6500000,420000,160000,400000,7480000,Da thanh toan\n";
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "DanhSach_HoaDon_Thang10_2026.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showAlert('Đã xuất báo cáo hóa đơn kỳ tháng 10/2026 ra file Excel (.CSV) thành công!');
+    }
+
+    function showAlert(msg) {
+        const alertBox = document.getElementById('actionAlert');
+        document.getElementById('alertContent').innerText = msg;
+        alertBox.classList.remove('d-none');
+        alertBox.classList.add('show');
+        setTimeout(() => {
+            alertBox.classList.remove('show');
+            alertBox.classList.add('d-none');
+        }, 5000);
+    }
+</script>
