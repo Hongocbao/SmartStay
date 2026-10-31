@@ -8,15 +8,26 @@ using SmartStay.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Cấu hình DbContext (Hỗ trợ MySQL hoặc SQL Server từ connection string)
+// 1. Cấu hình DbContext (Hỗ trợ PostgreSQL Supabase Cloud, SQL Server hoặc MySQL)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? "Server=localhost;Port=3306;Database=SmartStayDB;User=root;Password=;";
 
-var dbProvider = builder.Configuration["DatabaseProvider"] ?? "MySQL"; // "MySQL" hoặc "SqlServer"
+var dbProvider = builder.Configuration["DatabaseProvider"] ?? "PostgreSQL";
 
 builder.Services.AddDbContext<SmartStayDbContext>(options =>
 {
-    if (dbProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+    // Tự động nhận diện PostgreSQL nếu connection string kết nối Supabase Cloud hoặc Port=5432
+    if (dbProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase)
+        || dbProvider.Equals("Postgres", StringComparison.OrdinalIgnoreCase)
+        || connectionString.Contains("supabase.com", StringComparison.OrdinalIgnoreCase)
+        || connectionString.Contains("Port=5432", StringComparison.OrdinalIgnoreCase))
+    {
+        options.UseNpgsql(connectionString, npgsqlOptions =>
+        {
+            npgsqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
+        });
+    }
+    else if (dbProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
     {
         options.UseSqlServer(connectionString);
     }
