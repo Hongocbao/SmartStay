@@ -145,7 +145,7 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Tắt chuyển hướng HTTPS cục bộ để Flutter App và Web Portal chạy mượt mà trên cổng http://localhost:5096
 app.UseStaticFiles();
 
 app.UseRouting();

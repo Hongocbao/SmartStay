@@ -1,0 +1,180 @@
+@{
+    ViewData["Title"] = "Cấu Hình Hệ Thống & Cổng Thanh Toán VietQR";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1"><i class="bi bi-gear-wide-connected text-primary me-2"></i>Cấu Hình Hệ Thống & Cổng Thanh Toán VietQR</h4>
+        <p class="text-muted mb-0 fs-7">Thiết lập tài khoản ngân hàng thụ hưởng, bảng giá điện nước bậc thang Bộ Công Thương & Kết nối IoT</p>
+    </div>
+    <div>
+        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill">
+            <i class="bi bi-cloud-check-fill me-1"></i> Supabase Cloud PostgreSQL: Đã kết nối
+        </span>
+    </div>
+</div>
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm border-0" role="alert">
+        <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+        @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<form asp-action="LuuCauHinh" method="post">
+    @Html.AntiForgeryToken()
+
+    <div class="row g-4">
+        <!-- 1. Cấu hình Ngân hàng VietQR -->
+        <div class="col-lg-6">
+            <div class="card card-custom h-100 shadow-sm border-0">
+                <div class="card-header bg-transparent border-0 pb-0 pt-3">
+                    <h5 class="fw-bold text-primary mb-1">
+                        <i class="bi bi-qr-code-scan me-2"></i>1. Cổng Thanh Toán VietQR NAPAS 247
+                    </h5>
+                    <p class="text-muted fs-8 mb-3">Tự động gắn mã QR động vào hóa đơn tiền phòng từng căn hộ</p>
+                </div>
+                <div class="card-body pt-0">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Ngân hàng thụ hưởng</label>
+                        <select name="bankCode" class="form-select form-select-sm rounded-3">
+                            <option value="MB" selected>MBBank - Ngân Hàng Quân Đội (Mã: 970422)</option>
+                            <option value="ICB">VietinBank - Ngân Hàng Công Thương (Mã: 970415)</option>
+                            <option value="VCB">Vietcombank - Ngoại Thương Việt Nam (Mã: 970436)</option>
+                            <option value="TCB">Techcombank - Kỹ Thương Việt Nam (Mã: 970407)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Số tài khoản nhận tiền</label>
+                        <input type="text" name="accountNumber" class="form-control form-control-sm rounded-3" value="0901234567" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Tên chủ tài khoản (In hoa không dấu)</label>
+                        <input type="text" name="accountHolder" class="form-control form-control-sm rounded-3" value="HO NGOC BAO" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Mẫu hiển thị VietQR</label>
+                        <select class="form-select form-select-sm rounded-3" disabled>
+                            <option selected>compact2 (Mẫu chuẩn ngân hàng kèm Logo & Số tiền)</option>
+                        </select>
+                    </div>
+
+                    <div class="p-3 rounded-3 bg-light border">
+                        <div class="d-flex align-items-center gap-3">
+                            <img src="https://img.vietqr.io/image/MB-0901234567-compact2.png?amount=50000&addInfo=DEMO%20VIETQR&accountName=HO%20NGOC%20BAO" alt="QR Preview" style="width: 80px; height: 80px; object-fit: contain;" class="rounded border bg-white p-1" />
+                            <div>
+                                <div class="fw-bold fs-7 text-dark">Xem trước mã QR mẫu</div>
+                                <div class="text-muted fs-8">Hệ thống tự động đồng bộ API `https://img.vietqr.io`</div>
+                                <span class="badge bg-primary-subtle text-primary mt-1">Chuẩn VietQR Quốc Gia</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Biểu giá điện nước bậc thang -->
+        <div class="col-lg-6">
+            <div class="card card-custom h-100 shadow-sm border-0">
+                <div class="card-header bg-transparent border-0 pb-0 pt-3">
+                    <h5 class="fw-bold text-warning-emphasis mb-1">
+                        <i class="bi bi-lightning-charge-fill me-2"></i>2. Biểu Giá Điện & Nước Bậc Thang
+                    </h5>
+                    <p class="text-muted fs-8 mb-3">Áp dụng công thức lũy tiến tự động khi chốt chỉ số công tơ</p>
+                </div>
+                <div class="card-body pt-0">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Điện Bậc 1 (0 - 50 kWh)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" name="giaDienBac1" class="form-control rounded-start-3" value="1806" required />
+                                <span class="input-group-text">đ/kWh</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Điện Bậc 2 (51 - 100 kWh)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control rounded-start-3" value="1866" readonly />
+                                <span class="input-group-text">đ/kWh</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Điện Bậc 3 (101 - 200 kWh)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control rounded-start-3" value="2167" readonly />
+                                <span class="input-group-text">đ/kWh</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Điện Bậc 4 (Trên 200 kWh)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control rounded-start-3" value="2729" readonly />
+                                <span class="input-group-text">đ/kWh</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Nước Bậc 1 (0 - 10 m³)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" name="giaNuocBac1" class="form-control rounded-start-3" value="12000" required />
+                                <span class="input-group-text">đ/m³</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Nước Bậc 2 (Trên 10 m³)</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" class="form-control rounded-start-3" value="15000" readonly />
+                                <span class="input-group-text">đ/m³</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info py-2 px-3 mb-0 fs-8 border-0 rounded-3">
+                        <i class="bi bi-info-circle-fill me-1"></i> Biểu giá được cập nhật theo thông tư điều chỉnh giá điện sinh hoạt 2026.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Cấu hình IoT Gateway & Supabase -->
+        <div class="col-12">
+            <div class="card card-custom shadow-sm border-0">
+                <div class="card-header bg-transparent border-0 pb-0 pt-3">
+                    <h5 class="fw-bold text-success mb-1">
+                        <i class="bi bi-router-fill me-2"></i>3. Cổng Kết Nối IoT Gateway & Supabase Cloud
+                    </h5>
+                    <p class="text-muted fs-8 mb-3">Giám sát trạng thái 20 khóa phòng RFID & CSDL đám mây PostgreSQL</p>
+                </div>
+                <div class="card-body pt-0">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold fs-7">MQTT Broker Host</label>
+                            <input type="text" class="form-control form-control-sm rounded-3" value="mqtt.smartstay.vn (Port 1883)" readonly />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold fs-7">Supabase Host</label>
+                            <input type="text" class="form-control form-control-sm rounded-3" value="aws-1-eu-west-3.pooler.supabase.com:5432" readonly />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold fs-7">Chu kỳ nhịp tim Heartbeat IoT</label>
+                            <input type="text" class="form-control form-control-sm rounded-3" value="30 giây / lần" readonly />
+                        </div>
+                    </div>
+
+                    <div class="mt-4 text-end">
+                        <button type="submit" class="btn btn-primary px-4 py-2 rounded-3 fw-semibold shadow-sm">
+                            <i class="bi bi-floppy-fill me-1"></i> LƯU THAY ĐỔI CẤU HÌNH
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
