@@ -7,13 +7,13 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  // Android Emulator: 10.0.2.2:5000, Windows Desktop / Web: localhost:5000
+  // Android Emulator: 10.0.2.2:5096, Windows Desktop / Web: localhost:5096
   static String get baseUrl {
-    if (kIsWeb) return 'http://localhost:5000/api';
+    if (kIsWeb) return 'http://localhost:5096/api';
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:5000/api';
+      return 'http://10.0.2.2:5096/api';
     }
-    return 'http://localhost:5000/api';
+    return 'http://localhost:5096/api';
   }
 
   String? authToken;
