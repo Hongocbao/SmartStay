@@ -307,14 +307,17 @@
             else
             {
                 <div class="menu-label">Cổng Cư Dân (@(roomCode ?? "P.305"))</div>
-                <a href="/HoaDon/Index" class="nav-link-custom active">
-                    <i class="bi bi-receipt-cutoff"></i> Hóa đơn & VietQR của tôi
+                <a href="/CuDan/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "CuDan" && ViewContext.RouteData.Values["Action"]?.ToString() == "Index" ? "active" : "")">
+                    <i class="bi bi-house-door-fill"></i> Tổng Quan Phòng Tôi
                 </a>
-                <a href="/SuCo/Kanban" class="nav-link-custom">
-                    <i class="bi bi-wrench-adjustable"></i> Báo cáo & Theo dõi Sự cố
+                <a href="/CuDan/HoaDon" class="nav-link-custom @(ViewContext.RouteData.Values["Action"]?.ToString() == "HoaDon" ? "active" : "")">
+                    <i class="bi bi-receipt-cutoff"></i> Hóa Đơn & Mã VietQR
                 </a>
-                <a href="/ThongBao/Index" class="nav-link-custom">
-                    <i class="bi bi-megaphone-fill"></i> Thông báo & Nội quy
+                <a href="/CuDan/SuCo" class="nav-link-custom @(ViewContext.RouteData.Values["Action"]?.ToString() == "SuCo" ? "active" : "")">
+                    <i class="bi bi-tools"></i> Báo Hỏng Hóc & Sự Cố
+                </a>
+                <a href="/ThongBao/Index" class="nav-link-custom @(ViewContext.RouteData.Values["Controller"]?.ToString() == "ThongBao" ? "active" : "")">
+                    <i class="bi bi-megaphone-fill"></i> Thông Báo & Nội Quy
                 </a>
             }
         </div>

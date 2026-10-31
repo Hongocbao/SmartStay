@@ -137,7 +137,7 @@ public class AccountController : Controller
         return role switch
         {
             "KyThuat" => RedirectToAction("Kanban", "SuCo"),
-            "CuDan" => RedirectToAction("Index", "HoaDon"),
+            "CuDan" => RedirectToAction("Index", "CuDan"),
             _ => RedirectToAction("Index", "Home") // Admin
         };
     }

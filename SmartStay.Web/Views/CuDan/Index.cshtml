@@ -1,0 +1,280 @@
+@{
+    ViewData["Title"] = "Cổng Cư Dân - Tổng Quan Phòng P.305";
+}
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i> @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<!-- Welcome Banner -->
+<div class="card-custom mb-4" style="background: linear-gradient(135deg, #4F46E5, #3B82F6); color: #fff; border: none;">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <span class="badge bg-white text-primary px-3 py-1 rounded-pill fw-bold mb-2">CỔNG CƯ DÂN TRỰC TUYẾN</span>
+            <h3 class="fw-bold mb-1">Xin chào, Hồ Ngọc Bảo! 👋</h3>
+            <p class="mb-0 text-white-50 fs-7">Căn hộ: <strong>Phòng P.305 (Tầng 3)</strong> • Tòa nhà A - Co-Living SmartStay</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/CuDan/HoaDon" class="btn btn-light rounded-pill px-4 py-2 fw-bold text-primary shadow-sm">
+                <i class="bi bi-qr-code me-1"></i> Xem & Thanh toán VietQR
+            </a>
+            <a href="/CuDan/SuCo" class="btn btn-outline-light rounded-pill px-3 py-2 fw-semibold">
+                <i class="bi bi-tools me-1"></i> Báo sự cố phòng
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- 4 KPI Thẻ nhanh Cư dân -->
+<div class="row g-3 mb-4">
+    <!-- Tiền phòng & hóa đơn -->
+    <div class="col-xl-3 col-sm-6">
+        <div class="card-custom mb-0 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted fs-8 fw-bold text-uppercase">HÓA ĐƠN THÁNG 10</span>
+                <span class="badge bg-warning-subtle text-warning px-2 py-1 rounded-pill fs-9">Chờ đối soát</span>
+            </div>
+            <h4 class="fw-bold text-danger mb-1">4.159.000 đ</h4>
+            <p class="fs-8 text-muted mb-0">Hạn chót: <strong>05/11/2026</strong> (Đã nộp biên lai)</p>
+        </div>
+    </div>
+
+    <!-- Điện thoại / Hợp đồng -->
+    <div class="col-xl-3 col-sm-6">
+        <div class="card-custom mb-0 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted fs-8 fw-bold text-uppercase">HỢP ĐỒNG THUÊ</span>
+                <span class="badge bg-success-subtle text-success px-2 py-1 rounded-pill fs-9">Hiệu lực</span>
+            </div>
+            <h4 class="fw-bold text-slate-800 mb-1">HĐ-2026-0305</h4>
+            <p class="fs-8 text-muted mb-0">Hạn hợp đồng: <strong>31/12/2026</strong> (Cọc: 3.5 tr)</p>
+        </div>
+    </div>
+
+    <!-- Khóa cửa thông minh IoT -->
+    <div class="col-xl-3 col-sm-6">
+        <div class="card-custom mb-0 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted fs-8 fw-bold text-uppercase">KHÓA THÔNG MINH IOT</span>
+                <span class="badge bg-primary-subtle text-primary px-2 py-1 rounded-pill fs-9"><i class="bi bi-battery-charging"></i> Pin 92%</span>
+            </div>
+            <h4 class="fw-bold text-success mb-1"><i class="bi bi-lock-fill me-1"></i> Đang Khóa An Toàn</h4>
+            <p class="fs-8 text-muted mb-0">Mật mã số phòng: <strong class="text-primary">305888</strong></p>
+        </div>
+    </div>
+
+    <!-- Sự cố phòng -->
+    <div class="col-xl-3 col-sm-6">
+        <div class="card-custom mb-0 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted fs-8 fw-bold text-uppercase">SỰ CỐ ĐANG XỬ LÝ</span>
+                <span class="badge bg-info-subtle text-info px-2 py-1 rounded-pill fs-9">1 phiếu</span>
+            </div>
+            <h4 class="fw-bold text-slate-800 mb-1">Máy Lạnh P.305</h4>
+            <p class="fs-8 text-muted mb-0">KTV <strong>Trần Văn Tuấn</strong> đang sửa chữa</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Cột trái: Thanh toán VietQR & Chi tiết tiền -->
+    <div class="col-lg-7">
+        <div class="card-custom mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h6 class="fw-bold mb-0 text-slate-900"><i class="bi bi-receipt me-2 text-primary"></i>Hóa Đơn Sinh Hoạt Tháng 10/2026 (Phòng P.305)</h6>
+                <a href="/CuDan/HoaDon" class="fs-8 text-primary fw-semibold text-decoration-none">Chi tiết hóa đơn &gt;</a>
+            </div>
+
+            <div class="row align-items-center">
+                <div class="col-md-5 text-center p-3">
+                    <img src="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=4159000&addInfo=HD1026%20P305%20HONGOCBAO&accountName=SMARTSTAY%20MANAGEMENT" 
+                         alt="Mã VietQR Thanh Toán" 
+                         class="img-fluid rounded-3 border shadow-sm mb-2" 
+                         style="max-width: 200px;">
+                    <div class="fs-9 text-muted">Quét bằng Mobile Banking bất kỳ</div>
+                </div>
+                <div class="col-md-7">
+                    <ul class="list-group list-group-flush fs-7 mb-3">
+                        <li class="list-group-item d-flex justify-content-between px-0 py-2">
+                            <span><i class="bi bi-house me-2 text-muted"></i>Tiền phòng:</span>
+                            <strong class="text-slate-800">3.500.000 đ</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between px-0 py-2">
+                            <span><i class="bi bi-lightning-charge me-2 text-warning"></i>Điện bậc thang (120 kWh):</span>
+                            <strong class="text-primary">254.000 đ</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between px-0 py-2">
+                            <span><i class="bi bi-droplet me-2 text-info"></i>Nước bậc thang (8 m³):</span>
+                            <strong class="text-info">105.000 đ</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between px-0 py-2">
+                            <span><i class="bi bi-wifi me-2 text-secondary"></i>Dịch vụ cố định (Wifi, Rác, BQL):</span>
+                            <strong class="text-secondary">300.000 đ</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between px-0 py-2 border-top">
+                            <span class="fw-bold fs-6">Tổng cộng:</span>
+                            <strong class="text-danger fs-5">4.159.000 đ</strong>
+                        </li>
+                    </ul>
+
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary rounded-3 w-100 fs-7" data-bs-toggle="modal" data-bs-target="#uploadReceiptModal">
+                            <i class="bi bi-upload me-1"></i> Nộp Biên Lai Chuyển Khoản
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Phiếu sự cố của tôi -->
+        <div class="card-custom">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h6 class="fw-bold mb-0 text-slate-900"><i class="bi bi-tools me-2 text-warning"></i>Sự Cố Đã Báo (Phòng P.305)</h6>
+                <button class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#newTicketModal">
+                    <i class="bi bi-plus-lg me-1"></i> Báo hỏng thiết bị
+                </button>
+            </div>
+
+            <div class="p-3 bg-light rounded-3 mb-2 border">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-warning-subtle text-warning fw-bold"><i class="bi bi-gear-wide-connected me-1"></i> Đang sửa chữa</span>
+                    <span class="fs-9 text-muted">Gửi lúc: 29/10/2026 14:30</span>
+                </div>
+                <h6 class="fw-bold mb-1">Máy lạnh kêu to và rỉ nước ở máng xả</h6>
+                <p class="fs-8 text-muted mb-2">Mô tả: Máy lạnh bật 26 độ phát tiếng ồn lớn, nước nhỏ giọt xuống sàn gỗ.</p>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top fs-8">
+                    <span>KTV tiếp nhận: <strong>Trần Văn Tuấn</strong></span>
+                    <span class="badge bg-danger-subtle text-danger">Ưu tiên: Cao</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cột phải: Thông báo tòa nhà & Trợ lý hỗ trợ -->
+    <div class="col-lg-5">
+        <!-- Thông báo tòa nhà -->
+        <div class="card-custom mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <h6 class="fw-bold mb-0 text-slate-900"><i class="bi bi-megaphone-fill text-danger me-2"></i>Bảng Tin Nội Khu</h6>
+                <a href="/ThongBao/Index" class="fs-8 text-primary fw-semibold text-decoration-none">Xem tất cả</a>
+            </div>
+
+            <div class="mb-3 pb-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="badge bg-danger text-white fs-9">Khẩn cấp</span>
+                    <span class="fs-9 text-muted">Hôm nay</span>
+                </div>
+                <h6 class="fs-7 fw-bold mb-1">Bảo dưỡng hệ thống PCCC tầng 3 & 4</h6>
+                <p class="fs-8 text-muted mb-0">Ban Quản Lý sẽ kiểm tra đầu phun nước tự động từ 09:00 - 11:00 ngày 02/11/2026. Xin cư dân lưu ý.</p>
+            </div>
+
+            <div class="mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="badge bg-primary-subtle text-primary fs-9">Sự kiện</span>
+                    <span class="fs-9 text-muted">28/10/2026</span>
+                </div>
+                <h6 class="fs-7 fw-bold mb-1">Đêm tiệc kết nối cộng đồng Co-Living Weekend</h6>
+                <p class="fs-8 text-muted mb-0">Giao lưu trà chiều và chiếu phim tại sảnh tầng thượng vào tối Chủ Nhật.</p>
+            </div>
+        </div>
+
+        <!-- Trợ giúp khẩn cấp & Hotline -->
+        <div class="card-custom" style="background: #F8FAFC;">
+            <h6 class="fw-bold mb-3 text-slate-900"><i class="bi bi-headset me-2 text-primary"></i>Hỗ Trợ & Số Khẩn Cấp</h6>
+            <div class="d-flex align-items-center gap-3 mb-2 p-2 bg-white rounded-3 border">
+                <div class="rounded-circle bg-primary-subtle text-primary p-2 fs-5"><i class="bi bi-telephone-fill"></i></div>
+                <div>
+                    <div class="fs-8 text-muted">Ban Quản Lý Tòa Nhà:</div>
+                    <div class="fw-bold text-primary">1900 8899 (Nhánh 1)</div>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-3 p-2 bg-white rounded-3 border">
+                <div class="rounded-circle bg-danger-subtle text-danger p-2 fs-5"><i class="bi bi-shield-fill-exclamation"></i></div>
+                <div>
+                    <div class="fs-8 text-muted">Bảo vệ & Kỹ thuật trực 24/7:</div>
+                    <div class="fw-bold text-danger">0909 999 888</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nộp Biên Lai -->
+<div class="modal fade" id="uploadReceiptModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <form action="/CuDan/NopBienLai" method="post">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-upload text-primary me-2"></i>Nộp Biên Lai Thanh Toán</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <input type="hidden" name="maHoaDon" value="HD-2026-10-305" />
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Hóa đơn cần thanh toán:</label>
+                        <input type="text" class="form-control form-control-sm bg-light" value="HD-2026-10-305 (Phòng P.305 - 4.159.000 đ)" readonly />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Mã giao dịch ngân hàng / FT code: *</label>
+                        <input type="text" class="form-control" name="maGiaoDich" placeholder="Ví dụ: FT263058899201" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Ghi chú xác nhận:</label>
+                        <textarea class="form-control" name="ghiChu" rows="2" placeholder="Cư dân Hồ Ngọc Bảo đã chuyển khoản VietQR MBBank"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4">Xác nhận nộp biên lai</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Báo Sự Cố Mới -->
+<div class="modal fade" id="newTicketModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <form action="/CuDan/GuiYeuCauSuCo" method="post">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-tools text-warning me-2"></i>Báo Cáo Hỏng Hóc / Sự Cố</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Danh mục thiết bị: *</label>
+                        <select class="form-select" name="danhMuc" required>
+                            <option value="Máy lạnh">Máy lạnh / Điều hòa</option>
+                            <option value="Điện">Điện & Đèn chiếu sáng</option>
+                            <option value="Nước">Đường ống nước & Vòi sen</option>
+                            <option value="Khóa từ">Khóa thông minh IoT / Thẻ từ</option>
+                            <option value="Nội thất">Giường, Tủ, Bàn ghế</option>
+                            <option value="Khác">Vấn đề khác</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Mức độ ưu tiên: *</label>
+                        <select class="form-select" name="mucDoUuTien" required>
+                            <option value="Trung bình">Trung bình (Xử lý trong 24h)</option>
+                            <option value="Khẩn cấp">Khẩn cấp (Cháy chập, ngập nước - Xử lý ngay)</option>
+                            <option value="Thấp">Thấp (Trong vòng 48h)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Mô tả chi tiết tình trạng: *</label>
+                        <textarea class="form-control" name="moTa" rows="3" placeholder="Nhập chi tiết hiện tượng hư hỏng..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold">Gửi yêu cầu sửa chữa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
