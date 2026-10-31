@@ -17,6 +17,20 @@ public class CuDanController : Controller
         _logger = logger;
     }
 
+    [AllowAnonymous]
+    [HttpGet("CuDan/Login")]
+    public IActionResult LoginRedirect()
+    {
+        return RedirectToAction("CuDanLogin", "Account");
+    }
+
+    [AllowAnonymous]
+    [HttpGet("CuDan/Register")]
+    public IActionResult RegisterRedirect()
+    {
+        return RedirectToAction("Register", "Account");
+    }
+
     public IActionResult Index()
     {
         ViewData["Title"] = "Cổng Cư Dân - Tổng Quan Phòng P.305";

@@ -1,0 +1,376 @@
+@model SmartStay.Web.Models.CuDanLoginViewModel
+@{
+    Layout = null;
+    ViewData["Title"] = "Cổng Đăng Nhập Cư Dân - SmartStay Resident Portal";
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5 & Icons -->
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <style>
+        :root {
+            --primary: #2563EB;
+            --primary-hover: #1D4ED8;
+            --accent: #38BDF8;
+            --dark-bg: #090E17;
+            --card-bg: #111827;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--dark-bg);
+            background-image: 
+                radial-gradient(at 10% 10%, rgba(37, 99, 235, 0.22) 0px, transparent 50%),
+                radial-gradient(at 90% 90%, rgba(14, 165, 233, 0.18) 0px, transparent 50%),
+                radial-gradient(at 50% 50%, rgba(99, 102, 241, 0.08) 0px, transparent 70%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px 16px;
+            color: var(--text-main);
+            margin: 0;
+        }
+
+        .portal-wrapper {
+            width: 100%;
+            max-width: 460px;
+        }
+
+        .portal-card {
+            background: rgba(17, 24, 39, 0.88);
+            border: 1px solid var(--card-border);
+            border-radius: 26px;
+            padding: 38px 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 40px -10px rgba(37, 99, 235, 0.3);
+            backdrop-filter: blur(20px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .portal-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #2563EB, #38BDF8, #6366F1);
+        }
+
+        .brand-header {
+            text-align: center;
+            margin-bottom: 26px;
+        }
+
+        .badge-resident {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(37, 99, 235, 0.15);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            color: #38BDF8;
+            padding: 5px 14px;
+            border-radius: 999px;
+            font-size: 11.5px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+        }
+
+        .brand-logo-icon {
+            width: 58px;
+            height: 58px;
+            background: linear-gradient(135deg, #2563EB, #0284C7);
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: #fff;
+            margin-bottom: 12px;
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.45);
+        }
+
+        .brand-title {
+            font-size: 23px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 4px;
+        }
+
+        .brand-sub {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        /* Form Controls */
+        .form-label {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #CBD5E1;
+            margin-bottom: 6px;
+        }
+
+        .input-group-custom {
+            position: relative;
+            margin-bottom: 18px;
+        }
+
+        .input-group-custom i.prefix-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748B;
+            font-size: 16px;
+            z-index: 5;
+        }
+
+        .form-control-custom {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #fff !important;
+            border-radius: 12px;
+            padding: 12px 14px 12px 42px;
+            font-size: 14px;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .form-control-custom:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #38BDF8;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+            outline: none;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748B;
+            cursor: pointer;
+            z-index: 5;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+
+        .btn-resident-login {
+            background: linear-gradient(135deg, #2563EB, #0284C7);
+            border: none;
+            color: #fff;
+            font-weight: 700;
+            font-size: 14.5px;
+            padding: 13px;
+            border-radius: 12px;
+            width: 100%;
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+            transition: all 0.2s ease;
+        }
+
+        .btn-resident-login:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.5);
+            color: #fff;
+        }
+
+        .btn-demo-quick {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px dashed rgba(56, 189, 248, 0.4);
+            color: #38BDF8;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 10px 14px;
+            border-radius: 12px;
+            width: 100%;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .btn-demo-quick:hover {
+            background: rgba(56, 189, 248, 0.1);
+            border-color: #38BDF8;
+            color: #fff;
+        }
+
+        .register-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 14px;
+            text-align: center;
+            margin-top: 22px;
+        }
+
+        .register-box a {
+            color: #38BDF8;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .register-box a:hover {
+            text-decoration: underline;
+        }
+
+        .admin-link {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+        }
+
+        .admin-link a {
+            color: #94A3B8;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .admin-link a:hover {
+            color: #CBD5E1;
+        }
+    </style>
+</head>
+<body>
+    <div class="portal-wrapper">
+        <div class="portal-card">
+            <!-- Header -->
+            <div class="brand-header">
+                <div>
+                    <span class="badge-resident">
+                        <i class="bi bi-shield-check"></i> CỔNG DỊCH VỤ CƯ DÂN ĐIỆN TỬ
+                    </span>
+                </div>
+                <div class="brand-logo-icon">
+                    <i class="bi bi-house-door-fill"></i>
+                </div>
+                <h1 class="brand-title">SmartStay Resident</h1>
+                <p class="brand-sub">Tra cứu hóa đơn VietQR • Báo hỏng thiết bị • Khóa IoT</p>
+            </div>
+
+            <!-- Login Form -->
+            <form asp-action="CuDanLogin" method="post" id="cudanLoginForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="ReturnUrl" />
+
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div class="alert alert-danger py-2 px-3 mb-3 text-danger border-0 rounded-3" style="background: rgba(239, 68, 68, 0.15); font-size: 13px;">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        @Html.ValidationSummary(true, "")
+                    </div>
+                }
+
+                @if (TempData["SuccessMessage"] != null)
+                {
+                    <div class="alert alert-success py-2 px-3 mb-3 text-success border-0 rounded-3" style="background: rgba(16, 185, 129, 0.15); font-size: 13px;">
+                        <i class="bi bi-check-circle-fill me-1"></i>
+                        @TempData["SuccessMessage"]
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label" for="TenDangNhap">Số điện thoại / Mã sinh viên / CCCD</label>
+                    <div class="input-group-custom">
+                        <i class="bi bi-person-fill prefix-icon"></i>
+                        <input asp-for="TenDangNhap" class="form-control-custom" id="txtUsername" placeholder="Ví dụ: 2380600133 hoặc 0901234567" required />
+                    </div>
+                    <span asp-validation-for="TenDangNhap" class="text-danger fs-8"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="MatKhau">Mật khẩu</label>
+                    <div class="input-group-custom">
+                        <i class="bi bi-lock-fill prefix-icon"></i>
+                        <input asp-for="MatKhau" type="password" class="form-control-custom" id="txtPassword" placeholder="Nhập mật khẩu..." required />
+                        <button type="button" class="toggle-password" onclick="togglePasswordVisibility()">
+                            <i class="bi bi-eye-slash-fill" id="eyeIcon"></i>
+                        </button>
+                    </div>
+                    <span asp-validation-for="MatKhau" class="text-danger fs-8"></span>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" asp-for="GhiNho" id="chkRemember" style="background-color: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);">
+                        <label class="form-check-label text-muted fs-8" for="chkRemember">
+                            Ghi nhớ phiên đăng nhập
+                        </label>
+                    </div>
+                    <a href="javascript:void(0)" onclick="alert('Vui lòng liên hệ BQL Tòa nhà qua hotline 1900 888 999 để cấp lại mật khẩu.')" class="text-muted fs-8 text-decoration-none">Quên mật khẩu?</a>
+                </div>
+
+                <button type="submit" class="btn btn-resident-login">
+                    <i class="bi bi-box-arrow-in-right me-1"></i> ĐĂNG NHẬP CỔNG CƯ DÂN
+                </button>
+
+                <!-- Nút Demo nhanh một chạm -->
+                <button type="button" class="btn-demo-quick" onclick="quickFillDemo()">
+                    <i class="bi bi-lightning-charge-fill text-warning"></i> Điền nhanh tài khoản mẫu Cư Dân P.305 (123456)
+                </button>
+            </form>
+
+            <!-- Box Đăng ký tài khoản cư dân -->
+            <div class="register-box">
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Bạn là cư dân mới chuyển vào?</div>
+                <div>
+                    <a asp-action="Register" asp-controller="Account">
+                        <i class="bi bi-person-plus-fill me-1"></i> ĐĂNG KÝ TÀI KHOẢN CƯ DÂN MỚI
+                    </a>
+                </div>
+            </div>
+
+            <!-- Chuyển sang Cổng Quản Trị -->
+            <div class="admin-link">
+                <a asp-action="Login" asp-controller="Account">
+                    <i class="bi bi-shield-lock me-1"></i> Dành cho Ban Quản Lý & Kỹ Thuật Viên
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function quickFillDemo() {
+            document.getElementById('txtUsername').value = '2380600133';
+            document.getElementById('txtPassword').value = '123456';
+        }
+
+        function togglePasswordVisibility() {
+            const passField = document.getElementById('txtPassword');
+            const eyeIcon = document.getElementById('eyeIcon');
+            if (passField.type === 'password') {
+                passField.type = 'text';
+                eyeIcon.classList.remove('bi-eye-slash-fill');
+                eyeIcon.classList.add('bi-eye-fill');
+            } else {
+                passField.type = 'password';
+                eyeIcon.classList.remove('bi-eye-fill');
+                eyeIcon.classList.add('bi-eye-slash-fill');
+            }
+        }
+    </script>
+</body>
+</html>

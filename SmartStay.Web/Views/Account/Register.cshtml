@@ -1,0 +1,398 @@
+@model SmartStay.Web.Models.CuDanRegisterViewModel
+@{
+    Layout = null;
+    ViewData["Title"] = "Đăng Ký Tài Khoản Cư Dân - SmartStay Resident Portal";
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5 & Icons -->
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <style>
+        :root {
+            --primary: #2563EB;
+            --primary-hover: #1D4ED8;
+            --accent: #38BDF8;
+            --dark-bg: #090E17;
+            --card-bg: #111827;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--dark-bg);
+            background-image: 
+                radial-gradient(at 10% 10%, rgba(37, 99, 235, 0.22) 0px, transparent 50%),
+                radial-gradient(at 90% 90%, rgba(14, 165, 233, 0.18) 0px, transparent 50%),
+                radial-gradient(at 50% 50%, rgba(99, 102, 241, 0.08) 0px, transparent 70%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 16px;
+            color: var(--text-main);
+            margin: 0;
+        }
+
+        .register-wrapper {
+            width: 100%;
+            max-width: 620px;
+        }
+
+        .register-card {
+            background: rgba(17, 24, 39, 0.90);
+            border: 1px solid var(--card-border);
+            border-radius: 28px;
+            padding: 40px 36px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 40px -10px rgba(37, 99, 235, 0.3);
+            backdrop-filter: blur(20px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .register-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #38BDF8, #2563EB, #8B5CF6);
+        }
+
+        .brand-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .badge-register {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            color: #38BDF8;
+            padding: 5px 14px;
+            border-radius: 999px;
+            font-size: 11.5px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .brand-title {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 4px;
+        }
+
+        .brand-sub {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .section-header {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #38BDF8;
+            margin: 22px 0 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-header::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* Form Controls */
+        .form-label {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #CBD5E1;
+            margin-bottom: 6px;
+        }
+
+        .input-group-custom {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .input-group-custom i.prefix-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748B;
+            font-size: 16px;
+            z-index: 5;
+        }
+
+        .form-control-custom {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #fff !important;
+            border-radius: 12px;
+            padding: 11px 14px 11px 42px;
+            font-size: 13.5px;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .form-control-custom:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #38BDF8;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+            outline: none;
+        }
+
+        select.form-control-custom {
+            cursor: pointer;
+        }
+
+        select.form-control-custom option {
+            background-color: #111827;
+            color: #fff;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748B;
+            cursor: pointer;
+            z-index: 5;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+
+        .btn-register-submit {
+            background: linear-gradient(135deg, #2563EB, #0284C7);
+            border: none;
+            color: #fff;
+            font-weight: 700;
+            font-size: 15px;
+            padding: 14px;
+            border-radius: 12px;
+            width: 100%;
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+            transition: all 0.2s ease;
+            margin-top: 10px;
+        }
+
+        .btn-register-submit:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.55);
+            color: #fff;
+        }
+
+        .login-back-box {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .login-back-box a {
+            color: #38BDF8;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .login-back-box a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="register-wrapper">
+        <div class="register-card">
+            <!-- Header -->
+            <div class="brand-header">
+                <div>
+                    <span class="badge-register">
+                        <i class="bi bi-person-plus-fill"></i> CỔNG ĐĂNG KÝ CƯ DÂN SMARTSTAY
+                    </span>
+                </div>
+                <h1 class="brand-title">Đăng Ký Tài Khoản Cư Dân</h1>
+                <p class="brand-sub">Kích hoạt tài khoản để tra cứu hóa đơn, nộp biên lai và báo sự cố phòng</p>
+            </div>
+
+            <!-- Form -->
+            <form asp-action="Register" method="post" id="registerForm">
+                @Html.AntiForgeryToken()
+
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div class="alert alert-danger py-2 px-3 mb-3 text-danger border-0 rounded-3" style="background: rgba(239, 68, 68, 0.15); font-size: 13px;">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        @Html.ValidationSummary(false, "")
+                    </div>
+                }
+
+                <!-- Section 1: Thông tin cá nhân -->
+                <div class="section-header">
+                    <i class="bi bi-person-lines-fill"></i> 1. Thông Tin Định Danh Cư Dân
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-md-7">
+                        <label class="form-label" for="HoTen">Họ và tên cư dân <span class="text-danger">*</span></label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-person prefix-icon"></i>
+                            <input asp-for="HoTen" class="form-control-custom" placeholder="Ví dụ: Hồ Ngọc Bảo" required />
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label" for="SoCanCuoc">Số CCCD / CMND <span class="text-danger">*</span></label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-card-heading prefix-icon"></i>
+                            <input asp-for="SoCanCuoc" class="form-control-custom" placeholder="07920300xxxx" required />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label" for="SoDienThoai">Số điện thoại (dùng đăng nhập) <span class="text-danger">*</span></label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-telephone prefix-icon"></i>
+                            <input asp-for="SoDienThoai" class="form-control-custom" placeholder="0901234567" required />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="ThuDienTu">Email nhận hóa đơn VietQR <span class="text-danger">*</span></label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-envelope prefix-icon"></i>
+                            <input asp-for="ThuDienTu" type="email" class="form-control-custom" placeholder="cudan@smartstay.vn" required />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Căn hộ cư trú -->
+                <div class="section-header">
+                    <i class="bi bi-building"></i> 2. Thông Tin Căn Hộ Cư Trú
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label" for="ToaNha">Tòa nhà</label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-buildings prefix-icon"></i>
+                            <select asp-for="ToaNha" class="form-control-custom">
+                                <option value="Tòa A - Sapphire">Tòa A - Sapphire</option>
+                                <option value="Tòa B - Ruby">Tòa B - Ruby</option>
+                                <option value="Tòa C - Diamond">Tòa C - Diamond</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="SoPhong">Căn hộ / Số phòng thuê <span class="text-danger">*</span></label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-door-open prefix-icon"></i>
+                            <select asp-for="SoPhong" class="form-control-custom">
+                                <option value="P.305">P.305 (Studio Cao Cấp - Tầng 3)</option>
+                                <option value="P.101">P.101 (Phòng Standard - Tầng 1)</option>
+                                <option value="P.102">P.102 (Phòng Standard - Tầng 1)</option>
+                                <option value="P.201">P.201 (Studio Ban Công - Tầng 2)</option>
+                                <option value="P.202">P.202 (Studio Ban Công - Tầng 2)</option>
+                                <option value="P.301">P.301 (Studio View Hồ - Tầng 3)</option>
+                                <option value="P.401">P.401 (Duplex 2PN - Tầng 4)</option>
+                                <option value="P.402">P.402 (Duplex 2PN - Tầng 4)</option>
+                                <option value="P.501">P.501 (Penthouse Smart - Tầng 5)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Mật khẩu -->
+                <div class="section-header">
+                    <i class="bi bi-shield-lock"></i> 3. Thiết Lập Mật Khẩu
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label" for="MatKhau">Mật khẩu (tối thiểu 6 ký tự) <span class="text-danger">*</span></label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-lock prefix-icon"></i>
+                            <input asp-for="MatKhau" type="password" class="form-control-custom" id="regPass" placeholder="••••••••" required />
+                            <button type="button" class="toggle-password" onclick="togglePass('regPass', 'eyePass1')">
+                                <i class="bi bi-eye-slash-fill" id="eyePass1"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="XacNhanMatKhau">Xác nhận mật khẩu <span class="text-danger">*</span></label>
+                        <div class="input-group-custom">
+                            <i class="bi bi-lock-fill prefix-icon"></i>
+                            <input asp-for="XacNhanMatKhau" type="password" class="form-control-custom" id="regConfirmPass" placeholder="••••••••" required />
+                            <button type="button" class="toggle-password" onclick="togglePass('regConfirmPass', 'eyePass2')">
+                                <i class="bi bi-eye-slash-fill" id="eyePass2"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Điều khoản -->
+                <div class="form-check my-3">
+                    <input class="form-check-input" type="checkbox" asp-for="DongYDieuKhoan" id="chkTerms" style="background-color: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);">
+                    <label class="form-check-label text-muted fs-8" for="chkTerms">
+                        Tôi cam kết thông tin khai báo là chính xác và đồng ý với <a href="javascript:void(0)" class="text-info text-decoration-none">Nội quy lưu trú</a> & <a href="javascript:void(0)" class="text-info text-decoration-none">Điều khoản cư dân SmartStay</a>.
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-register-submit">
+                    <i class="bi bi-check2-circle me-1"></i> HOÀN TẤT ĐĂNG KÝ CƯ DÂN
+                </button>
+            </form>
+
+            <!-- Quay lại đăng nhập -->
+            <div class="login-back-box">
+                Đã có tài khoản cư dân? 
+                <a asp-action="CuDanLogin" asp-controller="Account">
+                    Đăng nhập Cổng Cư Dân ngay <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function togglePass(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('bi-eye-slash-fill');
+                icon.classList.add('bi-eye-fill');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('bi-eye-fill');
+                icon.classList.add('bi-eye-slash-fill');
+            }
+        }
+    </script>
+</body>
+</html>
