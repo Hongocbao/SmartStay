@@ -1,0 +1,191 @@
+@{
+    ViewData["Title"] = "AI Camera Quét Công Tơ Điện Nước Tự Động - SmartStay";
+}
+
+<!-- Alert thông báo -->
+<div id="ocrAlert" class="alert alert-success alert-dismissible fade d-none rounded-3 shadow-sm mb-4" role="alert">
+    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+    <span id="ocrAlertText">Thông báo</span>
+    <button type="button" class="btn-close" onclick="document.getElementById('ocrAlert').classList.add('d-none')"></button>
+</div>
+
+<div class="card-custom mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge bg-danger text-white px-2 py-1 fs-9 rounded-pill">AI COMPUTER VISION</span>
+                <span class="badge bg-primary-subtle text-primary border px-2 py-1 fs-9 rounded-pill">Gemini Vision OCR</span>
+            </div>
+            <h4 class="fw-bold mb-1 text-slate-900"><i class="bi bi-camera-fill text-danger me-2"></i>AI Camera Quét Chỉ Số Công Tơ Điện & Nước Tự Động</h4>
+            <p class="text-muted fs-8 mb-0">Chụp ảnh đồng hồ công tơ thực tế bằng camera điện thoại, AI tự động phát hiện viền màn hình, bóc tách chỉ số kWh / m³ và đối chiếu gian lận</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary rounded-3" onclick="loadSampleImage('electric')">
+                <i class="bi bi-lightning-charge me-1"></i> Ảnh mẫu Công Tơ Điện
+            </button>
+            <button class="btn btn-sm btn-outline-info rounded-3" onclick="loadSampleImage('water')">
+                <i class="bi bi-droplet-half me-1"></i> Ảnh mẫu Đồng Hồ Nước
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Cột Trái: Camera / Upload Ảnh -->
+    <div class="col-lg-6">
+        <div class="card-custom h-100">
+            <h6 class="fw-bold text-slate-800 mb-3"><i class="bi bi-image text-primary me-2"></i>Khu Vực Quét Ảnh Camera</h6>
+            
+            <div class="border rounded-4 p-4 text-center bg-light position-relative" style="min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden;" id="dropZone">
+                <!-- Khung quét AI Bounding Box -->
+                <div id="scanOverlay" class="position-absolute d-none" style="top: 25%; left: 20%; width: 60%; height: 50%; border: 2px dashed #EF4444; border-radius: 12px; pointer-events: none; animation: pulseBorder 1.5s infinite;">
+                    <span class="badge bg-danger position-absolute" style="top: -12px; left: 10px; font-size: 10px;">VÙNG NHẬN DIỆN AI (ROI)</span>
+                </div>
+
+                <img id="previewImg" src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80" alt="Preview Meter" class="img-fluid rounded-3 mb-3 shadow-sm" style="max-height: 240px; object-fit: cover;">
+
+                <div class="d-flex flex-wrap justify-content-center gap-2 mt-2">
+                    <label class="btn btn-sm btn-primary rounded-3 cursor-pointer shadow-sm mb-0">
+                        <i class="bi bi-camera me-1"></i> Chụp ảnh bằng Camera / Chọn file
+                        <input type="file" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelect(this)">
+                    </label>
+                    <button class="btn btn-sm btn-danger rounded-3 shadow-sm fw-semibold" id="btnScanAi" onclick="startAiOcrScan()">
+                        <i class="bi bi-cpu me-1"></i> KÍCH HOẠT QUÉT AI OCR
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading Spinner AI -->
+            <div id="aiScanningIndicator" class="text-center p-3 rounded-3 bg-white border mt-3 d-none">
+                <div class="spinner-border spinner-border-sm text-danger me-2" role="status"></div>
+                <span class="fs-8 fw-bold text-danger">AI đang bóc tách chữ số công tơ qua mô hình Convolutional OCR...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cột Phải: Kết Quả Nhận Diện AI & Đối Soát -->
+    <div class="col-lg-6">
+        <div class="card-custom h-100">
+            <h6 class="fw-bold text-slate-800 mb-3"><i class="bi bi-clipboard2-check-fill text-success me-2"></i>Kết Quả Phân Tích & Đối Soát Tự Động</h6>
+
+            <div class="p-3 rounded-3 bg-light border mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fs-8 fw-bold text-muted">LOẠI THIẾT BỊ:</span>
+                    <span class="badge bg-primary text-white" id="resMeterType">Công Tơ Điện Tử 1 Pha</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fs-8 fw-bold text-muted">ĐỘ TIN CẬY AI (CONFIDENCE):</span>
+                    <span class="badge bg-success-subtle text-success fs-8" id="resConfidence">99.4% (Rất cao)</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fs-8 fw-bold text-muted">CHỈ SỐ CŨ THÁNG 09:</span>
+                    <span class="fw-bold text-dark fs-7" id="resOldIndex">1.420 kWh</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-2 pt-2 border-top">
+                    <span class="fs-7 fw-bold text-danger">CHỈ SỐ AI BÓC TÁCH ĐƯỢC:</span>
+                    <span class="fw-bold fs-4 text-danger" id="resNewIndex">1.540 kWh</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <span class="fs-8 fw-bold text-muted">LƯỢNG TIÊU THỤ THÁNG 10:</span>
+                    <span class="fw-bold text-primary fs-6" id="resConsumption">120 kWh</span>
+                </div>
+            </div>
+
+            <!-- Cảnh Báo Anomaly Detection -->
+            <div class="alert alert-success border-0 rounded-3 p-3 mb-3 d-flex align-items-start gap-2" id="anomalyBox">
+                <i class="bi bi-shield-check fs-4 text-success"></i>
+                <div class="fs-8">
+                    <strong class="text-success">Không phát hiện gian lận hoặc bất thường!</strong>
+                    <div>Chỉ số tăng đều so với mức tiêu thụ trung bình 3 tháng gần nhất (115 kWh). Không có dấu hiệu can thiệp đồng hồ hoặc rò rỉ bất thường.</div>
+                </div>
+            </div>
+
+            <!-- Nút lưu vào hệ thống -->
+            <button class="btn btn-success w-100 py-2 rounded-3 fw-semibold shadow-sm" id="btnSaveIndex" onclick="saveIndexToDatabase()">
+                <i class="bi bi-database-check me-1"></i> XÁC NHẬN & LƯU CHỈ SỐ VÀO HỆ THỐNG PHÒNG P.305
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    keyframes pulseBorder {
+        0% { opacity: 0.4; transform: scale(0.98); }
+        50% { opacity: 1; transform: scale(1.02); }
+        100% { opacity: 0.4; transform: scale(0.98); }
+    }
+</style>
+
+<script>
+    let currentType = 'electric';
+
+    function loadSampleImage(type) {
+        currentType = type;
+        const img = document.getElementById('previewImg');
+        if (type === 'electric') {
+            img.src = 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80';
+            document.getElementById('resMeterType').innerText = 'Công Tơ Điện Tử EMIC 1 Pha';
+            document.getElementById('resOldIndex').innerText = '1.420 kWh';
+            document.getElementById('resNewIndex').innerText = '1.540 kWh';
+            document.getElementById('resConsumption').innerText = '120 kWh';
+        } else {
+            img.src = 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80';
+            document.getElementById('resMeterType').innerText = 'Đồng Hồ Đo Lưu Lượng Nước Sinh Hoạt';
+            document.getElementById('resOldIndex').innerText = '84 m³';
+            document.getElementById('resNewIndex').innerText = '92 m³';
+            document.getElementById('resConsumption').innerText = '8 m³';
+        }
+        showOcrAlert(`Đã tải ảnh mẫu ${type === 'electric' ? 'công tơ điện' : 'đồng hồ nước'} vào khung quét AI.`);
+    }
+
+    function handleFileSelect(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('previewImg').src = e.target.result;
+                showOcrAlert('Đã tải ảnh chụp công tơ từ thiết bị thành công! Bấm "KÍCH HOẠT QUÉT AI OCR" để nhận diện.');
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function startAiOcrScan() {
+        const overlay = document.getElementById('scanOverlay');
+        const indicator = document.getElementById('aiScanningIndicator');
+        const btn = document.getElementById('btnScanAi');
+
+        overlay.classList.remove('d-none');
+        indicator.classList.remove('d-none');
+        btn.disabled = true;
+
+        setTimeout(() => {
+            indicator.classList.add('d-none');
+            btn.disabled = false;
+
+            if (currentType === 'electric') {
+                document.getElementById('resNewIndex').innerText = '1.540 kWh';
+                document.getElementById('resConfidence').innerText = '99.7% (Cực chính xác)';
+            } else {
+                document.getElementById('resNewIndex').innerText = '92 m³';
+                document.getElementById('resConfidence').innerText = '98.9% (Cực chính xác)';
+            }
+
+            showOcrAlert('AI OCR hoàn tất nhận diện! Các con số đã được đọc tự động với độ tin cậy > 98%.');
+        }, 1200);
+    }
+
+    function saveIndexToDatabase() {
+        showOcrAlert('Đã lưu chỉ số được đọc bởi AI vào Cơ Sở Dữ Liệu Supabase Cloud! Hệ thống đã tính toán hóa đơn phòng P.305 tháng 10.');
+    }
+
+    function showOcrAlert(msg) {
+        const box = document.getElementById('ocrAlert');
+        document.getElementById('ocrAlertText').innerText = msg;
+        box.classList.remove('d-none');
+        box.classList.add('show');
+        setTimeout(() => {
+            box.classList.remove('show');
+            box.classList.add('d-none');
+        }, 5000);
+    }
+</script>

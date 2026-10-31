@@ -49,6 +49,36 @@ public class CuDanController : Controller
         return View();
     }
 
+    public IActionResult ChiaTien()
+    {
+        ViewData["Title"] = "Chia Tiền Phòng Ở Ghép & Đa Mã VietQR Động";
+        return View();
+    }
+
+    public IActionResult AiOcr()
+    {
+        ViewData["Title"] = "AI Camera Quét Công Tơ Điện Nước Tự Động";
+        return View();
+    }
+
+    public IActionResult AiConcierge()
+    {
+        ViewData["Title"] = "Trợ Lý Ảo AI Tự Hành (AI Agentic Concierge)";
+        return View();
+    }
+
+    public IActionResult GuestPass()
+    {
+        ViewData["Title"] = "Cấp Mã Khách Vãng Lai & Khóa Thông Minh IoT";
+        return View();
+    }
+
+    public IActionResult ChoDoCu()
+    {
+        ViewData["Title"] = "Chợ Trao Đổi Đồ Cũ Sinh Viên Co-Living";
+        return View();
+    }
+
     [HttpPost]
     public IActionResult NopBienLai(string maHoaDon, string maGiaoDich, string ghiChu)
     {

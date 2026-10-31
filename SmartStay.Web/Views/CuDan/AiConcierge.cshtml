@@ -1,0 +1,259 @@
+@{
+    ViewData["Title"] = "Trợ Lý Ảo AI Tự Hành (AI Agentic Concierge) - SmartStay";
+}
+
+<!-- Alert thông báo -->
+<div id="aiAlert" class="alert alert-success alert-dismissible fade d-none rounded-3 shadow-sm mb-4" role="alert">
+    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+    <span id="aiAlertText">Thông báo</span>
+    <button type="button" class="btn-close" onclick="document.getElementById('aiAlert').classList.add('d-none')"></button>
+</div>
+
+<div class="card-custom mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge bg-purple text-white px-2 py-1 fs-9 rounded-pill" style="background: #8B5CF6;">AGENTIC AI 2026</span>
+                <span class="badge bg-primary-subtle text-primary border px-2 py-1 fs-9 rounded-pill">Gemini Multi-turn Assistant</span>
+            </div>
+            <h4 class="fw-bold mb-1 text-slate-900"><i class="bi bi-robot text-purple me-2" style="color: #8B5CF6;"></i>Trợ Lý Ảo AI Tự Hành (Agentic Concierge 24/7)</h4>
+            <p class="text-muted fs-8 mb-0">Tự động nhận diện ngữ cảnh chat, phân tích tài chính điện nước, và tự hành tạo phiếu sự cố kỹ thuật Kanban mà cư dân không cần điền form</p>
+        </div>
+        <div class="d-flex gap-2">
+            <span class="badge bg-success-subtle text-success border px-3 py-2 rounded-pill fs-8">
+                <i class="bi bi-broadcast me-1"></i> LLM Online: Gemini 1.5 Pro
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Cột Khung Chat Tương Tác Trực Tuyến -->
+    <div class="col-lg-8">
+        <div class="card-custom d-flex flex-column" style="height: 560px;">
+            <div class="d-flex justify-content-between align-items-center pb-3 border-bottom mb-3">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle p-2 text-white" style="background: linear-gradient(135deg, #8B5CF6, #3B82F6); width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;">
+                        <i class="bi bi-stars"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-0 text-slate-900">SmartStay AI Concierge</h6>
+                        <span class="fs-9 text-success"><i class="bi bi-circle-fill fs-9 me-1"></i>Sẵn sàng hỗ trợ cư dân Hồ Ngọc Bảo (P.305)</span>
+                    </div>
+                </div>
+                <button class="btn btn-xs btn-outline-secondary rounded-pill" onclick="clearChat()">
+                    <i class="bi bi-trash me-1"></i> Làm mới chat
+                </button>
+            </div>
+
+            <!-- Khung cuộn tin nhắn -->
+            <div class="flex-grow-1 overflow-auto px-2 mb-3" id="chatContainer" style="display: flex; flex-direction: column; gap: 14px;">
+                <!-- Bot chào mừng -->
+                <div class="d-flex gap-2 align-items-start">
+                    <div class="rounded-circle text-white p-2" style="background: #8B5CF6; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 13px;">
+                        <i class="bi bi-robot"></i>
+                    </div>
+                    <div class="p-3 rounded-4 bg-light text-slate-800 fs-8 shadow-sm" style="max-width: 80%;">
+                        <div>Xin chào bạn <strong>Hồ Ngọc Bảo</strong> (Căn hộ P.305)! Tôi là Trợ lý ảo AI của hệ thống SmartStay.</div>
+                        <div class="mt-2">Tôi có thể tự động giúp bạn:</div>
+                        <ul class="mb-0 mt-1 ps-3">
+                            <li>Tự động báo hỏng thiết bị và gọi kỹ thuật viên.</li>
+                            <li>Giải thích chi tiết tiền điện nước bậc thang tháng 10.</li>
+                            <li>Tạo mã khách đến thăm phòng hoặc hướng dẫn nội quy Co-Living.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ô nhập liệu và các nút gợi ý câu hỏi nhanh -->
+            <div class="pt-2 border-top">
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                    <button class="btn btn-xs btn-outline-secondary rounded-pill fs-9" onclick="quickSend('Phòng tôi bị rỉ nước vòi sen, gọi thợ sửa gấp giùm!')">
+                        ⚡ "Phòng tôi bị rỉ nước vòi sen, gọi thợ sửa gấp!"
+                    </button>
+                    <button class="btn btn-xs btn-outline-secondary rounded-pill fs-9" onclick="quickSend('Tại sao tháng này tiền điện phòng tôi cao vậy?')">
+                        ⚡ "Tại sao tháng này tiền điện phòng tôi cao vậy?"
+                    </button>
+                    <button class="btn btn-xs btn-outline-secondary rounded-pill fs-9" onclick="quickSend('Quy định gửi xe qua đêm của tòa nhà thế nào?')">
+                        ⚡ "Quy định gửi xe qua đêm của tòa nhà?"
+                    </button>
+                </div>
+
+                <div class="input-group">
+                    <input type="text" id="userMsgInput" class="form-control rounded-start-3 fs-8" placeholder="Hỏi AI bất kỳ điều gì hoặc ra lệnh báo hỏng thiết bị..." onkeypress="if(event.key === 'Enter') sendUserMessage()">
+                    <button class="btn btn-primary rounded-end-3 px-4" onclick="sendUserMessage()">
+                        <i class="bi bi-send-fill"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cột Phải: Bảng Theo Dõi Hành Động Tự Hành Của AI (Action Execution Log) -->
+    <div class="col-lg-4">
+        <div class="card-custom h-100">
+            <h6 class="fw-bold text-slate-800 mb-3"><i class="bi bi-lightning-charge-fill text-warning me-2"></i>Nhật Ký Hành Động Tự Hành Của AI (Tool Calling)</h6>
+            
+            <div id="aiActionBox" class="p-3 rounded-3 bg-light border mb-3">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge bg-secondary text-white fs-9">Trạng thái: Chờ lệnh</span>
+                </div>
+                <div class="fs-8 text-muted">
+                    Khi bạn chat yêu cầu sửa chữa hoặc kiểm tra, AI sẽ tự động kích hoạt API Backend để tạo ticket Kanban, đọc database Supabase mà không cần thao tác tay.
+                </div>
+            </div>
+
+            <div class="p-3 rounded-3 bg-white border mb-3">
+                <div class="fw-bold fs-8 text-slate-800 mb-2">CÁC CÔNG CỤ TỰ HÀNH ĐÃ ĐƯỢC TÍCH HỢP (FUNCTION TOOLS):</div>
+                <div class="d-flex flex-column gap-2 fs-9">
+                    <div class="d-flex align-items-center gap-2 text-primary">
+                        <i class="bi bi-check2-circle"></i>
+                        <span><code>create_kanban_ticket()</code>: Tạo phiếu sự cố</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 text-success">
+                        <i class="bi bi-check2-circle"></i>
+                        <span><code>query_invoice_breakdown()</code>: Bóc tách hóa đơn</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 text-warning">
+                        <i class="bi bi-check2-circle"></i>
+                        <span><code>generate_vietqr_link()</code>: Sinh link VietQR</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 text-danger">
+                        <i class="bi bi-check2-circle"></i>
+                        <span><code>remote_iot_lock_control()</code>: Điều khiển khóa</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function quickSend(text) {
+        document.getElementById('userMsgInput').value = text;
+        sendUserMessage();
+    }
+
+    function sendUserMessage() {
+        const input = document.getElementById('userMsgInput');
+        const text = input.value.trim();
+        if (!text) return;
+
+        appendMessage('user', text);
+        input.value = '';
+
+        // Giả lập xử lý Agentic AI
+        setTimeout(() => {
+            processAiAgentResponse(text);
+        }, 800);
+    }
+
+    function appendMessage(sender, text, actionCard = null) {
+        const container = document.getElementById('chatContainer');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'd-flex gap-2 align-items-start ' + (sender === 'user' ? 'justify-content-end' : '');
+
+        if (sender === 'user') {
+            msgDiv.innerHTML = `
+                <div class="p-3 rounded-4 text-white fs-8 shadow-sm" style="background: linear-gradient(135deg, #4F46E5, #3B82F6); max-width: 80%;">
+                    ${text}
+                </div>
+                <div class="rounded-circle text-white p-2" style="background: #4F46E5; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 13px;">
+                    <i class="bi bi-person-fill"></i>
+                </div>
+            `;
+        } else {
+            msgDiv.innerHTML = `
+                <div class="rounded-circle text-white p-2" style="background: #8B5CF6; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 13px;">
+                    <i class="bi bi-robot"></i>
+                </div>
+                <div class="p-3 rounded-4 bg-light text-slate-800 fs-8 shadow-sm" style="max-width: 80%;">
+                    <div>${text}</div>
+                    ${actionCard ? actionCard : ''}
+                </div>
+            `;
+        }
+
+        container.appendChild(msgDiv);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function processAiAgentResponse(userQuery) {
+        const q = userQuery.toLowerCase();
+        const actionBox = document.getElementById('aiActionBox');
+
+        if (q.includes('rỉ nước') || q.includes('vòi sen') || q.includes('sửa') || q.includes('hỏng')) {
+            // Tự động tạo ticket Kanban
+            actionBox.innerHTML = `
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge bg-danger text-white fs-9">Kích hoạt Tool: create_kanban_ticket()</span>
+                </div>
+                <div class="fs-8">
+                    <div><strong>Phòng:</strong> P.305 (Hồ Ngọc Bảo)</div>
+                    <div><strong>Vấn đề:</strong> Rò rỉ nước vòi sen</div>
+                    <div><strong>Mức độ:</strong> Khẩn cấp (Xử lý trong 2h)</div>
+                    <div><strong>Kỹ thuật phụ trách:</strong> Nguyễn Văn Bình</div>
+                    <div class="text-success fw-bold mt-1"><i class="bi bi-check-circle me-1"></i>Phiếu SC-2026-095 đã được đẩy lên Bảng Kanban!</div>
+                </div>
+            `;
+
+            const card = `
+                <div class="p-2 rounded-3 bg-white border mt-2 border-danger-subtle">
+                    <div class="d-flex justify-content-between">
+                        <span class="badge bg-danger text-white fs-9">SC-2026-095 • Khẩn cấp</span>
+                        <span class="fs-9 text-muted">Vừa tạo</span>
+                    </div>
+                    <div class="fw-bold mt-1 text-slate-900 fs-8">Rò rỉ nước vòi sen phòng tắm P.305</div>
+                    <div class="fs-9 text-muted">Kỹ thuật viên <strong>Nguyễn Văn Bình</strong> đã nhận nhiệm vụ và sẽ có mặt trong 30 phút.</div>
+                </div>
+            `;
+
+            appendMessage('bot', 'Tôi đã nhận diện được sự cố khẩn cấp tại phòng bạn và **đã tự động tạo phiếu sửa chữa SC-2026-095** trên hệ thống Ban Quản Lý!', card);
+            showAiAlert('AI Agent đã tự động tạo thành công 1 Ticket sự cố mới trên bảng Kanban!');
+        } else if (q.includes('tiền điện') || q.includes('hóa đơn') || q.includes('cao')) {
+            actionBox.innerHTML = `
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge bg-primary text-white fs-9">Kích hoạt Tool: query_invoice_breakdown()</span>
+                </div>
+                <div class="fs-8">
+                    <div><strong>Phòng:</strong> P.305</div>
+                    <div><strong>Tháng 10:</strong> 120 kWh (254.000 đ)</div>
+                    <div><strong>Tháng 09:</strong> 90 kWh (162.000 đ)</div>
+                    <div><strong>Chênh lệch:</strong> +30 kWh (+92.000 đ)</div>
+                    <div class="text-primary fw-bold mt-1"><i class="bi bi-graph-up-arrow me-1"></i>Đã phân tích biểu đồ lũy tiến Bậc 3</div>
+                </div>
+            `;
+
+            const breakdown = `
+                <div class="p-2 rounded-3 bg-white border mt-2">
+                    <div class="fw-bold fs-8 text-primary mb-1">Phân tích tiền điện tháng 10 phòng P.305:</div>
+                    <ul class="mb-0 ps-3 fs-9 text-slate-700">
+                        <li>50 kWh đầu (Bậc 1): 90.300 đ</li>
+                        <li>50 kWh tiếp theo (Bậc 2): 93.300 đ</li>
+                        <li>20 kWh vượt mức (Bậc 3): 43.340 đ (bị áp giá 2.167đ/kWh)</li>
+                    </ul>
+                </div>
+            `;
+
+            appendMessage('bot', 'Tôi đã kiểm tra dữ liệu công tơ của phòng bạn: Tháng 10 bạn tiêu thụ **120 kWh** (tăng 30 kWh so với tháng 9). Tiền điện tăng do 20 kWh cuối bị tính theo **Bậc 3 giá cao**.', breakdown);
+        } else {
+            appendMessage('bot', 'Quy định giữ xe qua đêm của SmartStay: Miễn phí gửi xe máy cho cư dân đã đăng ký biển số. Đối với khách vãng lai, phí gửi qua đêm là 10.000đ/đêm (từ 23:00 đến 06:00 sáng hôm sau). Bạn có thể cấp mã khách trên ứng dụng để khách được miễn phí!');
+        }
+    }
+
+    function clearChat() {
+        document.getElementById('chatContainer').innerHTML = '';
+        appendMessage('bot', 'Lịch sử chat đã được làm mới. Tôi sẵn sàng hỗ trợ bạn!');
+    }
+
+    function showAiAlert(msg) {
+        const box = document.getElementById('aiAlert');
+        document.getElementById('aiAlertText').innerText = msg;
+        box.classList.remove('d-none');
+        box.classList.add('show');
+        setTimeout(() => {
+            box.classList.remove('show');
+            box.classList.add('d-none');
+        }, 5000);
+    }
+</script>

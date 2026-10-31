@@ -1,0 +1,224 @@
+@{
+    ViewData["Title"] = "Chợ Trao Đổi Đồ Cũ Sinh Viên Co-Living - SmartStay";
+}
+
+<!-- Alert thông báo -->
+<div id="ecoAlert" class="alert alert-success alert-dismissible fade d-none rounded-3 shadow-sm mb-4" role="alert">
+    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+    <span id="ecoAlertText">Thông báo</span>
+    <button type="button" class="btn-close" onclick="document.getElementById('ecoAlert').classList.add('d-none')"></button>
+</div>
+
+<div class="card-custom mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge bg-success text-white px-2 py-1 fs-9 rounded-pill">ECO-COMMUNITY</span>
+                <span class="badge bg-primary-subtle text-primary border px-2 py-1 fs-9 rounded-pill">Nội Khu Co-Living</span>
+            </div>
+            <h4 class="fw-bold mb-1 text-slate-900"><i class="bi bi-recycle text-success me-2"></i>Sàn Trao Đổi Đồ Dùng & Đồ Cũ Sinh Viên (Eco-Marketplace)</h4>
+            <p class="text-muted fs-8 mb-0">Nơi cư dân các phòng pass lại đồ gia dụng, bàn học, quạt, giáo trình còn mới với giá rẻ hoặc tặng miễn phí (0đ). 100% người bán là cư dân đã xác minh</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-primary rounded-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalPostItem">
+                <i class="bi bi-plus-lg me-1"></i> Đăng Bán / Tặng Đồ Cũ
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Bộ lọc danh mục -->
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <button class="btn btn-sm btn-outline-secondary rounded-pill active" onclick="filterEco('all')">Tất cả (6 món)</button>
+    <button class="btn btn-sm btn-outline-success rounded-pill" onclick="filterEco('free')">🎁 Tặng miễn phí (0đ)</button>
+    <button class="btn btn-sm btn-outline-primary rounded-pill" onclick="filterEco('electronics')">Thiết bị điện gia dụng</button>
+    <button class="btn btn-sm btn-outline-warning rounded-pill" onclick="filterEco('study')">Bàn ghế & Giáo trình</button>
+</div>
+
+<!-- Lưới sản phẩm đồ cũ -->
+<div class="row g-4" id="ecoGrid">
+    <!-- Món 1: Quạt đứng Senko (Hồ Ngọc Bảo pass) -->
+    <div class="col-xl-4 col-md-6 eco-item" data-type="electronics">
+        <div class="card-custom h-100 p-0 overflow-hidden shadow-sm border">
+            <div class="position-relative">
+                <img src="https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80" alt="Quạt Senko" class="w-100" style="height: 180px; object-fit: cover;">
+                <span class="badge bg-primary position-absolute top-0 start-0 m-2">Phòng P.305</span>
+                <span class="badge bg-success-subtle text-success position-absolute top-0 end-0 m-2">Còn rất mới 95%</span>
+            </div>
+            <div class="p-3">
+                <h6 class="fw-bold mb-1 text-slate-900">Quạt đứng Senko 3 tốc độ gió có hẹn giờ</h6>
+                <p class="text-muted fs-8 mb-2">Dùng được 4 tháng, chạy êm ru, có remote điều khiển. Pass lại do phòng đã có máy lạnh.</p>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <div>
+                        <div class="text-muted fs-9">Giá pass lại:</div>
+                        <div class="fw-bold text-danger fs-6">120.000 đ <span class="text-muted text-decoration-line-through fs-9">350.000 đ</span></div>
+                    </div>
+                    <button class="btn btn-sm btn-success rounded-3 shadow-sm" onclick="buyItem('Quạt đứng Senko', '120.000 đ', 'Hồ Ngọc Bảo (P.305)')">
+                        <i class="bi bi-cart-plus me-1"></i> Nhắn Mua Ngay
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Món 2: Bộ giáo trình CNTT & Giải tích (Tặng 0đ) -->
+    <div class="col-xl-4 col-md-6 eco-item" data-type="free">
+        <div class="card-custom h-100 p-0 overflow-hidden shadow-sm border" style="border: 2px dashed #10B981 !important;">
+            <div class="position-relative">
+                <img src="https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=600&q=80" alt="Sách giáo trình" class="w-100" style="height: 180px; object-fit: cover;">
+                <span class="badge bg-success text-white position-absolute top-0 start-0 m-2">TẶNG MIỄN PHÍ 0Đ</span>
+                <span class="badge bg-primary position-absolute top-0 end-0 m-2">Phòng P.201</span>
+            </div>
+            <div class="p-3">
+                <h6 class="fw-bold mb-1 text-slate-900">Combo 5 cuốn giáo trình Cấu trúc dữ liệu & Giải thuật</h6>
+                <p class="text-muted fs-8 mb-2">Mình đã học xong môn, tặng lại cho các bạn khóa dưới cần ôn thi cuối kỳ.</p>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <div>
+                        <div class="text-muted fs-9">Giá trao đổi:</div>
+                        <div class="fw-bold text-success fs-6">0 VNĐ (Miễn Phí)</div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-success rounded-3 shadow-sm" onclick="claimFreeItem('Combo 5 cuốn giáo trình', 'Nguyễn Dương Bảo (P.201)')">
+                        <i class="bi bi-gift-fill me-1"></i> Xin Nhận Sách
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Món 3: Ấm đun siêu tốc Sunhouse 1.8L -->
+    <div class="col-xl-4 col-md-6 eco-item" data-type="electronics">
+        <div class="card-custom h-100 p-0 overflow-hidden shadow-sm border">
+            <div class="position-relative">
+                <img src="https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=600&q=80" alt="Ấm siêu tốc" class="w-100" style="height: 180px; object-fit: cover;">
+                <span class="badge bg-primary position-absolute top-0 start-0 m-2">Phòng P.401</span>
+                <span class="badge bg-warning text-dark position-absolute top-0 end-0 m-2">Inox 304</span>
+            </div>
+            <div class="p-3">
+                <h6 class="fw-bold mb-1 text-slate-900">Ấm đun nước siêu tốc Sunhouse Inox 1.8L</h6>
+                <p class="text-muted fs-8 mb-2">Đun sôi siêu nhanh trong 3 phút, tự ngắt điện an toàn khi sôi, còn nguyên hộp.</p>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <div>
+                        <div class="text-muted fs-9">Giá pass lại:</div>
+                        <div class="fw-bold text-danger fs-6">70.000 đ</div>
+                    </div>
+                    <button class="btn btn-sm btn-success rounded-3 shadow-sm" onclick="buyItem('Ấm đun nước Sunhouse', '70.000 đ', 'Trần Hoàng Gia Bảo (P.401)')">
+                        <i class="bi bi-cart-plus me-1"></i> Nhắn Mua Ngay
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL ĐĂNG ĐỒ CŨ ================= -->
+<div class="modal fade" id="modalPostItem" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom px-4 pt-4 pb-3">
+                <h5 class="modal-title fw-bold text-slate-900">Đăng Đồ Cũ Trao Đổi Nội Khu</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="postItemForm" onsubmit="handlePostItem(event)">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Tên đồ dùng cần pass</label>
+                        <input type="text" id="piTitle" class="form-control rounded-3" placeholder="Ví dụ: Bàn học gấp gọn thông minh" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Danh mục</label>
+                            <select id="piCategory" class="form-select rounded-3">
+                                <option value="electronics">Đồ điện gia dụng</option>
+                                <option value="study">Bàn ghế & Giáo trình</option>
+                                <option value="free">Tặng miễn phí (0đ)</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Giá thanh lý (VNĐ)</label>
+                            <input type="text" id="piPrice" class="form-control rounded-3" value="50.000 đ" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Mô tả tình trạng món đồ</label>
+                        <textarea id="piDesc" class="form-control rounded-3" rows="3" placeholder="Mô tả độ mới, lý do thanh lý..." required></textarea>
+                    </div>
+                    <div class="modal-footer px-0 pb-0 pt-3 border-0">
+                        <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-success rounded-3 px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-tag-fill me-1"></i> Đăng Lên Chợ Cư Dân
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function buyItem(name, price, seller) {
+        showEcoAlert(`Đã kết nối chat trực tiếp với người bán ${seller} để mua "${name}" (${price})! Hai bạn có thể hẹn giao nhận trực tiếp tại sảnh tòa nhà.`);
+    }
+
+    function claimFreeItem(name, giver) {
+        showEcoAlert(`Đã gửi yêu cầu xin nhận "${name}" tới bạn ${giver}! Bạn có thể ghé phòng ${giver.match(/\((.*?)\)/)[1]} để nhận đồ.`);
+    }
+
+    function filterEco(type) {
+        const items = document.querySelectorAll('.eco-item');
+        items.forEach(el => {
+            if (type === 'all' || el.getAttribute('data-type') === type) {
+                el.style.display = '';
+            } else {
+                el.style.display = 'none';
+            }
+        });
+    }
+
+    function handlePostItem(e) {
+        e.preventDefault();
+        const title = document.getElementById('piTitle').value;
+        const price = document.getElementById('piPrice').value;
+        const desc = document.getElementById('piDesc').value;
+        const category = document.getElementById('piCategory').value;
+
+        const newCard = `
+            <div class="col-xl-4 col-md-6 eco-item" data-type="${category}">
+                <div class="card-custom h-100 p-0 overflow-hidden shadow-sm border border-success-subtle">
+                    <div class="position-relative">
+                        <img src="https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=600&q=80" alt="${title}" class="w-100" style="height: 180px; object-fit: cover;">
+                        <span class="badge bg-primary position-absolute top-0 start-0 m-2">Phòng P.305</span>
+                        <span class="badge bg-success-subtle text-success position-absolute top-0 end-0 m-2">Mới đăng</span>
+                    </div>
+                    <div class="p-3">
+                        <h6 class="fw-bold mb-1 text-slate-900">${title}</h6>
+                        <p class="text-muted fs-8 mb-2">${desc}</p>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <div>
+                                <div class="text-muted fs-9">Giá pass lại:</div>
+                                <div class="fw-bold text-danger fs-6">${price}</div>
+                            </div>
+                            <button class="btn btn-sm btn-success rounded-3 shadow-sm" onclick="buyItem('${title}', '${price}', 'Hồ Ngọc Bảo (P.305)')">
+                                <i class="bi bi-cart-plus me-1"></i> Nhắn Mua Ngay
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('ecoGrid').insertAdjacentHTML('afterbegin', newCard);
+        bootstrap.Modal.getInstance(document.getElementById('modalPostItem')).hide();
+        showEcoAlert(`Đã đăng món đồ "${title}" lên sàn trao đổi nội khu Co-Living thành công!`);
+    }
+
+    function showEcoAlert(msg) {
+        const box = document.getElementById('ecoAlert');
+        document.getElementById('ecoAlertText').innerText = msg;
+        box.classList.remove('d-none');
+        box.classList.add('show');
+        setTimeout(() => {
+            box.classList.remove('show');
+            box.classList.add('d-none');
+        }, 5000);
+    }
+</script>

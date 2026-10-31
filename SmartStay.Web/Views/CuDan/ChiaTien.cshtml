@@ -1,0 +1,250 @@
+@{
+    ViewData["Title"] = "Chia Tiền Phòng Ở Ghép & Đa Mã VietQR Động - SmartStay";
+}
+
+<!-- Alert thông báo -->
+<div id="splitAlert" class="alert alert-success alert-dismissible fade d-none rounded-3 shadow-sm mb-4" role="alert">
+    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+    <span id="splitAlertText">Thông báo</span>
+    <button type="button" class="btn-close" onclick="document.getElementById('splitAlert').classList.add('d-none')"></button>
+</div>
+
+<!-- Header -->
+<div class="card-custom mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge bg-primary text-white px-2 py-1 fs-9 rounded-pill">ĐỘT PHÁ UX</span>
+                <span class="badge bg-success-subtle text-success border px-2 py-1 fs-9 rounded-pill">Co-Living Split-Bill</span>
+            </div>
+            <h4 class="fw-bold mb-1 text-slate-900"><i class="bi bi-pie-chart-fill text-primary me-2"></i>Chia Tiền Phòng Ở Ghép & Đa Mã VietQR Riêng Từng Thành Viên</h4>
+            <p class="text-muted fs-8 mb-0">Tự động bóc tách hóa đơn tổng phòng P.305, sinh mã QR VietQR riêng cho từng bạn cùng phòng kèm thanh tiến độ thanh toán thời gian thực</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-sm btn-outline-primary rounded-3" onclick="recalcSplitBills()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Tính lại tiền
+            </button>
+            <button class="btn btn-sm btn-primary rounded-3 shadow-sm" onclick="sendReminderAll()">
+                <i class="bi bi-bell-fill me-1"></i> Nhắc nhở cả phòng nộp tiền
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Thống kê tổng hóa đơn phòng -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-8">
+        <div class="card-custom h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-slate-800 mb-0">HÓA ĐƠN THÁNG 10/2026 - PHÒNG P.305 (3 THÀNH VIÊN Ở GHÉP)</h6>
+                <span class="badge bg-primary-subtle text-primary fs-8">HĐ-2026-10-305</span>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-3 col-6">
+                    <div class="p-3 rounded-3 bg-light text-center border">
+                        <div class="text-muted fs-8 mb-1">Tiền phòng cố định</div>
+                        <div class="fw-bold text-slate-900 fs-7">3.500.000 đ</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="p-3 rounded-3 bg-light text-center border">
+                        <div class="text-muted fs-8 mb-1">Điện (120 kWh)</div>
+                        <div class="fw-bold text-primary fs-7">254.000 đ</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="p-3 rounded-3 bg-light text-center border">
+                        <div class="text-muted fs-8 mb-1">Nước (8 m³)</div>
+                        <div class="fw-bold text-info fs-7">105.000 đ</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6">
+                    <div class="p-3 rounded-3 bg-light text-center border">
+                        <div class="text-muted fs-8 mb-1">Dịch vụ chung</div>
+                        <div class="fw-bold text-secondary fs-7">300.000 đ</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Thanh tiến độ đóng tiền phòng -->
+            <div class="p-3 rounded-3 bg-light border mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fs-8 fw-bold text-slate-800">TIẾN ĐỘ HOÀN TẤT HÓA ĐƠN PHÒNG P.305:</span>
+                    <span class="fw-bold fs-7 text-primary" id="progressText">2 / 3 Bạn đã thanh toán (66.7%)</span>
+                </div>
+                <div class="progress" style="height: 12px; border-radius: 8px;">
+                    <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" role="progressbar" id="progressBar" style="width: 66.7%;"></div>
+                </div>
+                <div class="d-flex justify-content-between text-muted fs-9 mt-2">
+                    <span>Đã thu: <strong class="text-success" id="collectedAmount">2.772.666 đ</strong></span>
+                    <span>Tổng hóa đơn: <strong class="text-danger">4.159.000 đ</strong></span>
+                    <span>Còn thiếu: <strong class="text-warning" id="remainingAmount">1.386.334 đ</strong></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cài đặt cách chia -->
+    <div class="col-lg-4">
+        <div class="card-custom h-100">
+            <h6 class="fw-bold text-slate-800 mb-3"><i class="bi bi-sliders2 text-primary me-2"></i>Thiết Lập Cách Chia</h6>
+            <div class="mb-3">
+                <label class="form-label fw-semibold fs-8">Phương thức phân bổ tiền</label>
+                <select class="form-select form-select-sm rounded-3" id="splitMethod" onchange="changeSplitMethod(this.value)">
+                    <option value="equal" selected>Chia đều 3 người (Mỗi bạn 1/3)</option>
+                    <option value="days">Chia theo số ngày ở thực tế</option>
+                    <option value="custom">Tùy chỉnh tỷ lệ cá nhân</option>
+                </select>
+            </div>
+            <div class="alert alert-info py-2 px-3 fs-9 border-0 rounded-3 mb-3">
+                <i class="bi bi-info-circle me-1"></i> Hệ thống tự động tạo mã VietQR NAPAS 247 riêng biệt gắn chính xác số tiền lẻ và mã định danh của từng bạn.
+            </div>
+            <div class="p-2 rounded-2 bg-light border fs-8 text-center">
+                Mỗi bạn đóng: <strong class="text-danger fs-6" id="eachAmount">1.386.333 đ</strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Danh sách 3 thành viên & 3 Mã VietQR Động Riêng Biệt -->
+<div class="row g-4">
+    <!-- Thành viên 1: Hồ Ngọc Bảo (Trưởng phòng) -->
+    <div class="col-lg-4">
+        <div class="card-custom h-100 border border-success-subtle shadow-sm">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                    <span class="badge bg-primary text-white fs-9 mb-1">Trưởng phòng</span>
+                    <h5 class="fw-bold text-slate-900 mb-0">Hồ Ngọc Bảo</h5>
+                    <span class="text-muted fs-8">MSSV: 2380600133</span>
+                </div>
+                <span class="badge bg-success text-white py-1 px-2" id="badge-user1"><i class="bi bi-check-circle me-1"></i> Đã nộp</span>
+            </div>
+
+            <div class="p-3 rounded-3 bg-light border text-center mb-3">
+                <div class="text-muted fs-8">Số tiền cần đóng:</div>
+                <div class="fw-bold fs-5 text-success">1.386.333 đ</div>
+                <div class="fs-9 text-muted mt-1">Cú pháp: <code>HD1026 P305 BAO1</code></div>
+            </div>
+
+            <!-- Mã QR VietQR của Bảo 1 -->
+            <div class="text-center p-3 rounded-3 bg-white border mb-3">
+                <img src="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=1386333&addInfo=HD1026%20P305%20BAO1%20HONGOCBAO&accountName=SMARTSTAY%20MANAGEMENT" alt="QR Bảo" class="img-fluid rounded border p-1" style="max-height: 180px;">
+                <div class="fs-9 text-muted mt-2"><i class="bi bi-shield-check text-success"></i> VietQR NAPAS 247 chính chủ</div>
+            </div>
+
+            <button class="btn btn-sm btn-outline-success w-100 rounded-3" disabled>
+                <i class="bi bi-patch-check-fill me-1"></i> Đã Đối Soát Chuyển Khoản
+            </button>
+        </div>
+    </div>
+
+    <!-- Thành viên 2: Nguyễn Dương Bảo -->
+    <div class="col-lg-4">
+        <div class="card-custom h-100 border border-success-subtle shadow-sm">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                    <span class="badge bg-secondary-subtle text-secondary fs-9 mb-1">Thành viên 2</span>
+                    <h5 class="fw-bold text-slate-900 mb-0">Nguyễn Dương Bảo</h5>
+                    <span class="text-muted fs-8">MSSV: 2380600154</span>
+                </div>
+                <span class="badge bg-success text-white py-1 px-2" id="badge-user2"><i class="bi bi-check-circle me-1"></i> Đã nộp</span>
+            </div>
+
+            <div class="p-3 rounded-3 bg-light border text-center mb-3">
+                <div class="text-muted fs-8">Số tiền cần đóng:</div>
+                <div class="fw-bold fs-5 text-success">1.386.333 đ</div>
+                <div class="fs-9 text-muted mt-1">Cú pháp: <code>HD1026 P305 BAO2</code></div>
+            </div>
+
+            <!-- Mã QR VietQR của Bảo 2 -->
+            <div class="text-center p-3 rounded-3 bg-white border mb-3">
+                <img src="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=1386333&addInfo=HD1026%20P305%20BAO2%20DUONGBAO&accountName=SMARTSTAY%20MANAGEMENT" alt="QR Dương Bảo" class="img-fluid rounded border p-1" style="max-height: 180px;">
+                <div class="fs-9 text-muted mt-2"><i class="bi bi-shield-check text-success"></i> VietQR NAPAS 247 chính chủ</div>
+            </div>
+
+            <button class="btn btn-sm btn-outline-success w-100 rounded-3" disabled>
+                <i class="bi bi-patch-check-fill me-1"></i> Đã Đối Soát Chuyển Khoản
+            </button>
+        </div>
+    </div>
+
+    <!-- Thành viên 3: Trần Hoàng Gia Bảo (Chưa nộp) -->
+    <div class="col-lg-4">
+        <div class="card-custom h-100 border border-warning shadow-sm" id="card-user3" style="background: #FFFDF5;">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                    <span class="badge bg-secondary-subtle text-secondary fs-9 mb-1">Thành viên 3</span>
+                    <h5 class="fw-bold text-slate-900 mb-0">Trần Hoàng Gia Bảo</h5>
+                    <span class="text-muted fs-8">MSSV: 2380600178</span>
+                </div>
+                <span class="badge bg-warning text-dark py-1 px-2" id="badge-user3"><i class="bi bi-clock-history me-1"></i> Chưa nộp</span>
+            </div>
+
+            <div class="p-3 rounded-3 bg-light border text-center mb-3">
+                <div class="text-muted fs-8">Số tiền cần đóng:</div>
+                <div class="fw-bold fs-5 text-danger">1.386.334 đ</div>
+                <div class="fs-9 text-muted mt-1">Cú pháp: <code>HD1026 P305 BAO3</code></div>
+            </div>
+
+            <!-- Mã QR VietQR của Bảo 3 -->
+            <div class="text-center p-3 rounded-3 bg-white border mb-3">
+                <img src="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=1386334&addInfo=HD1026%20P305%20BAO3%20GIABAO&accountName=SMARTSTAY%20MANAGEMENT" alt="QR Gia Bảo" class="img-fluid rounded border p-1" style="max-height: 180px;">
+                <div class="fs-9 text-danger mt-2 fw-semibold"><i class="bi bi-qr-code-scan"></i> Quét mã này để nộp phần của mình</div>
+            </div>
+
+            <button class="btn btn-sm btn-success w-100 rounded-3 shadow-sm" id="btn-pay-user3" onclick="simulatePayUser3()">
+                <i class="bi bi-check2-circle me-1"></i> Giả Lập Quét VietQR Thanh Toán Ngay
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function simulatePayUser3() {
+        document.getElementById('badge-user3').className = 'badge bg-success text-white py-1 px-2';
+        document.getElementById('badge-user3').innerHTML = '<i class="bi bi-check-circle me-1"></i> Đã nộp';
+        document.getElementById('card-user3').style.background = '#FFFFFF';
+        document.getElementById('card-user3').className = 'card-custom h-100 border border-success-subtle shadow-sm';
+        
+        document.getElementById('btn-pay-user3').className = 'btn btn-sm btn-outline-success w-100 rounded-3';
+        document.getElementById('btn-pay-user3').disabled = true;
+        document.getElementById('btn-pay-user3').innerHTML = '<i class="bi bi-patch-check-fill me-1"></i> Đã Đối Soát Thành Công';
+
+        // Cập nhật thanh tiến độ 100%
+        document.getElementById('progressBar').style.width = '100%';
+        document.getElementById('progressText').innerText = '3 / 3 Bạn đã thanh toán hoàn tất (100%)';
+        document.getElementById('progressText').className = 'fw-bold fs-7 text-success';
+        document.getElementById('collectedAmount').innerText = '4.159.000 đ';
+        document.getElementById('remainingAmount').innerText = '0 đ';
+
+        showSplitAlert('Ngân hàng báo có: Trần Hoàng Gia Bảo đã chuyển khoản 1.386.334 đ qua VietQR Napas 247! Hóa đơn phòng P.305 đã hoàn tất 100%.');
+    }
+
+    function recalcSplitBills() {
+        showSplitAlert('Đã tính toán lại công thức chia tiền điện nước và tiền phòng theo quy chế Co-Living 2026.');
+    }
+
+    function sendReminderAll() {
+        showSplitAlert('Đã gửi thông báo nhắc nợ Push Notification và Email kèm link VietQR cá nhân tới Trần Hoàng Gia Bảo!');
+    }
+
+    function changeSplitMethod(val) {
+        if (val === 'days') {
+            showSplitAlert('Đã chuyển sang chế độ tính theo số ngày ở thực tế: Bảo 1 (30 ngày), Bảo 2 (30 ngày), Bảo 3 (28 ngày do về quê 2 ngày). Hệ thống đã cập nhật số tiền tương ứng.');
+        } else {
+            showSplitAlert('Đã chuyển sang chế độ chia đều 3 thành viên trong phòng (1/3 tổng chi phí).');
+        }
+    }
+
+    function showSplitAlert(msg) {
+        const box = document.getElementById('splitAlert');
+        document.getElementById('splitAlertText').innerText = msg;
+        box.classList.remove('d-none');
+        box.classList.add('show');
+        setTimeout(() => {
+            box.classList.remove('show');
+            box.classList.add('d-none');
+        }, 5000);
+    }
+</script>
