@@ -5,6 +5,7 @@ import '../../providers/ticket_provider.dart';
 import '../../providers/community_provider.dart';
 import '../../utils/provider_scope.dart';
 import '../../utils/formatters.dart';
+import 'breakthrough_modal.dart';
 import '../invoice/invoice_detail_screen.dart';
 import '../ticket/ticket_detail_screen.dart';
 import '../ticket/create_ticket_screen.dart';
@@ -229,13 +230,40 @@ class HomeScreen extends StatelessWidget {
                 ],
 
                 // 4 Tiện ích nhanh (Quick Actions)
-                const Text(
-                  'Tiện ích nhanh',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Tiện ích nhanh',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => BreakthroughFeaturesModal.show(context),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.rocket_launch, size: 13, color: Color(0xFF2563EB)),
+                            SizedBox(width: 4),
+                            Text(
+                              'Đột phá 2026',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 Row(
