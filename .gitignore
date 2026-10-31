@@ -34,6 +34,8 @@ ios/.symlinks/
 *.tmp
 *.bak
 *.zip
+*.docx
+*.doc
 
 # OS generated files
 .DS_Store
