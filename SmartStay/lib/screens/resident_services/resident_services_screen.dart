@@ -453,11 +453,45 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                   },
                 ),
                 ElevatedButton.icon(
+                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 16, color: Colors.white),
+                  label: const Text('📷 Mở Máy Quét QR Nội Khu (Quét Thử QR)', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F766E)),
+                  onPressed: () {
+                    final unpaidIdx = _roommates.indexWhere((r) => !r.isPaid);
+                    final targetIdx = unpaidIdx != -1 ? unpaidIdx : _roommates.length - 1;
+                    final targetMember = _roommates[targetIdx];
+                    final targetAmount = memberAmounts[targetIdx];
+                    final targetQr = SystemConfig().vietQrUrl(
+                      amount: targetAmount.toDouble(),
+                      content: 'HD1026 P305 ${targetMember.code}',
+                    );
+                    _showQrScannerSimulatorDialog(
+                      scannerTitle: 'Máy Quét QR Thanh Toán Sandbox Nội Khu',
+                      qrImageUrl: targetQr,
+                      decodedHeader: 'ĐÃ GIẢI MÃ TOKEN QR THANH TOÁN SANDBOX',
+                      decodedLines: [
+                        '• Cổng xử lý: SmartStay FinTech Sandbox (Ẩn STK thật 100%)',
+                        '• Tài khoản Định danh Ảo (VA): VA-P305-${targetMember.code}',
+                        '• Thành viên nộp: ${targetMember.name} (MSSV: ${targetMember.mssv})',
+                        '• Số tiền giải mã từ QR: ${AppFormatters.currency(targetAmount.toDouble())}',
+                        '• Nội dung đối soát: HD1026 P305 ${targetMember.code}',
+                      ],
+                      confirmButtonLabel: '✓ XÁC NHẬN THANH TOÁN QUA MÃ QR VỪA QUÉT',
+                      onConfirm: () {
+                        setState(() => targetMember.isPaid = true);
+                        _showMessage(
+                          '📷 Quét QR Sandbox thành công! Đã gạch nợ ${AppFormatters.currency(targetAmount.toDouble())} cho [${targetMember.name}] qua TK Định danh Ảo VA-P305-${targetMember.code}.',
+                        );
+                      },
+                    );
+                  },
+                ),
+                ElevatedButton.icon(
                   icon: const Icon(Icons.notifications_active_rounded, size: 16, color: Colors.white),
                   label: const Text('Nhắc nhở cả phòng nộp tiền', style: TextStyle(fontSize: 12, color: Colors.white)),
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5)),
                   onPressed: () {
-                    _showMessage('Đã gửi thông báo nhắc nợ Push Notification và Email kèm link VietQR cá nhân tới các thành viên chưa nộp!');
+                    _showMessage('Đã gửi thông báo nhắc nợ Push Notification và Email kèm link QR Sandbox cá nhân tới các thành viên chưa nộp!');
                   },
                 ),
               ],
@@ -732,29 +766,57 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
-                    child: Column(
-                      children: [
-                        Image.network(
-                          qrUrl,
-                          height: 155,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const SizedBox(
+                    child: InkWell(
+                      onTap: () {
+                        _showQrScannerSimulatorDialog(
+                          scannerTitle: 'Máy Quét QR Thanh Toán — ${m.name}',
+                          qrImageUrl: qrUrl,
+                          decodedHeader: 'ĐÃ QUÉT & GIẢI MÃ QR TOKEN CỦA ${m.name.toUpperCase()}',
+                          decodedLines: [
+                            '• Cổng xử lý: SmartStay FinTech Sandbox (Bảo mật STK 100%)',
+                            '• Tài khoản Định danh Ảo: VA-P305-${m.code}',
+                            '• Thành viên: ${m.name} (${m.roleBadge})',
+                            '• Số tiền trong QR: ${AppFormatters.currency(shareAmount.toDouble())}',
+                            '• Nội dung tham chiếu: HD1026 P305 ${m.code}',
+                          ],
+                          confirmButtonLabel: m.isPaid
+                              ? '✓ MÃ QR NÀY ĐÃ ĐỐI SOÁT HOÀN TẤT (ĐÓNG)'
+                              : '✓ XÁC NHẬN THANH TOÁN QUA MÃ QR VỪA QUÉT',
+                          onConfirm: () {
+                            if (!m.isPaid) {
+                              setState(() => m.isPaid = true);
+                              _showMessage(
+                                '📷 Quét QR Sandbox thành công! ${m.name} đã hoàn tất nộp ${AppFormatters.currency(shareAmount.toDouble())} qua mã QR VA-P305-${m.code}.',
+                              );
+                            }
+                          },
+                        );
+                      },
+                      child: Column(
+                        children: [
+                          Image.network(
+                            qrUrl,
                             height: 155,
-                            child: Center(child: Icon(Icons.qr_code_2_rounded, size: 110)),
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => const SizedBox(
+                              height: 155,
+                              child: Center(child: Icon(Icons.qr_code_2_rounded, size: 110)),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          m.isPaid
-                              ? '🛡️ TK Định danh Ảo: VA-P305-${m.code} (Sandbox Bảo Mật)'
-                              : '📲 QR Token Sandbox Đồ Án (Ẩn STK thật 100%)',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: m.isPaid ? const Color(0xFF16A34A) : const Color(0xFF1D4ED8),
+                          const SizedBox(height: 6),
+                          Text(
+                            m.isPaid
+                                ? '🛡️ TK Định danh Ảo: VA-P305-${m.code} (Chạm vào QR để quét kiểm tra)'
+                                : '📷 Chạm vào mã QR này để mở Máy Quét QR Giả Lập',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: m.isPaid ? const Color(0xFF16A34A) : const Color(0xFF1D4ED8),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -997,40 +1059,115 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
                     const SizedBox(height: 10),
                     Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: Column(
-                          children: [
-                            Image.network(
-                              qrImg,
-                              width: 110,
-                              height: 110,
-                              errorBuilder: (_, _, _) => const Icon(Icons.qr_code_2_rounded, size: 90),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text('Quét tại đầu đọc RFID sảnh A', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
-                          ],
+                      child: InkWell(
+                        onTap: () {
+                          _showQrScannerSimulatorDialog(
+                            scannerTitle: 'Đầu Đọc QR Cổng An Ninh Sảnh A (IoT Gate)',
+                            qrImageUrl: qrImg,
+                            decodedHeader: 'XÁC THỰC MÃ QR VÉ KHÁCH VÃNG LAI HỢP LỆ',
+                            decodedLines: [
+                              '• Khách ghé thăm: ${pass.name}',
+                              '• Phòng mời: Căn hộ P.305 (Tầng 3 - Tòa A)',
+                              '• Mã PIN định danh: #${pass.pin}',
+                              '• Loại hiệu lực: ${pass.duration}',
+                              '• Trạng thái cổng từ: CHO PHÉP MỞ CỬA SẢNH A',
+                            ],
+                            confirmButtonLabel: '🔓 XÁC NHẬN QUÉT QR & MỞ CỔNG CHO KHÁCH',
+                            onConfirm: () {
+                              final isSingleUse = pass.duration.contains('1 lần');
+                              if (isSingleUse) {
+                                setState(() => _passes.remove(pass));
+                                _showMessage(
+                                  '📷 Đầu đọc QR Sảnh A đã mở cửa cho [${pass.name}]! Vì đây là Vé 1 lần nên hệ thống đã tự động hủy vé sau khi khách qua cổng.',
+                                );
+                              } else {
+                                _showMessage(
+                                  '📷 Đầu đọc QR Sảnh A đã xác thực mã QR #${pass.pin} và mở cửa cho [${pass.name}]!',
+                                );
+                              }
+                            },
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            children: [
+                              Image.network(
+                                qrImg,
+                                width: 110,
+                                height: 110,
+                                errorBuilder: (_, _, _) => const Icon(Icons.qr_code_2_rounded, size: 90),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                '📷 Chạm vào QR để giả lập Quét tại Cổng Sảnh A',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF2563EB)),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.share_rounded, size: 14),
-                        label: const Text('Gửi link mã qua Zalo / SMS', style: TextStyle(fontSize: 12)),
-                        onPressed: () {
-                          Clipboard.setData(
-                            ClipboardData(text: 'https://smartstay.vn/pass?room=P305&pin=${pass.pin}'),
-                          );
-                          _showMessage('Đã sao chép link chia sẻ vé khách cho [${pass.name}]!');
-                        },
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F766E),
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: const Icon(Icons.qr_code_scanner_rounded, size: 14),
+                            label: const Text('Quét Thử QR Cổng Sảnh', style: TextStyle(fontSize: 11)),
+                            onPressed: () {
+                              _showQrScannerSimulatorDialog(
+                                scannerTitle: 'Đầu Đọc QR Cổng An Ninh Sảnh A (IoT Gate)',
+                                qrImageUrl: qrImg,
+                                decodedHeader: 'XÁC THỰC MÃ QR VÉ KHÁCH VÃNG LAI HỢP LỆ',
+                                decodedLines: [
+                                  '• Khách ghé thăm: ${pass.name}',
+                                  '• Phòng mời: Căn hộ P.305 (Tầng 3 - Tòa A)',
+                                  '• Mã PIN định danh: #${pass.pin}',
+                                  '• Loại hiệu lực: ${pass.duration}',
+                                  '• Trạng thái cổng từ: CHO PHÉP MỞ CỬA SẢNH A',
+                                ],
+                                confirmButtonLabel: '🔓 XÁC NHẬN QUÉT QR & MỞ CỔNG CHO KHÁCH',
+                                onConfirm: () {
+                                  final isSingleUse = pass.duration.contains('1 lần');
+                                  if (isSingleUse) {
+                                    setState(() => _passes.remove(pass));
+                                    _showMessage(
+                                      '📷 Đầu đọc QR Sảnh A đã mở cửa cho [${pass.name}]! Vì đây là Vé 1 lần nên hệ thống đã tự động hủy vé sau khi khách qua cổng.',
+                                    );
+                                  } else {
+                                    _showMessage(
+                                      '📷 Đầu đọc QR Sảnh A đã xác thực mã QR #${pass.pin} và mở cửa cho [${pass.name}]!',
+                                    );
+                                  }
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.share_rounded, size: 14),
+                            label: const Text('Gửi link Zalo/SMS', style: TextStyle(fontSize: 11)),
+                            onPressed: () {
+                              Clipboard.setData(
+                                ClipboardData(text: 'https://smartstay.vn/pass?room=P305&pin=${pass.pin}'),
+                              );
+                              _showMessage('Đã sao chép link chia sẻ vé khách cho [${pass.name}]!');
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1040,6 +1177,228 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
         ),
       ),
     ]);
+  }
+
+  void _showQrScannerSimulatorDialog({
+    required String scannerTitle,
+    required String qrImageUrl,
+    required String decodedHeader,
+    required List<String> decodedLines,
+    required String confirmButtonLabel,
+    required VoidCallback onConfirm,
+  }) {
+    bool isScanningLaser = true;
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            if (isScanningLaser) {
+              Future.delayed(const Duration(milliseconds: 650), () {
+                if (ctx.mounted && isScanningLaser) {
+                  setDialogState(() => isScanningLaser = false);
+                }
+              });
+            }
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              titlePadding: const EdgeInsets.fromLTRB(18, 16, 12, 0),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          color: Color(0xFF0F766E),
+                          size: 22,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            scannerTitle,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(dialogCtx),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Khung ngắm Camera Quét QR (Viewfinder)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        children: [
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isScanningLaser
+                                        ? const Color(0xFFEF4444)
+                                        : const Color(0xFF22C55E),
+                                    width: 3,
+                                  ),
+                                ),
+                                child: Image.network(
+                                  qrImageUrl,
+                                  width: 150,
+                                  height: 150,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, _, _) => const SizedBox(
+                                    width: 150,
+                                    height: 150,
+                                    child: Icon(Icons.qr_code_2_rounded, size: 110),
+                                  ),
+                                ),
+                              ),
+                              if (isScanningLaser)
+                                Container(
+                                  width: 165,
+                                  height: 3,
+                                  color: const Color(0xFFEF4444),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (isScanningLaser)
+                                const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFFFBBF24),
+                                  ),
+                                )
+                              else
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Color(0xFF4ADE80),
+                                  size: 16,
+                                ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  isScanningLaser
+                                      ? 'Camera đang quét & giải mã QR Token...'
+                                      : '✓ Đã quét và giải mã QR thành công (100%)',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: isScanningLaser
+                                        ? const Color(0xFFFBBF24)
+                                        : const Color(0xFF4ADE80),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Kết quả giải mã từ mã QR
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFBBF7D0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            decodedHeader,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF166534),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          ...decodedLines.map(
+                            (line) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Text(
+                                line,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text('Đóng'),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF16A34A),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  icon: const Icon(Icons.verified_rounded, size: 16),
+                  label: Text(
+                    confirmButtonLabel,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onPressed: isScanningLaser
+                      ? null
+                      : () {
+                          Navigator.pop(dialogCtx);
+                          onConfirm();
+                        },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _showCreateGuestPassDialog() {

@@ -20,7 +20,10 @@
             <h4 class="fw-bold mb-1 text-slate-900"><i class="bi bi-pie-chart-fill text-primary me-2"></i>Chia Tiền Phòng Ở Ghép & Đa Mã VietQR Riêng Từng Thành Viên</h4>
             <p class="text-muted fs-8 mb-0">Tự động bóc tách hóa đơn tổng phòng P.305, sinh mã QR VietQR riêng cho từng bạn cùng phòng kèm thanh tiến độ thanh toán thời gian thực</p>
         </div>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button class="btn btn-sm btn-dark rounded-3 shadow-sm" onclick="openQrScannerModal(2)">
+                <i class="bi bi-qr-code-scan text-info me-1"></i> Mở Máy Quét QR Nội Khu (Quét Thử QR)
+            </button>
             <button class="btn btn-sm btn-outline-primary rounded-3" onclick="recalcSplitBills()">
                 <i class="bi bi-arrow-clockwise me-1"></i> Tính lại tiền
             </button>
@@ -129,13 +132,13 @@
             </div>
 
             <!-- Mã QR Sandbox Định Danh Ảo của Bảo 1 -->
-            <div class="text-center p-3 rounded-3 bg-white border mb-3">
+            <div class="text-center p-3 rounded-3 bg-white border mb-3" style="cursor:pointer;" onclick="openQrScannerModal(0)" title="Bấm để mở Máy Quét QR Nội Khu">
                 <img id="qr-user1" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=1E3A8A&data=SMARTSTAY_SANDBOX_PAY|VA:VA-P305-BAO1|AMOUNT:1386333|DEMO_SAFE" alt="QR Bảo" class="img-fluid rounded border p-2" style="max-height: 170px;">
-                <div class="fs-9 text-success mt-2 fw-semibold"><i class="bi bi-shield-lock-fill"></i> TK Định danh Ảo: VA-P305-BAO1 (Sandbox Đồ Án - Ẩn STK thật)</div>
+                <div class="fs-9 text-success mt-2 fw-semibold"><i class="bi bi-shield-lock-fill"></i> TK Định danh Ảo: VA-P305-BAO1 (Bấm vào QR để Quét Thử)</div>
             </div>
 
-            <button class="btn btn-sm btn-outline-success w-100 rounded-3" disabled>
-                <i class="bi bi-patch-check-fill me-1"></i> Đã Đối Soát Qua Cổng Sandbox
+            <button class="btn btn-sm btn-outline-success w-100 rounded-3" onclick="openQrScannerModal(0)">
+                <i class="bi bi-qr-code-scan me-1"></i> Xem Kết Quả Quét QR (Đã Đối Soát)
             </button>
         </div>
     </div>
@@ -160,13 +163,13 @@
             </div>
 
             <!-- Mã QR Sandbox Định Danh Ảo của Bảo 2 -->
-            <div class="text-center p-3 rounded-3 bg-white border mb-3">
+            <div class="text-center p-3 rounded-3 bg-white border mb-3" style="cursor:pointer;" onclick="openQrScannerModal(1)" title="Bấm để mở Máy Quét QR Nội Khu">
                 <img id="qr-user2" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=1E3A8A&data=SMARTSTAY_SANDBOX_PAY|VA:VA-P305-BAO2|AMOUNT:1386333|DEMO_SAFE" alt="QR Dương Bảo" class="img-fluid rounded border p-2" style="max-height: 170px;">
-                <div class="fs-9 text-success mt-2 fw-semibold"><i class="bi bi-shield-lock-fill"></i> TK Định danh Ảo: VA-P305-BAO2 (Sandbox Đồ Án - Ẩn STK thật)</div>
+                <div class="fs-9 text-success mt-2 fw-semibold"><i class="bi bi-shield-lock-fill"></i> TK Định danh Ảo: VA-P305-BAO2 (Bấm vào QR để Quét Thử)</div>
             </div>
 
-            <button class="btn btn-sm btn-outline-success w-100 rounded-3" disabled>
-                <i class="bi bi-patch-check-fill me-1"></i> Đã Đối Soát Qua Cổng Sandbox
+            <button class="btn btn-sm btn-outline-success w-100 rounded-3" onclick="openQrScannerModal(1)">
+                <i class="bi bi-qr-code-scan me-1"></i> Xem Kết Quả Quét QR (Đã Đối Soát)
             </button>
         </div>
     </div>
@@ -191,20 +194,143 @@
             </div>
 
             <!-- Mã QR Sandbox Định Danh Ảo của Bảo 3 -->
-            <div class="text-center p-3 rounded-3 bg-white border mb-3">
+            <div class="text-center p-3 rounded-3 bg-white border mb-3" style="cursor:pointer;" onclick="openQrScannerModal(2)" title="Bấm để mở Máy Quét QR Nội Khu">
                 <img id="qr-user3" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=1E3A8A&data=SMARTSTAY_SANDBOX_PAY|VA:VA-P305-BAO3|AMOUNT:1386334|DEMO_SAFE" alt="QR Gia Bảo" class="img-fluid rounded border p-2" style="max-height: 170px;">
-                <div class="fs-9 text-primary mt-2 fw-semibold"><i class="bi bi-qr-code-scan"></i> QR Token Sandbox Đồ Án (Bảo mật - Không lộ STK thật)</div>
+                <div class="fs-9 text-primary mt-2 fw-semibold"><i class="bi bi-qr-code-scan"></i> Bấm vào mã QR để mở Máy Quét QR Sandbox Nội Khu</div>
             </div>
 
-            <button class="btn btn-sm btn-success w-100 rounded-3 shadow-sm" id="btn-pay-user3" onclick="simulatePayUser3()">
-                <i class="bi bi-lightning-charge-fill me-1"></i> Giả Lập Thanh Toán Sandbox 1 Chạm
+            <button class="btn btn-sm btn-success w-100 rounded-3 shadow-sm" id="btn-pay-user3" onclick="openQrScannerModal(2)">
+                <i class="bi bi-qr-code-scan me-1"></i> Quét QR & Thanh Toán Sandbox 1 Chạm
             </button>
         </div>
     </div>
 </div>
 
+<!-- ================= MODAL MÁY QUÉT QR SANDBOX NỘI KHU ================= -->
+<div class="modal fade" id="modalQrScanner" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-bottom px-4 pt-3 pb-2 bg-dark text-white rounded-top-4">
+                <div>
+                    <h6 class="modal-title fw-bold mb-0"><i class="bi bi-qr-code-scan text-info me-2"></i>Máy Quét QR Nội Khu SmartStay Sandbox</h6>
+                    <div class="fs-9 text-white-50">Trình giả lập Camera đọc & giải mã QR Token trực tiếp trên Web/App</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Chọn nhanh QR cần đưa vào ống kính -->
+                <div class="mb-3">
+                    <label class="form-label fs-9 fw-bold text-muted mb-1">CHỌN MÃ QR ĐƯA VÀO ỐNG KÍNH QUÉT:</label>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-xs btn-outline-primary flex-fill" onclick="loadQrIntoScanner(0)">QR Hồ Ngọc Bảo</button>
+                        <button type="button" class="btn btn-xs btn-outline-primary flex-fill" onclick="loadQrIntoScanner(1)">QR Dương Bảo</button>
+                        <button type="button" class="btn btn-xs btn-primary flex-fill" onclick="loadQrIntoScanner(2)">QR Gia Bảo</button>
+                    </div>
+                </div>
+
+                <!-- Khung kính ngắm Laser -->
+                <div class="p-3 rounded-4 text-center position-relative mb-3" style="background: #0F172A;">
+                    <div class="d-inline-block p-2 bg-white rounded-3 position-relative" id="scannerFrameBorder" style="border: 3px solid #38BDF8;">
+                        <img id="scannerQrImg" src="" alt="QR Scan" style="width: 165px; height: 165px;">
+                        <div id="scannerLaser" style="position:absolute; left:0; right:0; top:50%; height:3px; background:#EF4444; box-shadow: 0 0 10px 2px #EF4444;"></div>
+                    </div>
+                    <div class="mt-2">
+                        <span id="scannerStatusBadge" class="badge bg-info text-dark px-3 py-1 rounded-pill fs-9">
+                            ⚡ Đang quét tia Laser & giải mã dữ liệu QR...
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Kết quả giải mã -->
+                <div class="p-3 rounded-3 bg-light border mb-3 fs-8">
+                    <div class="fw-bold text-primary mb-2"><i class="bi bi-cpu-fill me-1"></i>DỮ LIỆU GIẢI MÃ TỪ MÃ QR (DECODED PAYLOAD):</div>
+                    <div class="d-flex justify-content-between py-1 border-bottom">
+                        <span class="text-muted">Chuẩn mã hóa:</span>
+                        <strong class="text-slate-900">SMARTSTAY_SANDBOX_PAY (NAPAS 247)</strong>
+                    </div>
+                    <div class="d-flex justify-content-between py-1 border-bottom">
+                        <span class="text-muted">Tài khoản Định danh Ảo (VA):</span>
+                        <strong class="text-success" id="scanVaCode">VA-P305-BAO3</strong>
+                    </div>
+                    <div class="d-flex justify-content-between py-1 border-bottom">
+                        <span class="text-muted">Thành viên thanh toán:</span>
+                        <strong class="text-slate-900" id="scanMemberName">Trần Hoàng Gia Bảo</strong>
+                    </div>
+                    <div class="d-flex justify-content-between py-1 border-bottom">
+                        <span class="text-muted">Số tiền giải mã:</span>
+                        <strong class="text-danger fs-7" id="scanAmount">1.386.334 đ</strong>
+                    </div>
+                    <div class="d-flex justify-content-between py-1">
+                        <span class="text-muted">Nội dung đối soát:</span>
+                        <code id="scanSyntax">HD1026 P305 BAO3</code>
+                    </div>
+                </div>
+
+                <button type="button" id="btnConfirmScannedQr" class="btn btn-success w-100 rounded-3 fw-bold py-2 shadow-sm" onclick="confirmScannedQrPayment()">
+                    <i class="bi bi-check2-circle me-1"></i> XÁC NHẬN THANH TOÁN QUA MÃ QR VỪA QUÉT
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    let currentScannedIndex = 2;
+    let user3Paid = false;
+
+    function openQrScannerModal(idx) {
+        const modalEl = document.getElementById('modalQrScanner');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+        loadQrIntoScanner(idx);
+    }
+
+    function loadQrIntoScanner(idx) {
+        currentScannedIndex = idx;
+        const members = [
+            { name: 'Hồ Ngọc Bảo (Trưởng phòng)', va: 'VA-P305-BAO1', syntax: 'HD1026 P305 BAO1', amountId: 'amount-user1', qrId: 'qr-user1', paid: true },
+            { name: 'Nguyễn Dương Bảo', va: 'VA-P305-BAO2', syntax: 'HD1026 P305 BAO2', amountId: 'amount-user2', qrId: 'qr-user2', paid: true },
+            { name: 'Trần Hoàng Gia Bảo', va: 'VA-P305-BAO3', syntax: 'HD1026 P305 BAO3', amountId: 'amount-user3', qrId: 'qr-user3', paid: user3Paid }
+        ];
+        const m = members[idx];
+        document.getElementById('scannerQrImg').src = document.getElementById(m.qrId).src;
+        document.getElementById('scanVaCode').innerText = m.va;
+        document.getElementById('scanMemberName').innerText = m.name;
+        document.getElementById('scanAmount').innerText = document.getElementById(m.amountId).innerText;
+        document.getElementById('scanSyntax').innerText = m.syntax;
+
+        // Hiệu ứng quét Laser 600ms
+        document.getElementById('scannerLaser').style.display = 'block';
+        document.getElementById('scannerFrameBorder').style.borderColor = '#38BDF8';
+        document.getElementById('scannerStatusBadge').className = 'badge bg-info text-dark px-3 py-1 rounded-pill fs-9';
+        document.getElementById('scannerStatusBadge').innerText = '⚡ Đang quét tia Laser & giải mã dữ liệu QR...';
+
+        setTimeout(() => {
+            document.getElementById('scannerLaser').style.display = 'none';
+            document.getElementById('scannerFrameBorder').style.borderColor = '#10B981';
+            document.getElementById('scannerStatusBadge').className = 'badge bg-success text-white px-3 py-1 rounded-pill fs-9';
+            document.getElementById('scannerStatusBadge').innerText = '✓ ĐÃ QUÉT & GIẢI MÃ THÀNH CÔNG QR TOKEN';
+        }, 600);
+
+        const btn = document.getElementById('btnConfirmScannedQr');
+        if (m.paid) {
+            btn.className = 'btn btn-outline-success w-100 rounded-3 fw-bold py-2';
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-patch-check-fill me-1"></i> MÃ QR NÀY ĐÃ ĐỐI SOÁT THANH TOÁN';
+        } else {
+            btn.className = 'btn btn-success w-100 rounded-3 fw-bold py-2 shadow-sm';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> XÁC NHẬN THANH TOÁN QUA MÃ QR VỪA QUÉT';
+        }
+    }
+
+    function confirmScannedQrPayment() {
+        bootstrap.Modal.getInstance(document.getElementById('modalQrScanner')).hide();
+        simulatePayUser3();
+    }
+
     function simulatePayUser3() {
+        user3Paid = true;
         document.getElementById('badge-user3').className = 'badge bg-success text-white py-1 px-2';
         document.getElementById('badge-user3').innerHTML = '<i class="bi bi-check-circle me-1"></i> Đã nộp';
         document.getElementById('card-user3').style.background = '#FFFFFF';

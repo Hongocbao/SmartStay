@@ -175,53 +175,195 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 
   void _showZoomQrDialog(InvoiceModel invoice) {
+    bool isScanning = true;
     showDialog(
       context: context,
       builder: (ctx) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            if (isScanning) {
+              Future.delayed(const Duration(milliseconds: 650), () {
+                if (ctx.mounted && isScanning) {
+                  setDialogState(() => isScanning = false);
+                }
+              });
+            }
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Mã VietQR Thanh Toán', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    _qrUrl(invoice),
-                    width: 280,
-                    height: 280,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      width: 280,
-                      height: 280,
-                      color: const Color(0xFFF1F5F9),
-                      child: const Center(
-                        child: Icon(Icons.qr_code_2_rounded, size: 120, color: Color(0xFF2563EB)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDBEAFE),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF1E3A8A), size: 20),
+                            ),
+                            const SizedBox(width: 8),
+                            const Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Máy Quét QR Sandbox Nội Khu', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                                Text('SmartStay FinTech QR Decoder v2.6', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                              ],
+                            ),
+                          ],
+                        ),
+                        IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        children: [
+                          Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isScanning ? const Color(0xFF38BDF8) : const Color(0xFF10B981),
+                                    width: 3,
+                                  ),
+                                ),
+                                child: Image.network(
+                                  _qrUrl(invoice),
+                                  width: 175,
+                                  height: 175,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) => const SizedBox(
+                                    width: 175,
+                                    height: 175,
+                                    child: Center(
+                                      child: Icon(Icons.qr_code_2_rounded, size: 110, color: Color(0xFF2563EB)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (isScanning)
+                                Container(
+                                  width: 185,
+                                  height: 3,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFEF4444),
+                                    boxShadow: [BoxShadow(color: Color(0xFFEF4444), blurRadius: 8, spreadRadius: 2)],
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isScanning
+                                  ? const Color(0xFF0284C7).withValues(alpha: 0.25)
+                                  : const Color(0xFF10B981).withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              isScanning
+                                  ? '⚡ Đang quét tia Laser & giải mã QR Token...'
+                                  : '✓ ĐÃ QUÉT & GIẢI MÃ THÀNH CÔNG QR HÓA ĐƠN',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: isScanning ? const Color(0xFF38BDF8) : const Color(0xFF34D399),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Mã Hóa Đơn: ${invoice.invoiceCode} (${invoice.roomCode})',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 4),
+                          Text('Tài khoản Ảo nhận: ${SystemConfig().maskedAccountDisplay}',
+                              style: const TextStyle(fontSize: 11, color: Color(0xFF047857), fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Số tiền giải mã: ${AppFormatters.currency(invoice.remainingAmount)}',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFFDC2626)),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Nội dung: ${invoice.qrContent}',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (invoice.remainingAmount > 0)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: isScanning
+                              ? null
+                              : () async {
+                                  Navigator.pop(ctx);
+                                  final txRef = 'QR-SCAN-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+                                  final invoiceProv = context.read<InvoiceProvider>();
+                                  final messenger = ScaffoldMessenger.of(context);
+                                  final success = await invoiceProv.submitPaymentReceipt(
+                                    invoiceId: invoice.invoiceId,
+                                    amount: invoice.remainingAmount,
+                                    receiptImageUrl: _qrUrl(invoice),
+                                    note: 'Quét mã QR trực tiếp bằng Máy Quét Sandbox Nội Khu SmartStay ($txRef)',
+                                  );
+                                  if (!mounted || !success) return;
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text('⚡ Đã quét QR & đối soát tự động thành công! Mã GD: $txRef'),
+                                      backgroundColor: const Color(0xFF059669),
+                                    ),
+                                  );
+                                },
+                          icon: const Icon(Icons.verified_rounded, size: 18),
+                          label: const Text('✓ XÁC NHẬN THANH TOÁN QUA MÃ QR VỪA QUÉT',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF059669),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Số tiền: ${AppFormatters.currency(invoice.remainingAmount)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFDC2626)),
-                ),
-                Text(
-                  'Nội dung: ${invoice.qrContent}',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -494,10 +636,21 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    const Text('Chạm vào mã QR để phóng to toàn màn hình',
-                        style: TextStyle(fontSize: 10, color: Color(0xFF475569))),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => _showZoomQrDialog(invoice),
+                      icon: const Icon(Icons.qr_code_scanner_rounded, size: 16, color: Color(0xFF1E3A8A)),
+                      label: const Text(
+                        '📷 Chạm vào QR hoặc bấm để Quét Thử bằng Máy Quét Nội Khu',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1E3A8A)),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xFF93C5FD)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
 
                     // Thông tin chuyển khoản chi tiết (Tài khoản Định danh Ảo hóa không lộ STK thật)
                     _buildBankInfoRow(

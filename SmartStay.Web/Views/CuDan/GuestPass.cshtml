@@ -66,13 +66,18 @@
                             </button>
                         </div>
                         <div class="fs-8 text-muted mb-2">Mã PIN cửa sảnh: <strong class="text-primary fs-6">#8821</strong></div>
-                        <div class="text-center p-2 rounded-2 bg-white border mb-2">
+                        <div class="text-center p-2 rounded-2 bg-white border mb-2" style="cursor:pointer;" onclick="openGateScannerModal('pass-01', 'Lê Minh Tuấn (Bạn ĐH)', '#8821', 'Còn 1 giờ 45 phút', false)" title="Bấm để mở Đầu Đọc QR Cổng Sảnh">
                             <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=SMARTSTAY_GUEST_PASS_P305_TUAN" alt="QR Pass" class="img-fluid" style="width: 100px; height: 100px;">
-                            <div class="fs-9 text-muted mt-1">Quét tại đầu đọc RFID sảnh A</div>
+                            <div class="fs-9 text-primary fw-semibold mt-1"><i class="bi bi-qr-code-scan"></i> Bấm vào QR để Quét Thử Cổng Sảnh A</div>
                         </div>
-                        <button class="btn btn-xs btn-outline-primary w-100 rounded-pill" onclick="sharePass('Lê Minh Tuấn', '#8821')">
-                            <i class="bi bi-share me-1"></i> Gửi link mã qua Zalo / SMS
-                        </button>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-xs btn-dark flex-fill rounded-pill" onclick="openGateScannerModal('pass-01', 'Lê Minh Tuấn (Bạn ĐH)', '#8821', 'Còn 1 giờ 45 phút', false)">
+                                <i class="bi bi-qr-code-scan me-1"></i> Quét Thử QR Cổng
+                            </button>
+                            <button class="btn btn-xs btn-outline-primary flex-fill rounded-pill" onclick="sharePass('Lê Minh Tuấn', '#8821')">
+                                <i class="bi bi-share me-1"></i> Gửi Zalo
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -89,13 +94,18 @@
                             </button>
                         </div>
                         <div class="fs-8 text-muted mb-2">Mã PIN cửa sảnh: <strong class="text-primary fs-6">#4902</strong></div>
-                        <div class="text-center p-2 rounded-2 bg-white border mb-2">
+                        <div class="text-center p-2 rounded-2 bg-white border mb-2" style="cursor:pointer;" onclick="openGateScannerModal('pass-02', 'Shipper Giao Hàng', '#4902', 'Vé 1 lần (Single-use)', true)" title="Bấm để mở Đầu Đọc QR Cổng Sảnh">
                             <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=SMARTSTAY_GUEST_PASS_P305_SHIPPER" alt="QR Pass" class="img-fluid" style="width: 100px; height: 100px;">
-                            <div class="fs-9 text-muted mt-1">Tự động hủy ngay sau khi quẹt</div>
+                            <div class="fs-9 text-primary fw-semibold mt-1"><i class="bi bi-qr-code-scan"></i> Bấm vào QR để Quét Thử (Tự hủy sau quẹt)</div>
                         </div>
-                        <button class="btn btn-xs btn-outline-primary w-100 rounded-pill" onclick="sharePass('Shipper', '#4902')">
-                            <i class="bi bi-share me-1"></i> Gửi link mã qua Zalo / SMS
-                        </button>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-xs btn-dark flex-fill rounded-pill" onclick="openGateScannerModal('pass-02', 'Shipper Giao Hàng', '#4902', 'Vé 1 lần (Single-use)', true)">
+                                <i class="bi bi-qr-code-scan me-1"></i> Quét Thử QR Cổng
+                            </button>
+                            <button class="btn btn-xs btn-outline-primary flex-fill rounded-pill" onclick="sharePass('Shipper', '#4902')">
+                                <i class="bi bi-share me-1"></i> Gửi Zalo
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -142,9 +152,76 @@
     </div>
 </div>
 
+<!-- ================= MODAL ĐẦU ĐỌC QR CỔNG AN NINH SẢNH A ================= -->
+<div class="modal fade" id="modalGateQrScanner" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header border-bottom px-4 pt-3 pb-2 bg-dark text-white rounded-top-4">
+                <div>
+                    <h6 class="modal-title fw-bold mb-0"><i class="bi bi-qr-code-scan text-success me-2"></i>Đầu Đọc QR Cổng An Ninh Sảnh A (IoT Gate)</h6>
+                    <div class="fs-9 text-white-50">Giả lập quét thẻ QR Vé Khách Vãng Lai tại cổng kiểm soát ra vào</div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="p-3 rounded-4 text-center position-relative mb-3" style="background: #0F172A;">
+                    <div class="d-inline-block p-2 bg-white rounded-3 position-relative" style="border: 3px solid #10B981;">
+                        <img id="gateQrImg" src="" alt="Gate QR" style="width: 150px; height: 150px;">
+                    </div>
+                    <div class="mt-2">
+                        <span class="badge bg-success text-white px-3 py-1 rounded-pill fs-9">
+                            ✓ ĐÃ QUÉT & XÁC THỰC THẺ KHÁCH HỢP LỆ
+                        </span>
+                    </div>
+                </div>
+                <div class="p-3 rounded-3 bg-light border mb-3 fs-8">
+                    <div class="d-flex justify-content-between py-1 border-bottom">
+                        <span class="text-muted">Khách ghé thăm:</span>
+                        <strong class="text-slate-900" id="gateGuestName">Lê Minh Tuấn</strong>
+                    </div>
+                    <div class="d-flex justify-content-between py-1 border-bottom">
+                        <span class="text-muted">Mã PIN định danh:</span>
+                        <strong class="text-primary" id="gateGuestPin">#8821</strong>
+                    </div>
+                    <div class="d-flex justify-content-between py-1">
+                        <span class="text-muted">Loại vé:</span>
+                        <strong class="text-success" id="gateGuestDuration">Còn 1 giờ 45 phút</strong>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-success w-100 rounded-3 fw-bold py-2 shadow-sm" onclick="confirmGateUnlock()">
+                    <i class="bi bi-unlock-fill me-1"></i> XÁC NHẬN MỞ CỔNG SẢNH A CHO KHÁCH VÀO
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+    let currentGatePass = null;
+
+    function openGateScannerModal(id, name, pin, duration, singleUse) {
+        currentGatePass = { id, name, pin, duration, singleUse };
+        document.getElementById('gateQrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=SMARTSTAY_GUEST_${encodeURIComponent(pin)}`;
+        document.getElementById('gateGuestName').innerText = name;
+        document.getElementById('gateGuestPin').innerText = pin;
+        document.getElementById('gateGuestDuration').innerText = duration;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalGateQrScanner')).show();
+    }
+
+    function confirmGateUnlock() {
+        bootstrap.Modal.getInstance(document.getElementById('modalGateQrScanner')).hide();
+        if (!currentGatePass) return;
+        if (currentGatePass.singleUse) {
+            const el = document.getElementById(currentGatePass.id);
+            if (el) el.remove();
+            showPassAlert(`✓ Đã quét QR mở cổng Sảnh A cho [${currentGatePass.name}]! Vì là Vé 1 lần nên hệ thống đã tự động thu hồi mã ngay sau khi khách qua cổng.`);
+        } else {
+            showPassAlert(`✓ Đã quét QR mở cổng Sảnh A cho [${currentGatePass.name}] (${currentGatePass.pin})! Đã ghi nhận vào Nhật ký an ninh tòa nhà.`);
+        }
+    }
+
     function sendUnlockSignal() {
-        showPassAlert('Đã gửi lệnh mở khóa qua giao thức MQTT tới khóa phòng P.305! Cửa đã được mở thành công.');
+        showPassAlert('Đã gửi lệnh mở khóa qua giao thức MQTT tới khóa phòng P.305! Cửa mở 5 giây và sẽ tự động đóng chốt an toàn.');
     }
 
     function revokePass(id, name) {
