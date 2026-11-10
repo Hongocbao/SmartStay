@@ -4,6 +4,7 @@ import '../../providers/ticket_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/ticket_model.dart';
 import '../../utils/formatters.dart';
+import 'admin_iot_screen.dart';
 
 class AdminKanbanScreen extends StatefulWidget {
   const AdminKanbanScreen({super.key});
@@ -41,9 +42,26 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
-          'Kanban Quản Lý Bảo Trì & Sự Cố',
+          'Kanban Quản Lý & Kỹ Thuật Bảo Trì',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A)),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Tạo phiếu sự cố kỹ thuật mới',
+            icon: const Icon(Icons.add_circle_rounded, color: Color(0xFF2563EB)),
+            onPressed: () => _showCreateTicketModal(context, ticketProvider, admin),
+          ),
+          IconButton(
+            tooltip: 'Điều khiển Khóa IoT & Nhật ký ra vào',
+            icon: const Icon(Icons.lock_open_rounded, color: Color(0xFF0284C7)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminIotScreen()),
+              );
+            },
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: const Color(0xFF2563EB),
@@ -274,15 +292,36 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
               if (ticket.status == 'Chờ xử lý') ...[
                 if (ticket.technicianName == null) ...[
                   Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.person_add_rounded, size: 15, color: Colors.white),
-                      label: const Text('Phân Công Kỹ Thuật Viên', style: TextStyle(fontSize: 12, color: Colors.white)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.person_add_rounded, size: 15),
+                      label: const Text('Phân Công KTV', style: TextStyle(fontSize: 11)),
+                      style: OutlinedButton.styleFrom(
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         padding: const EdgeInsets.symmetric(vertical: 8),
                       ),
                       onPressed: () => _showAssignDialog(context, ticket, ticketProvider, admin),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white),
+                      label: const Text('Nhận & Sửa Ngay', style: TextStyle(fontSize: 11, color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF59E0B),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                      onPressed: () {
+                        final defaultTech = admin.staffList.isNotEmpty
+                            ? admin.staffList.first.fullName
+                            : 'Ban Quản lý & Kỹ thuật';
+                        ticketProvider.assignTechnician(ticket.ticketId, defaultTech);
+                        ticketProvider.startRepair(ticket.ticketId);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Đã tiếp nhận và bắt đầu sửa chữa ${ticket.ticketCode}!')),
+                        );
+                      },
                     ),
                   ),
                 ] else ...[
@@ -523,6 +562,146 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Đóng')),
           ],
+        );
+      },
+    );
+  }
+
+  void _showCreateTicketModal(BuildContext context, TicketProvider ticketProvider, AdminProvider admin) {
+    final descCtrl = TextEditingController();
+    final occupiedRooms = admin.rooms.where((r) => r.status == 'Đang ở').toList();
+    String selectedRoom = occupiedRooms.isNotEmpty ? occupiedRooms.first.roomCode : 'P.305';
+    String selectedCategory = 'Thiết bị điện (Máy lạnh, đèn, ổ cắm)';
+    String selectedPriority = 'Cao';
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.build_circle_rounded, color: Color(0xFF2563EB)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Tạo Phiếu Sự Cố Kỹ Thuật Mới',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedRoom,
+                      decoration: const InputDecoration(
+                        labelText: 'Căn hộ / Số phòng',
+                        prefixIcon: Icon(Icons.meeting_room_outlined),
+                      ),
+                      items: occupiedRooms.map((r) {
+                        return DropdownMenuItem(
+                          value: r.roomCode,
+                          child: Text('${r.roomCode} (${r.residentName ?? "Cư dân"})', style: const TextStyle(fontSize: 12)),
+                        );
+                      }).toList(),
+                      onChanged: (v) {
+                        if (v != null) setDialogState(() => selectedRoom = v);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'Danh mục hỏng hóc',
+                        prefixIcon: Icon(Icons.category_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'Thiết bị điện (Máy lạnh, đèn, ổ cắm)',
+                          child: Text('Thiết bị điện (Máy lạnh, đèn, ổ cắm)', style: TextStyle(fontSize: 12)),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Đường ống nước & Vòi sen',
+                          child: Text('Đường ống nước & Vòi sen', style: TextStyle(fontSize: 12)),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Khóa cửa thông minh & Thẻ từ',
+                          child: Text('Khóa cửa thông minh & Thẻ từ', style: TextStyle(fontSize: 12)),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Nội thất gỗ & Cửa sổ',
+                          child: Text('Nội thất gỗ & Cửa sổ', style: TextStyle(fontSize: 12)),
+                        ),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setDialogState(() => selectedCategory = v);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedPriority,
+                      decoration: const InputDecoration(
+                        labelText: 'Mức độ ưu tiên',
+                        prefixIcon: Icon(Icons.flag_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'Khẩn cấp', child: Text('Khẩn cấp (Xử lý trong 2h)')),
+                        DropdownMenuItem(value: 'Cao', child: Text('Ưu tiên Cao (Trong ngày)')),
+                        DropdownMenuItem(value: 'Trung bình', child: Text('Trung bình (Trong 48h)')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setDialogState(() => selectedPriority = v);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descCtrl,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Mô tả tình trạng sự cố',
+                        hintText: 'Nhập chi tiết triệu chứng hỏng hóc...',
+                        prefixIcon: Icon(Icons.description_outlined),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Hủy')),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.send_rounded, size: 15, color: Colors.white),
+                  label: const Text('Phát Hành Phiếu Sự Cố', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+                  onPressed: () async {
+                    final desc = descCtrl.text.trim().isEmpty
+                        ? 'Báo hỏng $selectedCategory tại phòng $selectedRoom'
+                        : descCtrl.text.trim();
+                    await ticketProvider.createTicket(
+                      categoryName: selectedCategory,
+                      title: desc,
+                      description: '$selectedCategory • Phòng $selectedRoom',
+                      priority: selectedPriority,
+                      roomCode: selectedRoom,
+                      authorName: 'Ban Quản lý & Kỹ thuật',
+                    );
+                    if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Đã tạo thành công phiếu sự cố cho phòng $selectedRoom! Phiếu đã đưa vào cột Chờ Xử Lý.'),
+                          backgroundColor: const Color(0xFF10B981),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
+            );
+          },
         );
       },
     );

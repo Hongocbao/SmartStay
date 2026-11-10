@@ -6,6 +6,12 @@ public class LoginRequestDto
     public string MatKhau { get; set; } = string.Empty;
 }
 
+public class ChangePasswordRequestDto
+{
+    public string MatKhauHienTai { get; set; } = string.Empty;
+    public string MatKhauMoi { get; set; } = string.Empty;
+}
+
 public class RegisterRequestDto
 {
     public string TenDangNhap { get; set; } = string.Empty;
@@ -13,6 +19,7 @@ public class RegisterRequestDto
     public string HoTen { get; set; } = string.Empty;
     public string SoDienThoai { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string SoCanCuoc { get; set; } = string.Empty;
     public string? SoPhong { get; set; }
 }
 
@@ -24,6 +31,7 @@ public class LoginResponseDto
     public string HoTen { get; set; } = string.Empty;
     public string VaiTro { get; set; } = string.Empty;
     public string? SoPhong { get; set; }
+    public bool CanDoiMatKhau { get; set; }
 }
 
 public class TinhBacThangRequestDto

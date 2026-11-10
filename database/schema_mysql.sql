@@ -482,12 +482,12 @@ INSERT INTO `VaiTro` (`MaVaiTro`, `TenVaiTro`, `MoTa`) VALUES
 (4, 'CuDan', 'Cư dân lưu trú tại phòng');
 
 -- Người dùng mặc định
--- Mật khẩu mặc định: 123456 (BCrypt băm: $2a$11$q9hM1Kj7uUeL6sW4GZfBhuW6G3wS1rX5uY6uY6uY6uY6uY6uY6uY6)
+-- Mật khẩu mặc định: 123456 (BCrypt)
 INSERT INTO `NguoiDung` (`MaNguoiDung`, `TenDangNhap`, `ThuDienTu`, `SoDienThoai`, `MaBamMatKhau`, `HoTen`, `MaVaiTro`, `DangHoatDong`) VALUES
-(1, 'admin', 'admin@smartstay.vn', '0900000001', '$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Quản Trị Viên', 1, 1),
-(2, 'quanly', 'quanly@smartstay.vn', '0900000002', '$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Nguyễn Dương Bảo', 2, 1),
-(3, 'kythuat', 'kythuat@smartstay.vn', '0900000003', '$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Nguyễn Văn Bình', 3, 1),
-(4, '2380600133', 'hongocbao@smartstay.vn', '0901234567', '$2a$11$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Hồ Ngọc Bảo', 4, 1);
+(1, 'admin', 'admin@smartstay.vn', '0900000001', '$2a$11$FoiXjrhx5r4JkHQe4.49te0RHlFTtzy/HFRTnouZz/G3KanTYJHXW', 'Quản Trị Viên', 1, 1),
+(2, 'quanly', 'quanly@smartstay.vn', '0900000002', '$2a$11$FoiXjrhx5r4JkHQe4.49te0RHlFTtzy/HFRTnouZz/G3KanTYJHXW', 'Nguyễn Dương Bảo', 2, 1),
+(3, 'kythuat', 'kythuat@smartstay.vn', '0900000003', '$2a$11$FoiXjrhx5r4JkHQe4.49te0RHlFTtzy/HFRTnouZz/G3KanTYJHXW', 'Nguyễn Văn Bình', 3, 1),
+(4, '2380600133', 'hongocbao@smartstay.vn', '0901234567', '$2a$11$FoiXjrhx5r4JkHQe4.49te0RHlFTtzy/HFRTnouZz/G3KanTYJHXW', 'Hồ Ngọc Bảo', 4, 1);
 
 -- Cấu hình đơn vị
 INSERT INTO `CauHinhDonVi` (`MaCauHinh`, `TenDonVi`, `DiaChi`, `SoDienThoai`, `ThuDienTu`, `MaNganHangBin`, `TenNganHang`, `SoTaiKhoan`, `TenChuTaiKhoan`, `SoNgayHanThanhToan`) VALUES

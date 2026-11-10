@@ -106,7 +106,7 @@
 
         .role-btn-group {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 8px;
             margin-bottom: 24px;
         }
@@ -264,13 +264,9 @@
             </div>
 
             <div class="role-btn-group">
-                <div class="role-btn role-badge-admin active" onclick="selectRole('Admin', 'admin', '123456', 'Toàn quyền Ban Quản Lý: Dashboard KPI, sơ đồ phòng, đối soát VietQR, hợp đồng cư dân.')">
+                <div class="role-btn role-badge-admin active" onclick="selectRole('Admin', 'admin', '123456', 'Toàn quyền Ban Quản Lý & Kỹ Thuật: Dashboard KPI, sơ đồ phòng, đối soát VietQR, hợp đồng cư dân, xử lý Kanban bảo trì & khóa IoT.')">
                     <i class="bi bi-shield-lock-fill text-purple"></i>
-                    <span>Ban Quản Lý</span>
-                </div>
-                <div class="role-btn role-badge-tech" onclick="selectRole('KyThuat', 'tech', '123456', 'Kỹ Thuật Viên: Tiếp nhận phiếu sửa chữa Kanban, báo cáo vật tư thay thế, bảo trì IoT.')">
-                    <i class="bi bi-tools text-success"></i>
-                    <span>Kỹ Thuật</span>
+                    <span>Ban Quản Lý & Kỹ Thuật</span>
                 </div>
                 <div class="role-btn role-badge-resident" onclick="selectRole('CuDan', '2380600133', '123456', 'Cổng Cư Dân: Tra cứu tiền điện nước bậc thang, mã VietQR, báo sự cố phòng P.305.')">
                     <i class="bi bi-person-workspace text-primary"></i>
@@ -281,7 +277,7 @@
             <!-- Description Box for Chosen Role -->
             <div class="role-desc-box" id="roleDesc">
                 <i class="bi bi-info-circle-fill me-1 text-primary"></i>
-                <span id="roleDescText">Toàn quyền Ban Quản Lý: Dashboard KPI, sơ đồ phòng, đối soát VietQR, hợp đồng cư dân.</span>
+                <span id="roleDescText">Toàn quyền Ban Quản Lý & Kỹ Thuật: Dashboard KPI, sơ đồ phòng, đối soát VietQR, hợp đồng cư dân, xử lý Kanban bảo trì & khóa IoT.</span>
             </div>
 
             <!-- Login Form -->
@@ -365,12 +361,10 @@
             const buttons = document.querySelectorAll('.role-btn');
             buttons.forEach(b => b.classList.remove('active'));
 
-            if (role === 'Admin') {
+            if (role === 'Admin' || role === 'KyThuat') {
                 buttons[0].classList.add('active');
-            } else if (role === 'KyThuat') {
-                buttons[1].classList.add('active');
             } else {
-                buttons[2].classList.add('active');
+                buttons[1].classList.add('active');
             }
         }
 

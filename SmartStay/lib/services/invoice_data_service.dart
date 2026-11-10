@@ -3,6 +3,7 @@ import '../models/invoice_model.dart';
 import '../models/admin_models.dart';
 import '../services/mock_data_service.dart';
 import '../services/tiered_utility_service.dart';
+import '../services/system_config.dart';
 
 /// Single Source of Truth cho toàn bộ dữ liệu Hóa đơn trong hệ thống SmartStay
 class InvoiceDataService extends ChangeNotifier {
@@ -164,9 +165,10 @@ class InvoiceDataService extends ChangeNotifier {
         fixedServicePrice: fixedService,
       );
 
-      final encodedInfo = Uri.encodeComponent('$invoiceCode ${room.roomCode}');
-      final vietQrUrl =
-          'https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=${totalAmount.round()}&addInfo=$encodedInfo&accountName=SMARTSTAY%20MANAGEMENT';
+      final vietQrUrl = SystemConfig().vietQrUrl(
+        amount: totalAmount,
+        content: '$invoiceCode ${room.roomCode}',
+      );
 
       final newInvoice = InvoiceModel(
         invoiceId: DateTime.now().millisecondsSinceEpoch % 100000 + count,

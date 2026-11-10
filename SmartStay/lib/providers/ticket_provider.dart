@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import '../models/ticket_model.dart';
 import '../services/mock_data_service.dart';
+import '../services/supabase_direct_service.dart';
 
 class TicketProvider extends ChangeNotifier {
   final MockDataService _mock = MockDataService();
+  final SupabaseDirectService _supabase = SupabaseDirectService();
 
   List<TicketModel> _tickets = [];
   bool _isLoading = false;
@@ -21,11 +23,64 @@ class TicketProvider extends ChangeNotifier {
 
   TicketProvider() {
     loadTickets();
+    syncTicketsFromCloud();
   }
 
   void loadTickets() {
     _tickets = List.from(_mock.tickets);
     notifyListeners();
+  }
+
+  /// Đồng bộ danh sách phiếu sự cố từ Supabase (Phương án A) / Web Admin (smartstay-admin)
+  Future<void> syncTicketsFromCloud() async {
+    final snapshot = await _supabase.fetchUnifiedSnapshot();
+    if (snapshot == null) return;
+    final rawList = snapshot['suCos'];
+    if (rawList is! List || rawList.isEmpty) return;
+
+    bool changed = false;
+    for (final item in rawList) {
+      if (item is! Map) continue;
+      final id = (item['maPhieuSuCo'] ?? item['MaPhieuSuCo'] ?? 0) as num;
+      final code = (item['soPhieuSuCo'] ?? item['SoPhieuSuCo'] ?? '').toString().trim();
+      final room = (item['kyHieuPhong'] ?? item['KyHieuPhong'] ?? 'P.305').toString();
+      final title = (item['tieuDe'] ?? item['TieuDe'] ?? '').toString().trim();
+      final desc = (item['moTa'] ?? item['MoTa'] ?? '').toString().trim();
+      final priority = (item['uuTien'] ?? item['UuTien'] ?? 'Trung bình').toString();
+      final statusRaw = (item['trangThai'] ?? item['TrangThai'] ?? 'Chờ xử lý').toString();
+      final status = statusRaw == 'Đang xử lý' ? 'Đang sửa' : statusRaw;
+
+      if (code.isEmpty || title.isEmpty) continue;
+      final idx = _tickets.indexWhere((t) => t.ticketCode == code);
+      if (idx != -1) {
+        if (_tickets[idx].status != status) {
+          _tickets[idx] = _tickets[idx].copyWith(status: status);
+          changed = true;
+        }
+      } else {
+        _tickets.insert(
+          0,
+          TicketModel(
+            ticketId: id.toInt() > 0 ? id.toInt() : DateTime.now().millisecondsSinceEpoch % 10000,
+            ticketCode: code,
+            roomCode: room,
+            categoryName: 'Bảo trì kỹ thuật',
+            title: title,
+            description: desc,
+            priority: priority,
+            status: status,
+            createdAt: DateTime.now(),
+            images: const [],
+            comments: const [],
+            activityLogs: const [],
+          ),
+        );
+        changed = true;
+      }
+    }
+    if (changed) {
+      notifyListeners();
+    }
   }
 
   TicketModel? getTicketById(int ticketId) {
@@ -99,6 +154,14 @@ class TicketProvider extends ChangeNotifier {
     _tickets.insert(0, newTicket);
     _isLoading = false;
     notifyListeners();
+    _supabase.syncTicket(
+      ticketCode: newTicket.ticketCode,
+      roomCode: effectiveRoom,
+      title: title,
+      description: description,
+      priority: priority,
+      status: 'Chờ xử lý',
+    );
     return true;
   }
 

@@ -8,17 +8,29 @@ using SmartStay.Web.Data;
 using SmartStay.Web.Hubs;
 using SmartStay.Web.Services;
 
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Database Connection (Ưu tiên kết nối Supabase Cloud PostgreSQL, hỗ trợ fallback SQL Server)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? "Host=aws-1-eu-west-3.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.odasdzyuriucofavonjl;Password=ngocbao11a77;SSL Mode=Require;Trust Server Certificate=true";
+// 1. Hỗ trợ đọc chuỗi kết nối từ biến môi trường Render (ConnectionStrings__DefaultConnection hoặc DATABASE_URL)
+// và có Fallback an toàn cho môi trường Local để không bao giờ bị crash khi chạy thử.
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
+        ?? Environment.GetEnvironmentVariable("SUPABASE_DB_URL")
+        ?? "Server=(localdb)\\mssqllocaldb;Database=SmartStayDB;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;";
+}
 
 builder.Services.AddDbContext<SmartStayDbContext>(options =>
 {
     if (connectionString.Contains("supabase.com", StringComparison.OrdinalIgnoreCase)
+        || connectionString.Contains("supabase.co", StringComparison.OrdinalIgnoreCase)
         || connectionString.Contains("Port=5432", StringComparison.OrdinalIgnoreCase)
-        || connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+        || connectionString.Contains("Port=6543", StringComparison.OrdinalIgnoreCase)
+        || connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase)
+        || connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
+        || connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
     {
         options.UseNpgsql(connectionString, npgsqlOptions =>
         {
@@ -76,14 +88,26 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 // 5. Cấu hình Đa Xác Thực: Cookie (cho Web Portal) và JWT (cho Mobile App)
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "SmartStay_Secret_Key_For_Jwt_Authentication_2026_Secure_Token!";
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32)
+{
+    jwtKey = Environment.GetEnvironmentVariable("JWT_KEY")
+        ?? "SmartStay_Enterprise_Default_Jwt_Signing_Key_2026_Secure!";
+}
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "SmartStay";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "SmartStayClients";
 
 builder.Services.AddAuthentication(options =>
     {
-        options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+        options.DefaultScheme = "SmartStayAuth";
+        options.DefaultChallengeScheme = "SmartStayAuth";
+    })
+    .AddPolicyScheme("SmartStayAuth", "Cookie or Bearer", options =>
+    {
+        options.ForwardDefaultSelector = context =>
+            context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                ? JwtBearerDefaults.AuthenticationScheme
+                : CookieAuthenticationDefaults.AuthenticationScheme;
     })
     .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
     {
@@ -115,12 +139,27 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("TechOrAdmin", policy => policy.RequireRole("Admin", "KyThuat"));
 });
 
-// 6. CORS Policy: Cho phép Flutter Mobile App và Web Browser gọi API thông suốt
+// 6. CORS Policy: Cho phép link smartstay-client trên Render, localhost và Mobile App gọi API thông suốt
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
+        var allowedOrigins = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? Array.Empty<string>();
+
+        policy.SetIsOriginAllowed(origin =>
+              {
+                  if (string.IsNullOrWhiteSpace(origin)) return true;
+                  if (allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase)) return true;
+                  if (Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                  {
+                      return uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                          || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+                          || uri.Host.EndsWith(".onrender.com", StringComparison.OrdinalIgnoreCase);
+                  }
+                  return false;
+              })
               .AllowAnyMethod()
               .AllowAnyHeader();
     });
@@ -128,14 +167,72 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Tự động đồng bộ Schema PostgreSQL (Supabase) & bật RLS/Realtime cho Phương án A
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<SmartStayDbContext>();
+        if (db.Database.IsNpgsql())
+        {
+            bool needsSchemaSync = args.Contains("--init-db");
+            if (!needsSchemaSync)
+            {
+                try
+                {
+                    _ = await db.NguoiDungs.AsNoTracking().Select(u => u.ThoiDiemTao).FirstOrDefaultAsync();
+                }
+                catch
+                {
+                    needsSchemaSync = true;
+                }
+            }
+
+            if (needsSchemaSync)
+            {
+                var sqlPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "database", "schema_postgresql_supabase.sql"));
+                if (File.Exists(sqlPath))
+                {
+                    var sqlScript = await File.ReadAllTextAsync(sqlPath);
+                    await db.Database.ExecuteSqlRawAsync(sqlScript);
+                    Console.WriteLine("[SmartStay] Đã đồng bộ thành công Schema & Seed Data lên Supabase PostgreSQL!");
+                }
+            }
+
+            // Áp dụng cấu hình Phương án A (Supabase Realtime + RLS) không phá hủy dữ liệu
+            var optionAPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "database", "supabase_rls_and_realtime_option_a.sql"));
+            if (File.Exists(optionAPath))
+            {
+                var rlsScript = await File.ReadAllTextAsync(optionAPath);
+                await db.Database.ExecuteSqlRawAsync(rlsScript);
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[SmartStay] Khởi động ở chế độ Resilient (Bỏ qua đồng bộ DB tự động: {ex.Message})");
+    }
+}
+
+if (args.Contains("--init-db"))
+{
+    return;
+}
+
+app.MapGet("/api/health", () => Results.Ok(new
+{
+    status = "ok",
+    service = "smartstay-admin",
+    supabaseUrl = builder.Configuration["Supabase:Url"] ?? Environment.GetEnvironmentVariable("SUPABASE_URL") ?? "https://odasdzyuriucofavonjl.supabase.co",
+    timestamp = DateTime.UtcNow
+}));
+
 // Configure the HTTP request pipeline
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
-
-app.UseCors("AllowAll");
 
 // Kích hoạt Swagger UI tại /swagger
 app.UseSwagger();
@@ -145,10 +242,12 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-// app.UseHttpsRedirection(); // Tắt chuyển hướng HTTPS cục bộ để Flutter App và Web Portal chạy mượt mà trên cổng http://localhost:5096
 app.UseStaticFiles();
 
 app.UseRouting();
+
+// CORS phải chạy sau routing để xử lý đúng preflight OPTIONS từ Flutter Web (smartstay-client).
+app.UseCors("AllowAll");
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -156,7 +255,7 @@ app.UseAuthorization();
 // SignalR Real-time Hub
 app.MapHub<SmartStayHub>("/hub/smartstay");
 
-// Map API Controllers (/api/auth, /api/phong, /api/tro-ly, /api/hoadon, ...)
+// Map API Controllers (/api/auth, /api/phong, /api/tro-ly, /api/hoadon, /api/sync, ...)
 app.MapControllers();
 
 // Map MVC Routes (/Account/Login, /Home/Index, /Phong/SoDo, ...)

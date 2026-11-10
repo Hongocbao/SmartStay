@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using SmartStay.Web.Data;
 using SmartStay.Web.Dtos;
@@ -23,49 +24,29 @@ public class AuthController : ControllerBase
     [HttpPost("dang-nhap")]
     public async Task<IActionResult> DangNhap([FromBody] LoginRequestDto req)
     {
+        if (string.IsNullOrWhiteSpace(req.TenDangNhap) || string.IsNullOrWhiteSpace(req.MatKhau))
+            return BadRequest(new { message = "Tên đăng nhập và mật khẩu là bắt buộc." });
+
         var user = await _db.NguoiDungs
             .Include(u => u.MaVaiTroNavigation)
-            .FirstOrDefaultAsync(u => u.TenDangNhap == req.TenDangNhap || u.SoDienThoai == req.TenDangNhap);
+            .FirstOrDefaultAsync(u => u.DangHoatDong &&
+                (u.TenDangNhap == req.TenDangNhap.Trim() || u.SoDienThoai == req.TenDangNhap.Trim()));
 
         if (user == null)
-        {
-            if (req.TenDangNhap == "2380600133" || req.TenDangNhap == "admin")
-            {
-                var role = req.TenDangNhap == "admin" ? "Admin" : "Cư dân";
-                var token = _tokenService.GenerateJwtToken(new NguoiDung
-                {
-                    MaNguoiDung = 101,
-                    TenDangNhap = req.TenDangNhap,
-                    HoTen = req.TenDangNhap == "admin" ? "Quản Trị Viên" : "Hồ Ngọc Bảo",
-                }, role);
-
-                return Ok(new LoginResponseDto
-                {
-                    Token = token,
-                    MaNguoiDung = 101,
-                    TenDangNhap = req.TenDangNhap,
-                    HoTen = req.TenDangNhap == "admin" ? "Quản Trị Viên" : "Hồ Ngọc Bảo",
-                    VaiTro = role,
-                    SoPhong = "P.305"
-                });
-            }
             return Unauthorized(new { message = "Tài khoản hoặc mật khẩu không chính xác." });
-        }
 
-        bool isValid = false;
+        bool isValid;
         try
         {
             isValid = BCrypt.Net.BCrypt.Verify(req.MatKhau, user.MaBamMatKhau);
         }
         catch
         {
-            isValid = (req.MatKhau == user.MaBamMatKhau || req.MatKhau == "123456");
+            isValid = false;
         }
 
-        if (!isValid && req.MatKhau != "123456")
-        {
-            return Unauthorized(new { message = "Mật khẩu không chính xác." });
-        }
+        if (!isValid)
+            return Unauthorized(new { message = "Tài khoản hoặc mật khẩu không chính xác." });
 
         var roleName = user.MaVaiTroNavigation?.TenVaiTro ?? "CuDan";
         var jwt = _tokenService.GenerateJwtToken(user, roleName);
@@ -78,8 +59,10 @@ public class AuthController : ControllerBase
                                join hd in _db.HopDongs on cdhd.MaHopDong equals hd.MaHopDong
                                join p in _db.Phongs on hd.MaPhong equals p.MaPhong
                                where cdhd.MaCuDan == cuDan.MaCuDan
+                                   && cdhd.NgayChuyenRa == null
+                                   && hd.TrangThai == "Đang hiệu lực"
                                select p.KyHieuPhong).FirstOrDefaultAsync();
-            soPhong = phong ?? "P.305";
+            soPhong = phong;
         }
 
         return Ok(new LoginResponseDto
@@ -89,38 +72,67 @@ public class AuthController : ControllerBase
             TenDangNhap = user.TenDangNhap,
             HoTen = user.HoTen,
             VaiTro = roleName,
-            SoPhong = soPhong ?? "P.305"
+            SoPhong = soPhong,
+            CanDoiMatKhau = user.CanDoiMatKhau
         });
+    }
+
+    [Authorize]
+    [HttpPut("doi-mat-khau")]
+    public async Task<IActionResult> DoiMatKhau([FromBody] ChangePasswordRequestDto req)
+    {
+        if (req.MatKhauMoi.Length < 8)
+            return BadRequest(new { message = "Mật khẩu mới phải có ít nhất 8 ký tự." });
+
+        if (!int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var userId))
+            return Unauthorized();
+
+        var user = await _db.NguoiDungs.FirstOrDefaultAsync(u => u.MaNguoiDung == userId && u.DangHoatDong);
+        if (user == null)
+            return Unauthorized();
+
+        var currentPasswordMatches = false;
+        try { currentPasswordMatches = BCrypt.Net.BCrypt.Verify(req.MatKhauHienTai, user.MaBamMatKhau); }
+        catch { currentPasswordMatches = false; }
+
+        if (!currentPasswordMatches)
+            return BadRequest(new { message = "Mật khẩu hiện tại không chính xác." });
+
+        user.MaBamMatKhau = BCrypt.Net.BCrypt.HashPassword(req.MatKhauMoi);
+        user.CanDoiMatKhau = false;
+        await _db.SaveChangesAsync();
+        return Ok(new { success = true });
     }
 
     [HttpPost("dang-ky")]
     public async Task<IActionResult> DangKy([FromBody] RegisterRequestDto req)
     {
-        if (string.IsNullOrWhiteSpace(req.TenDangNhap) || string.IsNullOrWhiteSpace(req.MatKhau))
+        if (string.IsNullOrWhiteSpace(req.TenDangNhap) || string.IsNullOrWhiteSpace(req.MatKhau)
+            || req.MatKhau.Length < 8 || string.IsNullOrWhiteSpace(req.HoTen)
+            || string.IsNullOrWhiteSpace(req.SoDienThoai) || string.IsNullOrWhiteSpace(req.Email)
+            || string.IsNullOrWhiteSpace(req.SoCanCuoc) || req.SoCanCuoc.Length is < 9 or > 12
+            || !req.SoCanCuoc.All(char.IsDigit))
         {
-            return BadRequest(new { message = "Tên đăng nhập và mật khẩu không được để trống." });
+            return BadRequest(new { message = "Vui lòng nhập đủ thông tin, CCCD từ 9 đến 12 chữ số và mật khẩu ít nhất 8 ký tự." });
         }
 
+        req.TenDangNhap = req.TenDangNhap.Trim();
+        req.SoDienThoai = req.SoDienThoai.Trim();
+        req.Email = req.Email.Trim();
+        req.SoCanCuoc = req.SoCanCuoc.Trim();
         var existingUser = await _db.NguoiDungs
-            .FirstOrDefaultAsync(u => u.TenDangNhap == req.TenDangNhap || (!string.IsNullOrEmpty(req.SoDienThoai) && u.SoDienThoai == req.SoDienThoai));
+            .FirstOrDefaultAsync(u => u.TenDangNhap == req.TenDangNhap || u.SoDienThoai == req.SoDienThoai || u.ThuDienTu == req.Email);
 
-        if (existingUser != null)
+        if (existingUser != null || await _db.CuDans.AnyAsync(c => c.SoCanCuoc == req.SoCanCuoc))
         {
-            return Conflict(new { message = "Tên đăng nhập hoặc số điện thoại đã tồn tại trên hệ thống." });
+            return Conflict(new { message = "Tên đăng nhập, số điện thoại, email hoặc CCCD đã được đăng ký." });
         }
 
-        var vaiTroCuDan = await _db.VaiTros.FirstOrDefaultAsync(v => v.TenVaiTro.Contains("CuDan") || v.TenVaiTro.Contains("Cư dân"))
-                          ?? await _db.VaiTros.FirstOrDefaultAsync();
+        var vaiTroCuDan = await _db.VaiTros.FirstOrDefaultAsync(v => v.TenVaiTro == "CuDan" || v.TenVaiTro == "Cư dân");
+        if (vaiTroCuDan == null)
+            return Problem("Chưa cấu hình vai trò cư dân trong hệ thống.");
 
-        string hashedPassword;
-        try
-        {
-            hashedPassword = BCrypt.Net.BCrypt.HashPassword(req.MatKhau);
-        }
-        catch
-        {
-            hashedPassword = req.MatKhau;
-        }
+        var hashedPassword = BCrypt.Net.BCrypt.HashPassword(req.MatKhau);
 
         var newUser = new NguoiDung
         {
@@ -129,16 +141,20 @@ public class AuthController : ControllerBase
             HoTen = string.IsNullOrWhiteSpace(req.HoTen) ? req.TenDangNhap : req.HoTen,
             SoDienThoai = req.SoDienThoai,
             ThuDienTu = req.Email,
-            MaVaiTro = vaiTroCuDan?.MaVaiTro ?? 1,
+            MaVaiTro = vaiTroCuDan.MaVaiTro,
             DangHoatDong = true,
             CanDoiMatKhau = false,
             ThoiDiemTao = DateTime.UtcNow
         };
 
+        await using var transaction = await _db.Database.BeginTransactionAsync();
         _db.NguoiDungs.Add(newUser);
         await _db.SaveChangesAsync();
+        _db.CuDans.Add(new CuDan { MaNguoiDung = newUser.MaNguoiDung, SoCanCuoc = req.SoCanCuoc });
+        await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
 
-        var jwt = _tokenService.GenerateJwtToken(newUser, vaiTroCuDan?.TenVaiTro ?? "CuDan");
+        var jwt = _tokenService.GenerateJwtToken(newUser, vaiTroCuDan.TenVaiTro);
 
         return Ok(new LoginResponseDto
         {
@@ -146,13 +162,14 @@ public class AuthController : ControllerBase
             MaNguoiDung = newUser.MaNguoiDung,
             TenDangNhap = newUser.TenDangNhap,
             HoTen = newUser.HoTen,
-            VaiTro = "Cư dân",
-            SoPhong = req.SoPhong ?? "P.305"
+            VaiTro = vaiTroCuDan.TenVaiTro,
+            SoPhong = null
         });
     }
 }
 
 [ApiController]
+[Authorize(Roles = "Admin,QuanLy")]
 [Route("api/phong")]
 public class PhongApiController : ControllerBase
 {
@@ -210,6 +227,7 @@ public class PhongApiController : ControllerBase
 }
 
 [ApiController]
+[Authorize]
 [Route("api/hoadon")]
 public class HoaDonApiController : ControllerBase
 {
@@ -222,6 +240,7 @@ public class HoaDonApiController : ControllerBase
         _invoiceService = invoiceService;
     }
 
+    [Authorize(Roles = "Admin,QuanLy")]
     [HttpPost("tinh-nhap-bac-thang")]
     public async Task<IActionResult> TinhNhapBacThang([FromBody] TinhBacThangRequestDto req)
     {
@@ -269,14 +288,32 @@ public class HoaDonApiController : ControllerBase
         return Ok(ketQua);
     }
 
+    [Authorize(Roles = "CuDan")]
     [HttpPost("{id}/xac-nhan-thanh-toan")]
     public async Task<IActionResult> XacNhanThanhToan(int id, [FromBody] XacNhanThanhToanDto req)
     {
-        var hoaDon = await _db.HoaDons.FindAsync(id);
+        if (req.SoTien <= 0 || string.IsNullOrWhiteSpace(req.DuongDanBienLai))
+            return BadRequest(new { success = false, message = "Số tiền phải lớn hơn 0 và cần đính kèm biên lai." });
+
+        if (!int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var userId))
+            return Unauthorized();
+
+        var hoaDon = await _db.HoaDons
+            .Include(h => h.MaHopDongNavigation)
+                .ThenInclude(h => h.CuDanHopDong)
+            .FirstOrDefaultAsync(h => h.MaHoaDon == id);
         if (hoaDon == null)
-        {
-            return Ok(new { success = true, message = "Đã ghi nhận thanh toán mô phỏng thành công!" });
-        }
+            return NotFound(new { success = false, message = "Không tìm thấy hóa đơn." });
+
+        var cuDan = await _db.CuDans.FirstOrDefaultAsync(c => c.MaNguoiDung == userId);
+        var isOwner = cuDan != null && hoaDon.MaHopDongNavigation.CuDanHopDong != null
+            && hoaDon.MaHopDongNavigation.CuDanHopDong.MaCuDan == cuDan.MaCuDan;
+        if (!isOwner)
+            return Forbid();
+
+        var hasPendingPayment = await _db.ThanhToans.AnyAsync(t => t.MaHoaDon == id && t.TrangThai == "Chờ xác nhận");
+        if (hasPendingPayment)
+            return Conflict(new { success = false, message = "Hóa đơn đã có yêu cầu thanh toán đang chờ đối soát." });
 
         var thanhToan = new ThanhToan
         {
@@ -285,7 +322,9 @@ public class HoaDonApiController : ControllerBase
             PhuongThucThanhToan = "VietQR",
             DuongDanBienLai = req.DuongDanBienLai,
             GhiChu = req.GhiChu,
-            TrangThai = "Chờ xác nhận"
+            TrangThai = "Chờ xác nhận",
+            ThoiDiemThanhToan = DateTime.UtcNow,
+            NguoiGuiThanhToan = userId
         };
 
         _db.ThanhToans.Add(thanhToan);
@@ -296,6 +335,7 @@ public class HoaDonApiController : ControllerBase
 }
 
 [ApiController]
+[Authorize]
 [Route("api/suco")]
 public class SuCoApiController : ControllerBase
 {
@@ -306,16 +346,40 @@ public class SuCoApiController : ControllerBase
         _db = db;
     }
 
+    [Authorize(Roles = "CuDan")]
     [HttpPost("tao-moi")]
     public async Task<IActionResult> TaoPhieuSuCo([FromBody] TaoPhieuSuCoDto req)
     {
+        if (string.IsNullOrWhiteSpace(req.TieuDe) || string.IsNullOrWhiteSpace(req.MoTa))
+            return BadRequest(new { success = false, message = "Tiêu đề và mô tả sự cố là bắt buộc." });
+
+        if (!int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var userId))
+            return Unauthorized();
+
+        var cuDan = await _db.CuDans.FirstOrDefaultAsync(c => c.MaNguoiDung == userId);
+        if (cuDan == null)
+            return Forbid();
+
+        var hopDongHienTai = await _db.CuDanHopDongs
+            .Where(cdhd => cdhd.MaCuDan == cuDan.MaCuDan
+                && cdhd.MaHopDongNavigation.TrangThai == "Đang hiệu lực"
+                && cdhd.NgayChuyenRa == null)
+            .Select(cdhd => new { cdhd.MaHopDongNavigation.MaPhong })
+            .FirstOrDefaultAsync();
+        if (hopDongHienTai == null)
+            return Conflict(new { success = false, message = "Tài khoản chưa có hợp đồng lưu trú đang hiệu lực." });
+
+        var categoryExists = await _db.DanhMucSuCos.AnyAsync(c => c.MaDanhMuc == req.MaDanhMuc);
+        if (!categoryExists)
+            return BadRequest(new { success = false, message = "Danh mục sự cố không hợp lệ." });
+
         var maSo = $"SC-2026-{DateTime.UtcNow.Ticks % 900 + 100}";
         var phieu = new PhieuSuCo
         {
             SoPhieuSuCo = maSo,
-            MaPhong = req.MaPhong > 0 ? req.MaPhong : 1,
-            MaCuDan = 1,
-            MaDanhMuc = req.MaDanhMuc > 0 ? req.MaDanhMuc : 1,
+            MaPhong = hopDongHienTai.MaPhong,
+            MaCuDan = cuDan.MaCuDan,
+            MaDanhMuc = req.MaDanhMuc,
             TieuDe = req.TieuDe,
             MoTa = req.MoTa,
             UuTien = req.MucDoUuTien,
@@ -329,17 +393,29 @@ public class SuCoApiController : ControllerBase
         return Ok(new { success = true, maSoPhieu = maSo, message = "Đã tạo phiếu sự cố thành công!" });
     }
 
+    [Authorize(Roles = "Admin,QuanLy,KyThuat")]
     [HttpPut("{id}/chuyen-trang-thai")]
     public async Task<IActionResult> ChuyenTrangThai(int id, [FromBody] DoiTrangThaiSuCoDto req)
     {
+        var allowedStatuses = new[] { "Chờ xử lý", "Đã tiếp nhận", "Đang xử lý", "Hoàn thành", "Từ chối" };
+        if (!allowedStatuses.Contains(req.TrangThaiMoi))
+            return BadRequest(new { success = false, message = "Trạng thái sự cố không hợp lệ." });
+
         var phieu = await _db.PhieuSuCos.FindAsync(id);
         if (phieu == null)
-        {
-            return Ok(new { success = true, message = "Đã cập nhật trạng thái mô phỏng!" });
-        }
+            return NotFound(new { success = false, message = "Không tìm thấy phiếu sự cố." });
+
+        var isTechnician = User.IsInRole("KyThuat");
+        if (isTechnician && phieu.NguoiDuocGiao.HasValue
+            && int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var currentUserId)
+            && phieu.NguoiDuocGiao.Value != currentUserId)
+            return Forbid();
 
         phieu.TrangThai = req.TrangThaiMoi;
-        if (req.MaNhanVienKyThuat.HasValue) phieu.NguoiDuocGiao = req.MaNhanVienKyThuat.Value;
+        if (isTechnician && int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var technicianId))
+            phieu.NguoiDuocGiao = technicianId;
+        else if (req.MaNhanVienKyThuat.HasValue)
+            phieu.NguoiDuocGiao = req.MaNhanVienKyThuat.Value;
         if (req.ChiPhiVatTu > 0) phieu.ChiPhiVatTu = req.ChiPhiVatTu;
         if (req.TrangThaiMoi == "Hoàn thành") phieu.ThoiDiemHoanThanh = DateTime.UtcNow;
 

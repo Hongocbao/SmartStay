@@ -41,3 +41,4 @@ ios/.symlinks/
 .DS_Store
 Thumbs.db
 Desktop.ini
+.gemini/settings.json

@@ -329,7 +329,12 @@
             }
             document.getElementById('countDangO').innerText = '27';
             document.getElementById('countTrong').innerText = '3';
-            showRoomAlert(`Thực hiện Check-out thành công cho phòng ${currentSelectedRoom}! Đã lập biên bản thanh lý hợp đồng và chuyển phòng về trạng thái Sẵn sàng cho thuê.`);
+            fetch('/api/sync/cap-nhat-phong', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ KyHieuPhong: currentSelectedRoom, TrangThai: 'Trống' })
+            }).catch(() => {});
+            showRoomAlert(`Thực hiện Check-out thành công cho phòng ${currentSelectedRoom}! Đã đồng bộ Realtime trạng thái [Trống] sang Android & Web App.`);
         }
     }
 

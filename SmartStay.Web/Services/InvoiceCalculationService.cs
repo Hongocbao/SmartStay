@@ -74,17 +74,26 @@ public class InvoiceCalculationService : IInvoiceCalculationService
         decimal sanLuongConLai = Math.Max(0, tongSanLuong);
 
         var bacSapXep = danhSachBac.OrderBy(b => b.ThuTuBac).ToList();
+        decimal mucTieuThuDaLap = 0;
 
         foreach (var bac in bacSapXep)
         {
             if (sanLuongConLai <= 0) break;
 
-            decimal gioiHanBac = (bac.SoLuongDen.HasValue ? (bac.SoLuongDen.Value - bac.SoLuongTu + 1) : decimal.MaxValue);
+            // SoLuongDen là ngưỡng lũy kế (ví dụ 50, 100, 200), không phải số lượng
+            // điểm rời rạc. Bậc 1 vì vậy chứa 50 đơn vị, bậc 2 chứa thêm 50 đơn vị.
+            decimal gioiHanBac = bac.SoLuongDen.HasValue
+                ? Math.Max(0, bac.SoLuongDen.Value - mucTieuThuDaLap)
+                : decimal.MaxValue;
             decimal soLuongTrongBac = Math.Min(sanLuongConLai, gioiHanBac);
 
             decimal thanhTien = soLuongTrongBac * bac.DonGia;
             tongTien += thanhTien;
             sanLuongConLai -= soLuongTrongBac;
+            if (bac.SoLuongDen.HasValue)
+            {
+                mucTieuThuDaLap = Math.Max(mucTieuThuDaLap, bac.SoLuongDen.Value);
+            }
 
             string moTa = bac.SoLuongDen.HasValue
                 ? $"{tenDichVu} Bậc {bac.ThuTuBac} ({bac.SoLuongTu} - {bac.SoLuongDen.Value} {donVi})"

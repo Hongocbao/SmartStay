@@ -91,6 +91,18 @@ class AppFormatters {
 
 class Formatters {
   static String formatCurrency(num amount) => AppFormatters.currency(amount);
+  static String formatNumber(num amount) {
+    final isNegative = amount < 0;
+    final digits = amount.abs().round().toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) {
+        buffer.write('.');
+      }
+      buffer.write(digits[i]);
+    }
+    return '${isNegative ? '-' : ''}${buffer.toString()}';
+  }
   static String formatDate(DateTime date) => AppFormatters.date(date);
   static String formatDateTime(DateTime date) => AppFormatters.dateTime(date);
   static String formatTime(DateTime date) => AppFormatters.time(date);

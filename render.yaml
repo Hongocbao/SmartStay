@@ -1,0 +1,45 @@
+services:
+  # Dịch vụ 1: Web Admin & API Điều Hành (.NET 8 Docker) -> Link riêng cho Ban Quản lý & Kỹ thuật
+  - type: web
+    name: smartstay-admin
+    runtime: docker
+    plan: free
+    dockerfilePath: ./SmartStay.Web/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: SUPABASE_URL
+        value: https://odasdzyuriucofavonjl.supabase.co
+      - key: Jwt__Key
+        generateValue: true
+      - key: Cors__AllowedOrigins__0
+        value: https://smartstay-client.onrender.com
+      - key: Cors__AllowedOrigins__1
+        value: https://smartstay-admin.onrender.com
+
+  # Dịch vụ 2: Web App Cư Dân & Kỹ Thuật (Flutter Web Static Site) -> Link riêng chạy song song
+  - type: web
+    name: smartstay-client
+    runtime: static
+    rootDir: SmartStay
+    buildCommand: bash scripts/render_build.sh
+    staticPublishPath: build/web
+    autoDeployTrigger: commit
+    envVars:
+      - key: API_BASE_URL
+        value: https://smartstay-admin.onrender.com/api
+      - key: SUPABASE_URL
+        value: https://odasdzyuriucofavonjl.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: sb_publishable_GYfWQ4xJCkpgxjI2XBNVmg_6eWoUWP7
+      - key: ADMIN_PORTAL_URL
+        value: https://smartstay-admin.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

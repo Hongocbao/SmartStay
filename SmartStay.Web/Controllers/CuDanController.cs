@@ -5,7 +5,7 @@ using SmartStay.Web.Data;
 
 namespace SmartStay.Web.Controllers;
 
-[Authorize]
+[Authorize(Roles = "CuDan")]
 public class CuDanController : Controller
 {
     private readonly SmartStayDbContext _db;

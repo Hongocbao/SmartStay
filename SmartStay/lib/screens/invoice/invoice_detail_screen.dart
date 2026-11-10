@@ -4,6 +4,13 @@ import '../../providers/invoice_provider.dart';
 import '../../models/invoice_model.dart';
 import '../../utils/provider_scope.dart';
 import '../../utils/formatters.dart';
+import '../../services/system_config.dart';
+
+/// Mã VietQR động luôn dùng tài khoản thụ hưởng trong Cấu hình hệ thống.
+String _qrUrl(InvoiceModel invoice) => SystemConfig().vietQrUrl(
+      amount: invoice.remainingAmount > 0 ? invoice.remainingAmount : invoice.totalAmount,
+      content: invoice.qrContent,
+    );
 
 class InvoiceDetailScreen extends StatefulWidget {
   final int invoiceId;
@@ -105,17 +112,17 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: const Color(0xFFCBD5E1), style: BorderStyle.solid),
                 ),
-                child: const Center(
+                child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.check_circle_outline, size: 28, color: Color(0xFF10B981)),
-                      SizedBox(height: 4),
-                      Text(
+                      const Icon(Icons.check_circle_outline, size: 28, color: Color(0xFF10B981)),
+                      const SizedBox(height: 4),
+                      const Text(
                         'Đã đính kèm ảnh chụp ủy nhiệm chi ngân hàng',
                         style: TextStyle(fontSize: 12, color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
                       ),
-                      Text('VietQR Napas 247 • MBBank', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                      Text('VietQR Napas 247 • ${SystemConfig().bank.shortName}', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
                     ],
                   ),
                 ),
@@ -189,7 +196,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: Image.network(
-                    invoice.urlVietQr,
+                    _qrUrl(invoice),
                     width: 280,
                     height: 280,
                     fit: BoxFit.contain,
@@ -438,7 +445,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: Image.network(
-                            invoice.urlVietQr,
+                            _qrUrl(invoice),
                             fit: BoxFit.contain,
                             loadingBuilder: (context, child, loadingProgress) {
                               if (loadingProgress == null) return child;
@@ -468,9 +475,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                     const SizedBox(height: 16),
 
                     // Thông tin chuyển khoản chi tiết
-                    _buildBankInfoRow('Ngân hàng', 'MBBank (Quân Đội)', 'MB'),
-                    _buildBankInfoRow('Số tài khoản', '0987654321', '0987654321', isCopyable: true),
-                    _buildBankInfoRow('Chủ tài khoản', 'SMARTSTAY MANAGEMENT', ''),
+                    _buildBankInfoRow('Ngân hàng', SystemConfig().bank.fullName, SystemConfig().bank.shortName),
+                    _buildBankInfoRow('Số tài khoản', SystemConfig().accountNumber, SystemConfig().accountNumber, isCopyable: true),
+                    _buildBankInfoRow('Chủ tài khoản', SystemConfig().accountHolder, ''),
                     _buildBankInfoRow('Số tiền', AppFormatters.currency(invoice.remainingAmount),
                         invoice.remainingAmount.round().toString(),
                         isCopyable: true),
@@ -680,20 +687,25 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    if (icon != null) ...[
-                      Icon(icon, size: 18, color: groupColor),
-                      const SizedBox(width: 6),
+                Expanded(
+                  child: Row(
+                    children: [
+                      if (icon != null) ...[
+                        Icon(icon, size: 18, color: groupColor),
+                        const SizedBox(width: 6),
+                      ],
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: TextStyle(fontWeight: FontWeight.bold, color: groupColor, fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
-                    Text(
-                      title,
-                      style: TextStyle(fontWeight: FontWeight.bold, color: groupColor, fontSize: 13),
-                    ),
-                  ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   AppFormatters.currency(subtotal),
                   style: TextStyle(fontWeight: FontWeight.bold, color: groupColor, fontSize: 13),

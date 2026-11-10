@@ -13,6 +13,8 @@
 
 ## 1. Sơ Đồ Cấu Trúc Thư Mục Dự Án
 
+> Hướng dẫn deploy hai URL riêng trên Render, cấu hình secrets và ghi chú an toàn schema: [docs/DEPLOY_RENDER.md](docs/DEPLOY_RENDER.md).
+
 Cấu trúc dự án được tinh gọn, tối ưu theo mô hình hợp nhất (**Unified Architecture**): gom Backend API và Web Portal vào `SmartStay.Web` để triển khai hosting mượt mà, dùng chung cơ sở dữ liệu đám mây **Supabase Cloud PostgreSQL**:
 
 ```
@@ -163,7 +165,7 @@ flowchart TD
 - **Dữ liệu mẫu chuẩn bị sẵn (Seed Data):**
   - 3 tài khoản cư dân mẫu của sinh viên: `2380600133` (Hồ Ngọc Bảo - P.305), `2380600154` (P.201), `2380600178` (P.401).
   - Tài khoản Quản lý: `admin` / Mật khẩu `123456`.
-  - Tài khoản Kỹ thuật: `tech` / Mật khẩu `123456`.
+  - Tài khoản Kỹ thuật: `kythuat` / Mật khẩu `123456`.
 
 ---
 

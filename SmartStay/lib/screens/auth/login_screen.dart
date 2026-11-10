@@ -26,11 +26,8 @@ class _LoginScreenState extends State<LoginScreen> {
   void _onRoleChanged(String role) {
     setState(() {
       _selectedRole = role;
-      if (role == 'Quản lý vận hành') {
+      if (role == 'Ban Quản lý & Kỹ thuật') {
         _usernameController.text = 'admin';
-        _passwordController.text = '123456';
-      } else if (role == 'Kỹ thuật viên') {
-        _usernameController.text = 'tech';
         _passwordController.text = '123456';
       } else {
         _usernameController.text = '2380600133';
@@ -113,9 +110,9 @@ class _LoginScreenState extends State<LoginScreen> {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
               onPressed: () async {
-                if (newPassCtrl.text.trim().length < 6) {
+                if (newPassCtrl.text.trim().length < 8) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Mật khẩu mới phải có ít nhất 6 ký tự!')),
+                    const SnackBar(content: Text('Mật khẩu mới phải có ít nhất 8 ký tự!')),
                   );
                   return;
                 }
@@ -126,13 +123,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   return;
                 }
 
-                await context.read<AuthProvider>().changePassword('123456', newPassCtrl.text.trim());
+                final changed = await context.read<AuthProvider>().changePassword(
+                  _passwordController.text,
+                  newPassCtrl.text.trim(),
+                );
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Đổi mật khẩu thành công!'),
-                      backgroundColor: Color(0xFF10B981),
+                    SnackBar(
+                      content: Text(changed
+                          ? 'Đổi mật khẩu thành công.'
+                          : context.read<AuthProvider>().errorMessage ?? 'Không thể đổi mật khẩu.'),
+                      backgroundColor: changed ? const Color(0xFF10B981) : Colors.red,
                     ),
                   );
                 }
@@ -149,10 +151,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _usernameController.text = username;
       _passwordController.text = password;
-      if (username == 'admin') {
-        _selectedRole = 'Quản lý vận hành';
-      } else if (username == 'tech') {
-        _selectedRole = 'Kỹ thuật viên';
+      if (username == 'admin' || username == 'kythuat') {
+        _selectedRole = 'Ban Quản lý & Kỹ thuật';
       } else {
         _selectedRole = 'Cư dân';
       }
@@ -263,7 +263,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 14),
 
-                      // Tabs chọn phân quyền (Cư dân, Quản lý, Kỹ thuật)
+                      // Tabs chọn phân quyền (Cư dân, Ban Quản lý & Kỹ thuật)
                       Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
@@ -273,8 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Row(
                           children: [
                             _buildRoleTab('Cư dân', '🎓 Cư Dân', const Color(0xFF2563EB)),
-                            _buildRoleTab('Quản lý vận hành', '👔 Quản Lý', const Color(0xFF8B5CF6)),
-                            _buildRoleTab('Kỹ thuật viên', '🔧 Kỹ Thuật', const Color(0xFF10B981)),
+                            _buildRoleTab('Ban Quản lý & Kỹ thuật', '🛡️ Ban Quản Lý & Kỹ Thuật', const Color(0xFF8B5CF6)),
                           ],
                         ),
                       ),
@@ -471,18 +470,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                               onPressed: () => _fillQuickAccount('admin', '123456'),
-                              child: const Text('Quản lý\n(Admin)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              onPressed: () => _fillQuickAccount('tech', '123456'),
-                              child: const Text('Kỹ thuật\n(Tech)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
+                              child: const Text('Ban Quản lý & Kỹ thuật\n(Admin / Tech)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
                             ),
                           ),
                         ],
@@ -535,10 +523,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Color get _roleBannerColor {
     switch (_selectedRole) {
-      case 'Quản lý vận hành':
+      case 'Ban Quản lý & Kỹ thuật':
         return const Color(0xFF8B5CF6);
-      case 'Kỹ thuật viên':
-        return const Color(0xFF10B981);
       default:
         return const Color(0xFF2563EB);
     }
@@ -546,10 +532,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   IconData get _roleIcon {
     switch (_selectedRole) {
-      case 'Quản lý vận hành':
+      case 'Ban Quản lý & Kỹ thuật':
         return Icons.admin_panel_settings_rounded;
-      case 'Kỹ thuật viên':
-        return Icons.build_circle_rounded;
       default:
         return Icons.home_work_rounded;
     }
@@ -557,10 +541,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String get _roleDescription {
     switch (_selectedRole) {
-      case 'Quản lý vận hành':
-        return 'Không gian Ban Quản Lý: Điều hành sơ đồ phòng Matrix, đối soát VietQR, quản trị Kanban và phê duyệt trả cọc.';
-      case 'Kỹ thuật viên':
-        return 'Không gian Kỹ Thuật Viên: Tiếp nhận phiếu bảo trì, bấm bắt đầu sửa, xuất vật tư linh kiện và nghiệm thu.';
+      case 'Ban Quản lý & Kỹ thuật':
+        return 'Không gian Ban Quản Lý & Kỹ Thuật: Điều hành sơ đồ phòng, đối soát VietQR, hợp đồng, xử lý Kanban bảo trì, vật tư & khóa IoT.';
       default:
         return 'Không gian Cư Dân (P.305): Quản lý tiền điện nước bậc thang, thanh toán VietQR, báo sự cố và hỏi trợ lý AI.';
     }

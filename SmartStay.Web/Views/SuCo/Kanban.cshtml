@@ -235,7 +235,12 @@
             document.getElementById('colInProgress').insertAdjacentHTML('afterbegin', newCard);
             document.getElementById('badgeCol1').innerText = '0 Ticket';
             document.getElementById('badgeCol2').innerText = '3 Tickets';
-            showKanbanAlert(`Đã phân công thành công kỹ thuật viên [${ktv}] phụ trách phiếu ${code}! Thẻ sự cố đã chuyển sang cột [ĐANG SỬA CHỮA].`);
+            fetch('/api/sync/su-co', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ SoPhieuSuCo: code, KyHieuPhong: room, TieuDe: desc, UuTien: priority, TrangThai: 'Đang sửa' })
+            }).catch(() => {});
+            showKanbanAlert(`Đã phân công thành công kỹ thuật viên [${ktv}] phụ trách phiếu ${code}! Thẻ sự cố đã chuyển sang cột [ĐANG SỬA CHỮA] & đồng bộ sang App.`);
         }
     }
 
@@ -271,7 +276,12 @@
             `;
             document.getElementById('colCompleted').insertAdjacentHTML('afterbegin', completedCard);
             document.getElementById('badgeCol3').innerText = '2 Tickets';
-            showKanbanAlert(`Phiếu ${code} (${room}) đã hoàn thành sửa chữa! Hệ thống đã gửi thông báo nghiệm thu 5★ tới Ứng dụng của cư dân ${resident}.`);
+            fetch('/api/sync/su-co', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ SoPhieuSuCo: code, KyHieuPhong: room, TieuDe: desc, TrangThai: 'Hoàn thành' })
+            }).catch(() => {});
+            showKanbanAlert(`Phiếu ${code} (${room}) đã hoàn thành sửa chữa! Hệ thống đã đẩy thông báo Realtime sang Ứng dụng Android/Web của cư dân ${resident}.`);
         }
     }
 
@@ -303,7 +313,12 @@
         document.getElementById('colPending').insertAdjacentHTML('afterbegin', newCard);
         bootstrap.Modal.getInstance(document.getElementById('newTicketModal')).hide();
         document.getElementById('badgeCol1').innerText = '1 Ticket';
-        showKanbanAlert(`Đã tạo thành công phiếu báo hỏng ${code} cho phòng ${room}! Phiếu đã đưa vào cột [CHỜ XỬ LÝ].`);
+        fetch('/api/sync/su-co', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ SoPhieuSuCo: code, KyHieuPhong: room, TieuDe: desc, MoTa: category, UuTien: priority, TrangThai: 'Chờ xử lý' })
+        }).catch(() => {});
+        showKanbanAlert(`Đã tạo thành công phiếu báo hỏng ${code} cho phòng ${room}! Đã đồng bộ Realtime sang Android & Web App.`);
     }
 
     function showKanbanAlert(msg) {

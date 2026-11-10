@@ -1,15 +1,21 @@
 import 'package:flutter/foundation.dart';
 import '../models/admin_models.dart';
 import '../models/invoice_model.dart';
+import '../models/managed_contract_model.dart';
 import '../services/invoice_data_service.dart';
+import '../services/supabase_direct_service.dart';
 
 class AdminProvider extends ChangeNotifier {
   final InvoiceDataService _invoiceDataService = InvoiceDataService();
+  final SupabaseDirectService _supabase = SupabaseDirectService();
+  DateTime? _lastSyncedAt;
+  DateTime? get lastSyncedAt => _lastSyncedAt;
 
   List<RoomItemModel> _rooms = [];
   List<StaffModel> _staffList = [];
   List<AccessLogModel> _accessLogs = [];
   final List<CheckOutSettlementModel> _settlements = [];
+  final List<ManagedContractModel> _contracts = [];
   bool _isLoading = false;
 
   List<RoomItemModel> get rooms => _rooms;
@@ -17,11 +23,47 @@ class AdminProvider extends ChangeNotifier {
   List<AccessLogModel> get accessLogs => _accessLogs;
   List<InvoiceModel> get allInvoices => _invoiceDataService.allInvoices;
   List<CheckOutSettlementModel> get settlements => _settlements;
+  List<ManagedContractModel> get contracts => List.unmodifiable(_contracts);
   bool get isLoading => _isLoading;
 
   AdminProvider() {
     _invoiceDataService.addListener(_onInvoicesChanged);
     _initMockData();
+    syncWithCloudSupabase();
+  }
+
+  /// Đồng bộ dữ liệu thời gian thực từ Supabase (Phương án A) & Web Admin (smartstay-admin)
+  Future<bool> syncWithCloudSupabase() async {
+    final snapshot = await _supabase.fetchUnifiedSnapshot();
+    if (snapshot == null) return false;
+
+    final rawRooms = snapshot['phongs'];
+    if (rawRooms is List && rawRooms.isNotEmpty) {
+      bool changed = false;
+      for (final item in rawRooms) {
+        if (item is! Map) continue;
+        final code = (item['kyHieuPhong'] ?? item['KyHieuPhong'] ?? '').toString().trim();
+        final status = (item['trangThai'] ?? item['TrangThai'] ?? '').toString().trim();
+        final priceRaw = item['giaThue'] ?? item['GiaThue'];
+        if (code.isEmpty || status.isEmpty) continue;
+
+        final idx = _rooms.indexWhere((r) => r.roomCode.toUpperCase() == code.toUpperCase());
+        if (idx != -1) {
+          final current = _rooms[idx];
+          final newPrice = priceRaw is num ? priceRaw.toDouble() : current.rentPrice;
+          if (current.status != status || current.rentPrice != newPrice) {
+            _rooms[idx] = current.copyWith(status: status, rentPrice: newPrice);
+            changed = true;
+          }
+        }
+      }
+      _lastSyncedAt = DateTime.now();
+      if (changed) {
+        notifyListeners();
+      }
+      return true;
+    }
+    return false;
   }
 
   void _onInvoicesChanged() {
@@ -429,6 +471,39 @@ class AdminProvider extends ChangeNotifier {
         isSuccess: false,
       ),
     ];
+
+    _initContractsFromRooms();
+  }
+
+  void _initContractsFromRooms() {
+    _contracts.clear();
+    final now = DateTime.now();
+    int i = 0;
+    for (final r in _rooms.where((rm) => rm.status == 'Đang ở')) {
+      final isExpiringDemo = r.roomCode == 'P.303' || r.roomCode == 'P.203';
+      final start = isExpiringDemo
+          ? now.subtract(const Duration(days: 358))
+          : DateTime(now.year, (now.month - (i % 5) - 1).clamp(1, 12), 1);
+      final end = isExpiringDemo
+          ? now.add(const Duration(days: 7))
+          : DateTime(start.year + 1, start.month, start.day);
+      _contracts.add(
+        ManagedContractModel(
+          contractCode: r.contractCode ?? 'HD-2026-0${r.roomId}',
+          roomId: r.roomId,
+          roomCode: r.roomCode,
+          residentName: r.residentName ?? 'Cư dân',
+          residentPhone: r.residentPhone ?? '0901234567',
+          nationalId: '07920300${(1234 + i).toString().padLeft(4, '0')}',
+          startDate: start,
+          endDate: end,
+          monthlyRent: r.rentPrice,
+          depositAmount: r.depositAmount > 0 ? r.depositAmount : r.rentPrice * 2,
+          status: 'Đang hiệu lực',
+        ),
+      );
+      i++;
+    }
   }
 
   DashboardSummaryModel get summary {
@@ -465,12 +540,14 @@ class AdminProvider extends ChangeNotifier {
     return _rooms.where((r) => r.floor == floor).toList();
   }
 
-  // Cập nhật trạng thái phòng
+  // Cập nhật trạng thái phòng & đồng bộ ngay lên Supabase / Web Admin
   void updateRoomStatus(int roomId, String newStatus) {
     final index = _rooms.indexWhere((r) => r.roomId == roomId);
     if (index != -1) {
+      final code = _rooms[index].roomCode;
       _rooms[index] = _rooms[index].copyWith(status: newStatus);
       notifyListeners();
+      _supabase.syncRoomStatus(roomCode: code, status: newStatus);
     }
   }
 
@@ -491,6 +568,23 @@ class AdminProvider extends ChangeNotifier {
         contractCode: code,
         depositAmount: depositAmount,
       );
+      final now = DateTime.now();
+      _contracts.removeWhere((c) => c.roomId == roomId && c.isActive);
+      _contracts.insert(
+        0,
+        ManagedContractModel(
+          contractCode: code,
+          roomId: roomId,
+          roomCode: _rooms[index].roomCode,
+          residentName: residentName,
+          residentPhone: residentPhone,
+          nationalId: '079203009999',
+          startDate: now,
+          endDate: DateTime(now.year + 1, now.month, now.day),
+          monthlyRent: _rooms[index].rentPrice,
+          depositAmount: depositAmount,
+        ),
+      );
       notifyListeners();
     }
   }
@@ -506,6 +600,11 @@ class AdminProvider extends ChangeNotifier {
         clearContractCode: true,
         depositAmount: 0,
       );
+      for (var i = 0; i < _contracts.length; i++) {
+        if (_contracts[i].roomId == roomId && _contracts[i].isActive) {
+          _contracts[i] = _contracts[i].copyWith(status: 'Đã thanh lý');
+        }
+      }
       notifyListeners();
     }
   }
@@ -550,6 +649,11 @@ class AdminProvider extends ChangeNotifier {
       clearContractCode: true,
       depositAmount: 0,
     );
+    for (var i = 0; i < _contracts.length; i++) {
+      if (_contracts[i].roomId == roomId && _contracts[i].isActive) {
+        _contracts[i] = _contracts[i].copyWith(status: 'Đã thanh lý');
+      }
+    }
 
     notifyListeners();
     return settlement;
@@ -625,5 +729,191 @@ class AdminProvider extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
     return count;
+  }
+
+  /// Lập hợp đồng mới & ký điện tử (tương đương /HopDong/Index trên Web)
+  ManagedContractModel? createNewContract({
+    required int roomId,
+    required String residentName,
+    required String residentPhone,
+    required String nationalId,
+    required DateTime startDate,
+    required int durationMonths,
+    required double monthlyRent,
+    required double depositAmount,
+  }) {
+    final index = _rooms.indexWhere((r) => r.roomId == roomId);
+    if (index == -1) return null;
+
+    final room = _rooms[index];
+    final code = 'HD-${startDate.year}-0${room.roomId}';
+    final endDate = DateTime(
+      startDate.year,
+      startDate.month + durationMonths,
+      startDate.day,
+    );
+
+    _rooms[index] = room.copyWith(
+      status: 'Đang ở',
+      residentName: residentName.trim(),
+      residentPhone: residentPhone.trim(),
+      contractCode: code,
+      rentPrice: monthlyRent,
+      depositAmount: depositAmount,
+    );
+
+    _contracts.removeWhere((c) => c.roomId == roomId && c.isActive);
+    final created = ManagedContractModel(
+      contractCode: code,
+      roomId: roomId,
+      roomCode: room.roomCode,
+      residentName: residentName.trim(),
+      residentPhone: residentPhone.trim(),
+      nationalId: nationalId.trim(),
+      startDate: startDate,
+      endDate: endDate,
+      monthlyRent: monthlyRent,
+      depositAmount: depositAmount,
+      status: 'Đang hiệu lực',
+      isSigned: true,
+    );
+    _contracts.insert(0, created);
+    notifyListeners();
+    return created;
+  }
+
+  /// Gia hạn hợp đồng thêm [additionalMonths] tháng
+  bool renewContract(String contractCode, {int additionalMonths = 12}) {
+    final idx = _contracts.indexWhere((c) => c.contractCode == contractCode);
+    if (idx == -1) return false;
+    final old = _contracts[idx];
+    final base = old.endDate.isAfter(DateTime.now()) ? old.endDate : DateTime.now();
+    _contracts[idx] = old.copyWith(
+      endDate: DateTime(base.year, base.month + additionalMonths, base.day),
+      status: 'Đang hiệu lực',
+    );
+    notifyListeners();
+    return true;
+  }
+
+  /// Nhập cư dân & hợp đồng hàng loạt từ bảng tính Excel (tương đương Modal Excel trên Web)
+  int bulkImportContracts(List<Map<String, String>> rows) {
+    int imported = 0;
+    for (final row in rows) {
+      final name = (row['name'] ?? '').trim();
+      final phone = (row['phone'] ?? '').trim();
+      final cccd = (row['cccd'] ?? '079203008888').trim();
+      final roomCodeRaw = (row['room'] ?? '').trim().toUpperCase();
+      if (name.isEmpty || roomCodeRaw.isEmpty) continue;
+
+      final normalizedCode =
+          roomCodeRaw.startsWith('P.') ? roomCodeRaw : 'P.$roomCodeRaw';
+      final roomIndex = _rooms.indexWhere(
+        (r) => r.roomCode.toUpperCase() == normalizedCode,
+      );
+      if (roomIndex == -1) continue;
+
+      final room = _rooms[roomIndex];
+      final rent = double.tryParse((row['rent'] ?? '').replaceAll('.', '')) ??
+          room.rentPrice;
+      final deposit =
+          double.tryParse((row['deposit'] ?? '').replaceAll('.', '')) ??
+              (rent * 2);
+
+      createNewContract(
+        roomId: room.roomId,
+        residentName: name,
+        residentPhone: phone.isEmpty ? '0901234567' : phone,
+        nationalId: cccd,
+        startDate: DateTime.now(),
+        durationMonths: 12,
+        monthlyRent: rent,
+        depositAmount: deposit,
+      );
+      imported++;
+    }
+    return imported;
+  }
+
+  /// Xuất danh sách hợp đồng ra định dạng CSV/Excel (tương đương nút Xuất Excel Hợp Đồng trên Web)
+  String exportContractsCsv() {
+    final sb = StringBuffer();
+    sb.writeln(
+      'Mã Hợp Đồng,Phòng,Cư Dân Đại Diện,Số Điện Thoại,CCCD,Ngày Bắt Đầu,Ngày Kết Thúc,Giá Thuê (VNĐ),Tiền Cọc (VNĐ),Trạng Thái',
+    );
+    for (final c in _contracts) {
+      final start =
+          '${c.startDate.day.toString().padLeft(2, '0')}/${c.startDate.month.toString().padLeft(2, '0')}/${c.startDate.year}';
+      final end =
+          '${c.endDate.day.toString().padLeft(2, '0')}/${c.endDate.month.toString().padLeft(2, '0')}/${c.endDate.year}';
+      sb.writeln(
+        '${c.contractCode},${c.roomCode},"${c.residentName}",${c.residentPhone},${c.nationalId},$start,$end,${c.monthlyRent.round()},${c.depositAmount.round()},"${c.displayStatus}"',
+      );
+    }
+    return sb.toString();
+  }
+
+  /// Thêm căn hộ / phòng mới vào sơ đồ phòng (tương đương #modalAddRoom trên Web /Phong/SoDo)
+  RoomItemModel addNewRoom({
+    required String roomCode,
+    required String buildingName,
+    required int floor,
+    required String roomType,
+    required double area,
+    required int capacity,
+    required double rentPrice,
+  }) {
+    final cleanCode = roomCode.trim().toUpperCase().startsWith('P.')
+        ? roomCode.trim().toUpperCase()
+        : 'P.${roomCode.trim().toUpperCase()}';
+    final numericId = int.tryParse(cleanCode.replaceAll(RegExp(r'[^0-9]'), '')) ??
+        (floor * 100 + _rooms.where((r) => r.floor == floor).length + 1);
+
+    final newRoom = RoomItemModel(
+      roomId: numericId,
+      roomCode: cleanCode,
+      buildingName: buildingName,
+      floor: floor,
+      roomType: roomType,
+      area: area,
+      capacity: capacity,
+      rentPrice: rentPrice,
+      status: 'Trống',
+      smartLockBattery: 98,
+    );
+    _rooms.add(newRoom);
+    _rooms.sort((a, b) => a.roomCode.compareTo(b.roomCode));
+    notifyListeners();
+    return newRoom;
+  }
+
+  /// Áp dụng bảng chỉ số điện nước Excel hàng loạt & tính lại hóa đơn bậc thang (tương đương #modalImportExcel trên Web /HoaDon/Index)
+  Future<int> applyExcelMeterReadings(
+    List<({int roomId, int oldElectric, int newElectric, int oldWater, int newWater})> rows,
+  ) async {
+    for (final row in rows) {
+      final idx = _rooms.indexWhere((r) => r.roomId == row.roomId);
+      if (idx != -1) {
+        _rooms[idx] = _rooms[idx].copyWith(
+          lastElectricIndex: row.newElectric,
+          lastWaterIndex: row.newWater,
+        );
+      }
+    }
+    return generateBatchInvoices();
+  }
+
+  /// Xuất báo cáo danh sách hóa đơn kỳ ra CSV/Excel (tương đương exportToExcel() trên Web /HoaDon/Index)
+  String exportInvoicesCsv() {
+    final sb = StringBuffer();
+    sb.writeln(
+      'Mã Hóa Đơn,Phòng,Tiền Phòng (VNĐ),Tổng Tiền (VNĐ),Đã Thu (VNĐ),Còn Nợ (VNĐ),Trạng Thái',
+    );
+    for (final inv in allInvoices) {
+      sb.writeln(
+        '${inv.invoiceCode},${inv.roomCode},${inv.roomPrice.round()},${inv.totalAmount.round()},${inv.paidAmount.round()},${inv.remainingAmount.round()},"${inv.status}"',
+      );
+    }
+    return sb.toString();
   }
 }

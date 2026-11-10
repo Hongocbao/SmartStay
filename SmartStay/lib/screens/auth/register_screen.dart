@@ -15,6 +15,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _fullNameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _nationalIdController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -31,6 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _fullNameController.dispose();
     _usernameController.dispose();
     _phoneController.dispose();
+    _nationalIdController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -59,6 +61,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       fullName: _fullNameController.text.trim(),
       phone: _phoneController.text.trim(),
       email: _emailController.text.trim(),
+      nationalId: _nationalIdController.text.trim(),
       roomCode: _selectedRoom,
     );
 
@@ -206,6 +209,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                       const SizedBox(height: 16),
 
+                      _buildFieldLabel('Số CCCD/CMND *'),
+                      TextFormField(
+                        controller: _nationalIdController,
+                        keyboardType: TextInputType.number,
+                        decoration: _inputDecoration(
+                          hintText: 'Nhập từ 9 đến 12 chữ số',
+                          prefixIcon: Icons.credit_card_outlined,
+                        ),
+                        validator: (value) {
+                          final id = value?.trim() ?? '';
+                          if (!RegExp(r'^\d{9,12}$').hasMatch(id)) {
+                            return 'CCCD/CMND phải gồm từ 9 đến 12 chữ số';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+
                       // Tên đăng nhập / MSSV
                       _buildFieldLabel('Tên đăng nhập (hoặc MSSV) *'),
                       TextFormField(
@@ -317,7 +339,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         controller: _passwordController,
                         obscureText: _obscurePassword,
                         decoration: _inputDecoration(
-                          hintText: 'Tối thiểu 6 ký tự',
+                          hintText: 'Tối thiểu 8 ký tự',
                           prefixIcon: Icons.lock_outline_rounded,
                           suffixIcon: IconButton(
                             icon: Icon(
@@ -330,7 +352,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) return 'Vui lòng nhập mật khẩu';
-                          if (v.trim().length < 6) return 'Mật khẩu phải từ 6 ký tự trở lên';
+                          if (v.trim().length < 8) return 'Mật khẩu phải từ 8 ký tự trở lên';
                           return null;
                         },
                       ),

@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace SmartStay.Web.Controllers;
 
+[Authorize(Roles = "Admin,QuanLy,KyThuat")]
 public class SuCoController : Controller
 {
     public IActionResult Kanban()

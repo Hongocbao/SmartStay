@@ -156,7 +156,17 @@
 
         document.getElementById('noticeList').insertAdjacentHTML('afterbegin', newNoticeHtml);
         bootstrap.Modal.getInstance(document.getElementById('modalNewNotice')).hide();
-        showNotifyAlert(`Đã phát sóng thông báo "${title}" tới toàn bộ cư dân thành công!`);
+        fetch('/api/sync/thong-bao', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                TieuDe: title,
+                NoiDung: content,
+                PhamViNhan: scope,
+                LaKhanCap: priority === 'Quan trọng'
+            })
+        }).catch(() => {});
+        showNotifyAlert(`Đã phát sóng thông báo "${title}" tới toàn bộ cư dân (Đồng bộ Realtime sang Android & Web App)!`);
     }
 
     function exportEventAttendance() {

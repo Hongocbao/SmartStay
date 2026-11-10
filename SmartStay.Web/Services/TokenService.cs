@@ -22,7 +22,11 @@ public class TokenService : ITokenService
 
     public string GenerateJwtToken(NguoiDung nguoiDung, string roleName)
     {
-        var secretKey = _config["Jwt:Key"] ?? "SmartStay_Secret_Key_For_Jwt_Authentication_2026_Secure_Token!";
+        var secretKey = _config["Jwt:Key"];
+        if (string.IsNullOrWhiteSpace(secretKey) || Encoding.UTF8.GetByteCount(secretKey) < 32)
+        {
+            throw new InvalidOperationException("Jwt:Key must be configured with at least 32 bytes.");
+        }
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 

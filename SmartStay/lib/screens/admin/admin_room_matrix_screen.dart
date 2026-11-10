@@ -3,6 +3,8 @@ import '../../utils/provider_scope.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/admin_models.dart';
 import '../../utils/formatters.dart';
+import 'admin_finance_screen.dart';
+import 'admin_kanban_screen.dart';
 
 class AdminRoomMatrixScreen extends StatefulWidget {
   const AdminRoomMatrixScreen({super.key});
@@ -34,14 +36,18 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A)),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_home_work_rounded, color: Color(0xFF2563EB)),
-            tooltip: 'Thêm phòng mới',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Tính năng thêm phòng theo tầng dành cho Super Admin.')),
-              );
-            },
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.add_home_work_rounded, size: 16, color: Colors.white),
+              label: const Text('Thêm phòng mới', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => _showAddRoomDialog(context, admin),
+            ),
           ),
         ],
       ),
@@ -449,6 +455,38 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.receipt_long_rounded, size: 15, color: Color(0xFF16A34A)),
+                        label: const Text('Lập Hóa Đơn', style: TextStyle(fontSize: 12, color: Color(0xFF16A34A))),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceScreen()));
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.build_circle_outlined, size: 15, color: Color(0xFFD97706)),
+                        label: const Text('Báo Sự Cố', style: TextStyle(fontSize: 12, color: Color(0xFFD97706))),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminKanbanScreen()));
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ],
 
               const SizedBox(height: 12),
@@ -742,6 +780,131 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
                     }
                   },
                   child: const Text('Xác nhận Thanh lý & Check-out', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAddRoomDialog(BuildContext context, AdminProvider admin) {
+    final codeCtrl = TextEditingController(text: 'P.308');
+    final areaCtrl = TextEditingController(text: '25');
+    final priceCtrl = TextEditingController(text: '3500000');
+    int selectedFloor = 3;
+    String selectedType = 'Studio 1 giường Co-Living';
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              title: const Row(
+                children: [
+                  Icon(Icons.add_home_work_rounded, color: Color(0xFF2563EB)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Thêm Căn Hộ / Phòng Mới',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: codeCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Mã số phòng (VD: P.308)',
+                        prefixIcon: Icon(Icons.meeting_room_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      initialValue: selectedFloor,
+                      decoration: const InputDecoration(
+                        labelText: 'Tầng',
+                        prefixIcon: Icon(Icons.layers_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 1, child: Text('Tầng 1 (Studio)')),
+                        DropdownMenuItem(value: 2, child: Text('Tầng 2 (Co-Living)')),
+                        DropdownMenuItem(value: 3, child: Text('Tầng 3 (Co-Living)')),
+                        DropdownMenuItem(value: 4, child: Text('Tầng 4 (Ban công)')),
+                        DropdownMenuItem(value: 5, child: Text('Tầng 5 (Penthouse)')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setDialogState(() => selectedFloor = v);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedType,
+                      decoration: const InputDecoration(
+                        labelText: 'Loại phòng',
+                        prefixIcon: Icon(Icons.category_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'Studio 1 giường Co-Living', child: Text('Studio 1 giường Co-Living')),
+                        DropdownMenuItem(value: 'Studio Ban công View Thoáng', child: Text('Studio Ban công View Thoáng')),
+                        DropdownMenuItem(value: 'Deluxe 2 giường tầng', child: Text('Deluxe 2 giường tầng')),
+                        DropdownMenuItem(value: 'Sky View Penthouse', child: Text('Sky View Penthouse')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) setDialogState(() => selectedType = v);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: areaCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Diện tích (m²)',
+                        prefixIcon: Icon(Icons.square_foot_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: priceCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Giá thuê hàng tháng (VNĐ)',
+                        prefixIcon: Icon(Icons.payments_outlined),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Hủy')),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.add_circle_outline, size: 16, color: Colors.white),
+                  label: const Text('Lưu Phòng Mới', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB)),
+                  onPressed: () {
+                    final newRoom = admin.addNewRoom(
+                      roomCode: codeCtrl.text,
+                      buildingName: 'Tòa nhà A',
+                      floor: selectedFloor,
+                      roomType: selectedType,
+                      area: double.tryParse(areaCtrl.text) ?? 25.0,
+                      capacity: selectedType.contains('2') ? 2 : 1,
+                      rentPrice: double.tryParse(priceCtrl.text.replaceAll('.', '')) ?? 3500000,
+                    );
+                    Navigator.pop(dialogCtx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Đã thêm thành công căn hộ mới ${newRoom.roomCode} vào sơ đồ phòng Tầng $selectedFloor!'),
+                        backgroundColor: const Color(0xFF10B981),
+                      ),
+                    );
+                  },
                 ),
               ],
             );

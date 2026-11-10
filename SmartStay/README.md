@@ -12,6 +12,9 @@
 - **Báo sự cố thiết bị thông minh**: Tích hợp **AI Triage** tự động phân tích mô tả hiện trường để gợi ý danh mục và nâng mức độ ưu tiên Khẩn cấp (SLA 4h).
 - **Cảnh báo bất thường điện nước**: Thuật toán phát hiện lượng điện nước tăng đột biến (>30%) so với mức trung bình để cảnh báo nguy cơ rò rỉ hoặc quá tải thiết bị.
 - **Trợ lý ảo AI Contextual**: AI Chat đọc trực tiếp dữ liệu hóa đơn, phòng và hợp đồng của cư dân để giải đáp nguyên nhân tiền điện tăng và gợi ý mẹo tiết kiệm.
+- **Tiện ích cư dân trên app**: Có màn hình riêng gồm chia hóa đơn theo đầu người, tạo PIN khách demo, nhập chỉ số điện/nước và cảnh báo mức tiêu thụ bất thường, cùng chợ đồ cũ nội khu.
+
+> Chia hóa đơn, PIN khách, ghi nhận công tơ và chợ đồ cũ hiện là tiện ích demo cục bộ trên app. OCR ảnh, tích hợp khóa IoT, QR thanh toán từng thành viên và đồng bộ các tiện ích này lên backend cần API tương ứng.
 
 ### 2. Phân Hệ Quản Lý Vận Hành (Admin & Operation)
 - **Sơ đồ phòng (Room Matrix 5 tầng)**: Giám sát trạng thái phòng thời gian thực (Đang ở, Trống, Đã đặt, Bảo trì).
@@ -46,4 +49,4 @@
 5. Trên màn hình đăng nhập, có thể chọn nhanh 1-chạm vào các tài khoản Demo:
    - **Cư dân:** `2380600133` / `123456` (Hồ Ngọc Bảo - P.305)
    - **Quản lý:** `admin` / `123456` (Nguyễn Hoàng Nam)
-   - **Kỹ thuật:** `tech` / `123456` (Trần Văn Tuấn)
+   - **Kỹ thuật:** `kythuat` / `123456` (Nguyễn Văn Bình)

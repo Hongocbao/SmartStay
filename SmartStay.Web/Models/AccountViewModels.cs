@@ -74,7 +74,7 @@ public class CuDanRegisterViewModel
 
     [Required(ErrorMessage = "Vui lòng tạo mật khẩu cho tài khoản")]
     [DataType(DataType.Password)]
-    [StringLength(50, MinimumLength = 6, ErrorMessage = "Mật khẩu phải có ít nhất 6 ký tự")]
+    [StringLength(50, MinimumLength = 8, ErrorMessage = "Mật khẩu phải có ít nhất 8 ký tự")]
     [Display(Name = "Mật khẩu")]
     public string MatKhau { get; set; } = string.Empty;
 
