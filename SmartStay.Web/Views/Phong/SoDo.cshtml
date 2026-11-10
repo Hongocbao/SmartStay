@@ -21,6 +21,11 @@
                 <span class="badge badge-status badge-dango"><i class="bi bi-circle-fill me-1 fs-9"></i> Đang ở (<span id="countDangO">28</span>)</span>
             </div>
             <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-purple-subtle text-purple border px-2 py-1 fs-8 rounded-3" style="background:#F5F3FF; color:#7C3AED;">
+                    <i class="bi bi-people-fill me-1"></i> Ở ghép còn chỗ (1 phòng)
+                </span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
                 <span class="badge badge-status badge-baotri"><i class="bi bi-circle-fill me-1 fs-9"></i> Bảo trì (1)</span>
             </div>
             <div class="d-flex align-items-center gap-2">
@@ -50,12 +55,16 @@
     <div class="row g-3" id="tang3Rooms">
         <!-- P.301 -->
         <div class="col-xl-3 col-md-4 col-sm-6">
-            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #4F46E5 !important; cursor: pointer;" onclick="openRoomModal('P.301', 'Trần Văn Nam', '0912345678', '3.500.000 đ', 'Đang ở', 'Studio 1 giường • 22.5 m²', '94%')">
-                <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #4F46E5 !important; cursor: pointer;" onclick="openRoomModal('P.301', 'Trần Văn Nam', '0912345678', '3.500.000 đ', 'Đang ở', 'Studio Nguyên Căn • 22.5 m²', '94%', 'Nguyên căn (1/1)', 'Nam/Nữ tự do', [{bed:'Giường 1', name:'Trần Văn Nam', phone:'0912345678', status:'Đang ở'}])">
+                <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="fw-bold fs-5 text-slate-900">P.301</span>
-                    <span class="badge badge-status badge-dango">Đang ở</span>
+                    <span class="badge badge-status badge-dango">Nguyên căn (1/1)</span>
                 </div>
-                <p class="text-muted fs-8 mb-2">Studio 1 giường • 22.5 m²</p>
+                <div class="d-flex align-items-center gap-1 mb-2">
+                    <span class="badge bg-light text-muted border fs-9">Studio</span>
+                    <span class="badge bg-light text-muted border fs-9">22.5 m²</span>
+                    <span class="badge bg-light text-primary border fs-9"><i class="bi bi-gender-ambiguous"></i> Tự do</span>
+                </div>
                 <div class="pt-2 border-top">
                     <div class="fs-8 fw-semibold text-truncate"><i class="bi bi-person-fill text-muted me-1"></i> Trần Văn Nam</div>
                     <div class="fs-8 text-primary fw-bold mt-1">3.500.000 đ/tháng</div>
@@ -65,47 +74,75 @@
 
         <!-- P.302 -->
         <div class="col-xl-3 col-md-4 col-sm-6" id="card-p302">
-            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #10B981 !important; cursor: pointer;" onclick="openRoomModal('P.302', '', '', '3.500.000 đ', 'Trống', 'Studio 1 giường • 22.5 m²', '90%')">
-                <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #10B981 !important; cursor: pointer;" onclick="openRoomModal('P.302', '', '', '3.500.000 đ', 'Trống', 'Studio Nguyên Căn • 22.5 m²', '90%', 'Trống hoàn toàn (0/1)', 'Nam/Nữ tự do', [{bed:'Giường 1', name:'Chưa có cư dân', phone:'', status:'Trống'}])">
+                <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="fw-bold fs-5 text-slate-900">P.302</span>
-                    <span class="badge badge-status badge-trong">Trống</span>
+                    <span class="badge badge-status badge-trong">Trống (0/1)</span>
                 </div>
-                <p class="text-muted fs-8 mb-2">Studio 1 giường • 22.5 m²</p>
+                <div class="d-flex align-items-center gap-1 mb-2">
+                    <span class="badge bg-light text-muted border fs-9">Studio</span>
+                    <span class="badge bg-light text-muted border fs-9">22.5 m²</span>
+                    <span class="badge bg-light text-success border fs-9"><i class="bi bi-check2"></i> Sẵn sàng cho thuê</span>
+                </div>
                 <div class="pt-2 border-top">
-                    <div class="fs-8 text-success fw-bold"><i class="bi bi-check-circle me-1"></i> Sẵn sàng cho thuê</div>
+                    <div class="fs-8 text-success fw-bold"><i class="bi bi-door-open me-1"></i> Thuê nguyên căn</div>
                     <div class="fs-8 text-muted fw-bold mt-1">3.500.000 đ/tháng</div>
                 </div>
             </div>
         </div>
 
-        <!-- P.305 (Phòng của Hồ Ngọc Bảo) -->
+        <!-- P.305 (Phòng Ở Ghép Co-Living) -->
         <div class="col-xl-3 col-md-4 col-sm-6" id="card-p305">
-            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #4F46E5 !important; cursor: pointer; background: #FAF5FF !important;" onclick="openRoomModal('P.305', 'Hồ Ngọc Bảo', '0901234567', '3.500.000 đ', 'Đang ở', 'Studio Cao Cấp Co-Living • 22.5 m²', '92%')">
-                <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #7C3AED !important; cursor: pointer; background: #FAF5FF !important;" onclick="openRoomModal('P.305', 'Hồ Ngọc Bảo + 1 bạn', '0901234567', '3.500.000 đ', 'Ở ghép', 'Co-Living 3 giường • 22.5 m²', '92%', 'Ở ghép (2/3 Chỗ - Còn 1 giường)', 'Phòng Nam', [{bed:'Giường A (Trưởng phòng)', name:'Hồ Ngọc Bảo', phone:'0901234567', status:'Đang ở'}, {bed:'Giường B', name:'Nguyễn Dương Bảo', phone:'0902345678', status:'Đang ở'}, {bed:'Giường C', name:'Trống - Sẵn sàng ghép', phone:'', status:'Trống'}], true)">
+                <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="fw-bold fs-5 text-slate-900">P.305 <i class="bi bi-star-fill text-warning fs-8"></i></span>
-                    <span class="badge badge-status badge-dango" id="badge-p305">Đang ở</span>
+                    <span class="badge bg-purple text-white px-2 py-1 fs-9 rounded-pill" style="background:#7C3AED;" id="badge-p305">
+                        <i class="bi bi-people-fill me-1"></i> Ở ghép 2/3 (Còn 1 chỗ)
+                    </span>
                 </div>
-                <p class="text-muted fs-8 mb-2">Studio 1 giường • 22.5 m²</p>
-                <div class="pt-2 border-top">
-                    <div class="fs-8 fw-bold text-slate-900 text-truncate"><i class="bi bi-person-badge-fill text-primary me-1"></i> Hồ Ngọc Bảo</div>
-                    <div class="d-flex justify-content-between align-items-center mt-1">
-                        <span class="fs-8 text-primary fw-bold">3.500.000 đ</span>
-                        <span class="badge bg-danger-subtle text-danger fs-9">Có sự cố</span>
+                <div class="d-flex align-items-center gap-1 mb-2">
+                    <span class="badge bg-primary-subtle text-primary border fs-9"><i class="bi bi-gender-male"></i> Nam</span>
+                    <span class="badge bg-light text-muted border fs-9">3 Giường</span>
+                    <span class="badge bg-danger-subtle text-danger border fs-9"><i class="bi bi-exclamation-triangle"></i> Có sự cố</span>
+                </div>
+
+                <!-- Thanh slot chỗ ngủ trực quan -->
+                <div class="p-2 rounded-2 bg-white border mb-2 fs-9">
+                    <div class="d-flex justify-content-between text-muted mb-1">
+                        <span>Tiến độ chỗ ở:</span>
+                        <strong class="text-purple" style="color:#7C3AED;">2/3 Giường (Trống 1)</strong>
                     </div>
+                    <div class="d-flex gap-1">
+                        <div class="flex-fill bg-primary rounded text-center text-white py-1" style="font-size:9px;" title="Giường A: Hồ Ngọc Bảo">A: Bảo</div>
+                        <div class="flex-fill bg-info text-white rounded text-center py-1" style="font-size:9px;" title="Giường B: Nguyễn Dương Bảo">B: D.Bảo</div>
+                        <div class="flex-fill border border-success border-2 rounded text-center text-success fw-bold py-1 bg-success-subtle" style="font-size:9px;" title="Giường C: Đang trống đón bạn mới">C: TRỐNG</div>
+                    </div>
+                </div>
+
+                <div class="pt-2 border-top">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="fs-8 fw-bold text-slate-900 text-truncate"><i class="bi bi-shield-check text-success me-1"></i> Cần cư dân duyệt</div>
+                        <span class="badge bg-warning-subtle text-warning fs-9">1 đơn chờ</span>
+                    </div>
+                    <div class="fs-8 text-primary fw-bold mt-1">3.500.000 đ (~1.166k/giường)</div>
                 </div>
             </div>
         </div>
 
         <!-- P.306 -->
         <div class="col-xl-3 col-md-4 col-sm-6">
-            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #F59E0B !important; cursor: pointer;" onclick="openRoomModal('P.306', '', '', '3.500.000 đ', 'Bảo trì', 'Studio 1 giường • 22.5 m²', '88%')">
-                <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #F59E0B !important; cursor: pointer;" onclick="openRoomModal('P.306', '', '', '3.500.000 đ', 'Bảo trì', 'Studio 1 giường • 22.5 m²', '88%', 'Đang bảo trì', 'Tự do', [])">
+                <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="fw-bold fs-5 text-slate-900">P.306</span>
                     <span class="badge badge-status badge-baotri">Bảo trì</span>
                 </div>
-                <p class="text-muted fs-8 mb-2">Studio 1 giường • 22.5 m²</p>
+                <div class="d-flex align-items-center gap-1 mb-2">
+                    <span class="badge bg-light text-muted border fs-9">Studio</span>
+                    <span class="badge bg-light text-muted border fs-9">22.5 m²</span>
+                </div>
+                <p class="text-muted fs-8 mb-2">Đang sơn nước & bảo dưỡng định kỳ</p>
                 <div class="pt-2 border-top">
-                    <div class="fs-8 text-warning fw-bold"><i class="bi bi-wrench-adjustable me-1"></i> Đang sơn nước & dọn</div>
+                    <div class="fs-8 text-warning fw-bold"><i class="bi bi-wrench-adjustable me-1"></i> Tạm ngưng cho thuê</div>
                     <div class="fs-8 text-muted fw-bold mt-1">3.500.000 đ/tháng</div>
                 </div>
             </div>
@@ -158,8 +195,12 @@
         <div class="modal-content rounded-4 border-0 shadow">
             <div class="modal-header border-bottom px-4 pt-4 pb-3">
                 <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="badge bg-primary text-white fs-9" id="mRoomBadgeType">Co-Living Ở Ghép</span>
+                        <span class="badge bg-secondary-subtle text-secondary fs-9" id="mRoomGender">Phòng Nam</span>
+                    </div>
                     <h5 class="modal-title fw-bold text-slate-900" id="mRoomTitle">Chi tiết Phòng P.305 - Tòa nhà A</h5>
-                    <p class="text-muted fs-8 mb-0" id="mRoomSub">Loại: Studio Co-Living 1 Giường • Diện tích: 22.5 m²</p>
+                    <p class="text-muted fs-8 mb-0" id="mRoomSub">Loại: Co-Living 3 giường • Diện tích: 22.5 m²</p>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -167,30 +208,50 @@
                 <div class="row g-4">
                     <div class="col-md-6">
                         <div class="p-3 rounded-3 bg-light h-100">
-                            <h6 class="fw-bold fs-7 mb-2 text-primary"><i class="bi bi-person-lines-fill me-1"></i> THÔNG TIN CƯ DÂN & HỢP ĐỒNG</h6>
-                            <p class="mb-1 fw-bold fs-6" id="mResidentName">Hồ Ngọc Bảo (MSSV: 2380600133)</p>
-                            <p class="mb-1 text-muted fs-8" id="mResidentPhone"><i class="bi bi-telephone me-1"></i> 0901234567</p>
-                            <p class="mb-1 text-muted fs-8"><i class="bi bi-calendar-event me-1"></i> Hợp đồng: 01/08/2026 - 31/07/2027</p>
-                            <p class="mb-0 text-muted fs-8"><i class="bi bi-cash-stack me-1"></i> Tiền thuê: <strong id="mRentPrice">3.500.000 đ</strong>/tháng</p>
-                            
-                            <div class="mt-3 pt-2 border-top">
-                                <span class="badge bg-success-subtle text-success fs-8" id="mRoomBadge">Đang ở</span>
+                            <h6 class="fw-bold fs-7 mb-2 text-primary"><i class="bi bi-people-fill me-1"></i> DANH SÁCH GIƯỜNG & BẠN CÙNG PHÒNG</h6>
+                            <div id="mBedListContainer" class="mb-3">
+                                <!-- Rendered dynamically -->
+                            </div>
+                            <div class="pt-2 border-top fs-8">
+                                <p class="mb-1 text-muted"><i class="bi bi-calendar-event me-1"></i> Kỳ hợp đồng hiện tại: <strong>01/08/2026 - 31/07/2027</strong></p>
+                                <p class="mb-0 text-muted"><i class="bi bi-cash-stack me-1"></i> Giá thuê trọn phòng: <strong class="text-danger" id="mRentPrice">3.500.000 đ</strong>/tháng</p>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="p-3 rounded-3 bg-light h-100">
-                            <h6 class="fw-bold fs-7 mb-2 text-success"><i class="bi bi-lock-fill me-1"></i> KHÓA THÔNG MINH IOT</h6>
+                            <h6 class="fw-bold fs-7 mb-2 text-success"><i class="bi bi-lock-fill me-1"></i> KHÓA THÔNG MINH IOT & RA VÀO</h6>
                             <div class="d-flex align-items-center gap-2 mb-2">
                                 <span class="badge bg-success text-white"><i class="bi bi-wifi"></i> Online</span>
                                 <span class="fs-8 text-muted">Pin: <strong class="text-dark" id="mLockBattery">92%</strong></span>
-                                <span class="badge bg-light text-dark border">RFID + Mã PIN</span>
+                                <span class="badge bg-light text-dark border">RFID + Mã PIN Cá Nhân</span>
                             </div>
-                            <div class="fs-8 text-muted mb-3">Mã khóa: <strong>LOCK-A-305</strong> • Mật mã mở: <code>305888</code></div>
+                            <div class="fs-8 text-muted mb-3">Mã khóa: <strong>LOCK-A-305</strong> • Mật mã master: <code>305888</code></div>
                             
                             <button class="btn btn-sm btn-outline-success w-100 rounded-3 mb-2" onclick="unlockDoorRemote()">
                                 <i class="bi bi-unlock-fill me-1"></i> Gửi Lệnh Mở Khóa Từ Xa (Remote Unlock)
                             </button>
+
+                            <!-- Khu vực duyệt bạn cùng phòng mới (Roommate Consent) -->
+                            <div id="mMatchingBox" class="mt-3 p-3 rounded-3 bg-white border border-warning shadow-sm">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="badge bg-warning text-dark fs-9"><i class="bi bi-person-plus-fill me-1"></i> ĐƠN XIN VÀO Ở GHÉP MỚI</span>
+                                    <span class="fs-9 text-muted">Chờ duyệt</span>
+                                </div>
+                                <div class="fw-bold fs-8 text-slate-900 mt-1">Trần Hoàng Gia Bảo (MSSV: 2380600178)</div>
+                                <div class="fs-9 text-muted">Xin vào Giường C • ĐH Văn Lang • 🚭 Không hút thuốc • 🌙 Ngủ trước 23h</div>
+                                <div class="p-2 rounded bg-light border mt-2 fs-9">
+                                    <span class="text-success fw-bold"><i class="bi bi-check-circle-fill"></i> Hồ Ngọc Bảo & Nguyễn Dương Bảo</span> đã biểu quyết: <strong class="text-success">ĐỒNG Ý (100%)</strong>
+                                </div>
+                                <div class="d-flex gap-2 mt-2">
+                                    <button class="btn btn-xs btn-success flex-fill rounded-2" onclick="approveRoommate()">
+                                        <i class="bi bi-check-lg"></i> Duyệt Ký Hợp Đồng Giường C
+                                    </button>
+                                    <button class="btn btn-xs btn-outline-secondary rounded-2" onclick="rejectRoommate()">
+                                        <i class="bi bi-x-lg"></i> Từ chối
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -213,22 +274,25 @@
     </div>
 </div>
 
-<!-- ================= MODAL THÊM PHÒNG MỚI ================= -->
+<!-- ================= MODAL THÊM PHÒNG MỚI (CHUẨN CO-LIVING & Ở GHÉP) ================= -->
 <div class="modal fade" id="modalAddRoom" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
             <div class="modal-header border-bottom px-4 pt-4 pb-3">
-                <h5 class="modal-title fw-bold text-slate-900">Thêm Căn Hộ / Phòng Mới</h5>
+                <div>
+                    <h5 class="modal-title fw-bold text-slate-900">Thêm Căn Hộ / Phòng Mới</h5>
+                    <p class="text-muted fs-8 mb-0">Hỗ trợ mô hình Thuê Nguyên Căn hoặc Ở Ghép Co-Living linh hoạt</p>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
                 <form id="addRoomForm" onsubmit="handleAddRoom(event)">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold fs-7">Mã số phòng</label>
-                        <input type="text" id="arCode" class="form-control rounded-3" placeholder="Ví dụ: P.308" required>
-                    </div>
                     <div class="row g-2 mb-3">
-                        <div class="col-6">
+                        <div class="col-7">
+                            <label class="form-label fw-semibold fs-7">Mã số phòng</label>
+                            <input type="text" id="arCode" class="form-control rounded-3" placeholder="Ví dụ: P.308" required>
+                        </div>
+                        <div class="col-5">
                             <label class="form-label fw-semibold fs-7">Tầng</label>
                             <select id="arFloor" class="form-select rounded-3">
                                 <option value="3">Tầng 3</option>
@@ -236,24 +300,62 @@
                                 <option value="5">Tầng 5</option>
                             </select>
                         </div>
+                    </div>
+
+                    <!-- Hình thức cho thuê -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold fs-7">Hình thức cho thuê *</label>
+                        <select id="arRentalModel" class="form-select rounded-3" onchange="toggleCapacityOptions(this.value)">
+                            <option value="coliving" selected>👥 Ở Ghép Co-Living (Cho thuê lẻ từng giường/slot)</option>
+                            <option value="private">🏠 Thuê Nguyên Căn (Trọn gói cả phòng/căn hộ)</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Sức chứa (Số giường)</label>
+                            <select id="arCapacity" class="form-select rounded-3">
+                                <option value="1">1 Giường (Phòng đơn)</option>
+                                <option value="2">2 Giường (Studio 2 bạn)</option>
+                                <option value="3" selected>3 Giường (Co-Living 3 người)</option>
+                                <option value="4">4 Giường (Ký túc xá tầng)</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Quy định Giới tính</label>
+                            <select id="arGender" class="form-select rounded-3">
+                                <option value="Nam">🚹 Phòng Nam</option>
+                                <option value="Nữ">🚺 Phòng Nữ</option>
+                                <option value="Tự do">🚻 Nam/Nữ Tự do</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
                         <div class="col-6">
                             <label class="form-label fw-semibold fs-7">Diện tích (m²)</label>
                             <input type="number" id="arArea" class="form-control rounded-3" value="25" required>
                         </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold fs-7">Giá thuê phòng/tháng</label>
+                            <input type="text" id="arPrice" class="form-control rounded-3" value="3.500.000 đ" required>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold fs-7">Loại phòng</label>
-                        <select id="arType" class="form-select rounded-3">
-                            <option value="Studio 1 giường">Studio 1 giường Co-Living</option>
-                            <option value="Studio Ban công">Studio Ban công View Thoáng</option>
-                            <option value="Deluxe 2 giường">Deluxe 2 giường tầng</option>
-                        </select>
+
+                    <!-- Quy tắc bảo vệ văn hóa phòng -->
+                    <div class="p-3 rounded-3 bg-light border mb-3">
+                        <div class="form-check form-switch mb-1">
+                            <input class="form-check-input" type="checkbox" id="arConsentRequired" checked>
+                            <label class="form-check-label fw-bold fs-8 text-slate-800" for="arConsentRequired">
+                                Biểu quyết đồng thuận khi có người mới xin ghép phòng
+                            </label>
+                        </div>
+                        <div class="fs-9 text-muted">
+                            <i class="bi bi-info-circle me-1"></i> Khi có người mới muốn thuê giường trống, cư dân hiện tại trong phòng phải bấm <strong>[Đồng ý]</strong> thì Admin mới duyệt hợp đồng (Đảm bảo hợp tính cách, giờ giấc).
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold fs-7">Giá thuê hàng tháng (VNĐ)</label>
-                        <input type="text" id="arPrice" class="form-control rounded-3" value="3.500.000 đ" required>
-                    </div>
-                    <div class="modal-footer px-0 pb-0 pt-3 border-0">
+
+                    <div class="modal-footer px-0 pb-0 pt-2 border-0">
                         <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">Hủy</button>
                         <button type="submit" class="btn btn-primary rounded-3 px-4 fw-semibold shadow-sm">
                             <i class="bi bi-plus-circle me-1"></i> Lưu Phòng Mới
@@ -268,35 +370,71 @@
 <script>
     let currentSelectedRoom = 'P.305';
 
-    function openRoomModal(roomCode, residentName, phone, price, status, sub, battery) {
+    function toggleCapacityOptions(val) {
+        const cap = document.getElementById('arCapacity');
+        if (val === 'private') {
+            cap.value = '1';
+        } else {
+            cap.value = '3';
+        }
+    }
+
+    function openRoomModal(roomCode, residentName, phone, price, status, sub, battery, badgeText, genderText, bedList, hasPendingMatching) {
         currentSelectedRoom = roomCode;
         document.getElementById('mRoomTitle').innerText = `Chi tiết Phòng ${roomCode} - Tòa nhà A`;
         document.getElementById('mRoomSub').innerText = sub;
         document.getElementById('mRentPrice').innerText = price;
         document.getElementById('mLockBattery').innerText = battery;
+        document.getElementById('mRoomBadgeType').innerText = badgeText || status;
+        document.getElementById('mRoomGender').innerText = genderText || 'Tự do';
 
-        const resNameEl = document.getElementById('mResidentName');
-        const resPhoneEl = document.getElementById('mResidentPhone');
-        const badgeEl = document.getElementById('mRoomBadge');
+        const bedContainer = document.getElementById('mBedListContainer');
+        bedContainer.innerHTML = '';
 
-        if (status === 'Trống') {
-            resNameEl.innerText = 'Phòng đang trống (Chưa có cư dân)';
-            resPhoneEl.innerText = 'Liên hệ BQL để ký hợp đồng mới';
-            badgeEl.className = 'badge badge-status badge-trong';
-            badgeEl.innerText = 'Phòng Trống';
-        } else if (status === 'Bảo trì') {
-            resNameEl.innerText = 'Đang bảo dưỡng định kỳ & sơn sửa';
-            resPhoneEl.innerText = 'Kỹ thuật viên phụ trách: Trần Văn Tuấn';
-            badgeEl.className = 'badge badge-status badge-baotri';
-            badgeEl.innerText = 'Đang Bảo Trì';
+        if (!bedList || bedList.length === 0) {
+            bedContainer.innerHTML = '<div class="text-muted fs-8 py-2">Chưa có thông tin danh sách giường cho phòng này.</div>';
         } else {
-            resNameEl.innerText = residentName;
-            resPhoneEl.innerHTML = `<i class="bi bi-telephone me-1"></i> ${phone}`;
-            badgeEl.className = 'badge badge-status badge-dango';
-            badgeEl.innerText = 'Đang ở';
+            bedList.forEach(b => {
+                const isOccupied = b.status === 'Đang ở';
+                const html = `
+                    <div class="d-flex justify-content-between align-items-center p-2 rounded-2 mb-2 ${isOccupied ? 'bg-white border' : 'bg-success-subtle border border-success'}">
+                        <div>
+                            <div class="fw-bold fs-8 ${isOccupied ? 'text-slate-900' : 'text-success'}">
+                                <i class="bi ${isOccupied ? 'bi-person-check-fill text-primary' : 'bi-plus-circle-fill text-success'} me-1"></i> ${b.bed}: ${b.name}
+                            </div>
+                            <div class="fs-9 text-muted">${b.phone ? ('SĐT: ' + b.phone) : 'Chỗ trống sẵn sàng đón bạn mới'}</div>
+                        </div>
+                        <span class="badge ${isOccupied ? 'bg-primary-subtle text-primary' : 'bg-success text-white'} fs-9">
+                            ${b.status}
+                        </span>
+                    </div>
+                `;
+                bedContainer.insertAdjacentHTML('beforeend', html);
+            });
+        }
+
+        const matchBox = document.getElementById('mMatchingBox');
+        if (hasPendingMatching) {
+            matchBox.classList.remove('d-none');
+        } else {
+            matchBox.classList.add('d-none');
         }
 
         new bootstrap.Modal(document.getElementById('roomModal')).show();
+    }
+
+    function approveRoommate() {
+        alert('Ban Quản Lý & Cư dân P.305 đã phê duyệt ứng viên Trần Hoàng Gia Bảo vào Giường C thành công! Hợp đồng đã kích hoạt và hệ thống tự động thêm bạn vào nhóm Chia tiền phòng.');
+        document.getElementById('mMatchingBox').innerHTML = '<div class="alert alert-success fs-8 mb-0 py-2"><i class="bi bi-check-circle me-1"></i> Giường C đã lấp đầy! Phòng P.305 đã đạt 3/3 thành viên (100%).</div>';
+        document.getElementById('badge-p305').className = 'badge bg-success text-white px-2 py-1 fs-9 rounded-pill';
+        document.getElementById('badge-p305').innerText = 'Ở ghép 3/3 (Đầy)';
+    }
+
+    function rejectRoommate() {
+        if (confirm('Bạn có chắc muốn từ chối yêu cầu ghép phòng này để tìm người có phong cách sống phù hợp hơn?')) {
+            document.getElementById('mMatchingBox').remove();
+            showRoomAlert('Đã từ chối đơn ghép phòng. Giường C vẫn đang mở đón bạn mới.');
+        }
     }
 
     function unlockDoorRemote() {
@@ -341,20 +479,37 @@
     function handleAddRoom(e) {
         e.preventDefault();
         const code = document.getElementById('arCode').value;
-        const type = document.getElementById('arType').value;
+        const model = document.getElementById('arRentalModel').value;
+        const capacity = document.getElementById('arCapacity').value;
+        const gender = document.getElementById('arGender').value;
         const area = document.getElementById('arArea').value;
         const price = document.getElementById('arPrice').value;
 
+        const isColiving = model === 'coliving';
+        const badgeClass = isColiving ? 'bg-purple text-white' : 'badge-status badge-trong';
+        const badgeStyle = isColiving ? 'background:#7C3AED;' : '';
+        const badgeLabel = isColiving ? `Ở ghép (0/${capacity} Giường - Còn trống)` : 'Trống (0/1)';
+        const borderCol = isColiving ? '#7C3AED' : '#10B981';
+
+        const beds = [];
+        for (let i = 1; i <= parseInt(capacity); i++) {
+            beds.push({ bed: `Giường ${i}`, name: 'Chưa có người', phone: '', status: 'Trống' });
+        }
+
         const newCard = `
             <div class="col-xl-3 col-md-4 col-sm-6">
-                <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #10B981 !important; cursor: pointer;" onclick="openRoomModal('${code}', '', '', '${price}', 'Trống', '${type} • ${area} m²', '95%')">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid ${borderCol} !important; cursor: pointer;" onclick='openRoomModal("${code}", "", "", "${price}", "Trống", "${isColiving ? "Co-Living Ở Ghép" : "Studio"} • ${area} m²", "95%", "${badgeLabel}", "${gender}", ${JSON.stringify(beds)}, false)'>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="fw-bold fs-5 text-slate-900">${code}</span>
-                        <span class="badge badge-status badge-trong">Trống</span>
+                        <span class="badge ${badgeClass} fs-9" style="${badgeStyle}">${badgeLabel}</span>
                     </div>
-                    <p class="text-muted fs-8 mb-2">${type} • ${area} m²</p>
+                    <div class="d-flex align-items-center gap-1 mb-2">
+                        <span class="badge bg-light text-muted border fs-9">${area} m²</span>
+                        <span class="badge bg-light text-primary border fs-9">${gender}</span>
+                        <span class="badge bg-light text-success border fs-9"><i class="bi bi-check2"></i> Mới thêm</span>
+                    </div>
                     <div class="pt-2 border-top">
-                        <div class="fs-8 text-success fw-bold"><i class="bi bi-check-circle me-1"></i> Mới thêm • Sẵn sàng</div>
+                        <div class="fs-8 text-success fw-bold"><i class="bi bi-door-open me-1"></i> ${isColiving ? `Cho thuê lẻ ${capacity} giường` : 'Cho thuê nguyên căn'}</div>
                         <div class="fs-8 text-muted fw-bold mt-1">${price}/tháng</div>
                     </div>
                 </div>
@@ -363,8 +518,8 @@
 
         document.getElementById('tang3Rooms').insertAdjacentHTML('beforeend', newCard);
         bootstrap.Modal.getInstance(document.getElementById('modalAddRoom')).hide();
-        document.getElementById('countTrong').innerText = '3';
-        showRoomAlert(`Đã thêm thành công căn hộ mới ${code} vào sơ đồ phòng tầng 3!`);
+        document.getElementById('countTrong').innerText = (parseInt(document.getElementById('countTrong').innerText) + 1).toString();
+        showRoomAlert(`Đã thêm thành công căn hộ mới ${code} (${isColiving ? 'Mô hình Ở Ghép Co-Living' : 'Mô hình Thuê Nguyên Căn'}) vào sơ đồ phòng tầng 3!`);
     }
 
     function showRoomAlert(msg) {
