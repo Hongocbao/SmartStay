@@ -1,181 +1,534 @@
 @{
-    ViewData["Title"] = "AI Camera Quét Công Tơ Điện Nước Tự Động - SmartStay";
+    ViewData["Title"] = "AI Camera Tự Kiểm Tra & Dự Toán Điện Nước Cá Nhân - SmartStay";
 }
 
 <!-- Alert thông báo -->
 <div id="ocrAlert" class="alert alert-success alert-dismissible fade d-none rounded-3 shadow-sm mb-4" role="alert">
-    <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+    <i class="bi bi-bell-fill me-2 fs-5"></i>
     <span id="ocrAlertText">Thông báo</span>
     <button type="button" class="btn-close" onclick="document.getElementById('ocrAlert').classList.add('d-none')"></button>
 </div>
 
+<!-- 1. Header Card + Bộ chọn 3 chế độ theo ảnh cư dân cung cấp -->
 <div class="card-custom mb-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-                <span class="badge bg-danger text-white px-2 py-1 fs-9 rounded-pill">AI COMPUTER VISION</span>
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div class="flex-grow-1">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <span class="badge bg-danger text-white px-2 py-1 fs-9 rounded-pill">TỰ KIỂM TRA & DỰ TOÁN CÁ NHÂN</span>
                 <span class="badge bg-primary-subtle text-primary border px-2 py-1 fs-9 rounded-pill">Gemini Vision OCR</span>
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fs-9 rounded-pill">
+                    <i class="bi bi-shield-lock-fill me-1"></i>Riêng tư 100% • KHÔNG gửi về Admin
+                </span>
             </div>
-            <h4 class="fw-bold mb-1 text-slate-900"><i class="bi bi-camera-fill text-danger me-2"></i>AI Camera Quét Chỉ Số Công Tơ Điện & Nước Tự Động</h4>
-            <p class="text-muted fs-8 mb-0">Chụp ảnh đồng hồ công tơ thực tế bằng camera điện thoại, AI tự động phát hiện viền màn hình, bóc tách chỉ số kWh / m³ và đối chiếu gian lận</p>
-        </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-primary rounded-3" onclick="loadSampleImage('electric')">
-                <i class="bi bi-lightning-charge me-1"></i> Ảnh mẫu Công Tơ Điện
-            </button>
-            <button class="btn btn-sm btn-outline-info rounded-3" onclick="loadSampleImage('water')">
-                <i class="bi bi-droplet-half me-1"></i> Ảnh mẫu Đồng Hồ Nước
-            </button>
+            <h4 class="fw-bold mb-1 text-slate-900">
+                <i class="bi bi-camera-fill text-danger me-2"></i>Chụp / Tải Ảnh Công Tơ — Tự Tính Tiền Điện Nước Tạm Tính Tháng Này
+            </h4>
+            <p class="text-muted fs-8 mb-3">
+                Bạn có thể chụp hoặc tải lên ảnh công tơ Điện, đồng hồ Nước hoặc cả hai bất kỳ lúc nào trong tháng. AI sẽ tự động trừ đi <strong>chỉ số lần thanh toán trước (05/10/2026)</strong> để báo ngay bạn đã tiêu thụ bao nhiêu <strong>ký điện (kWh)</strong>, bao nhiêu <strong>khối nước (m³)</strong> và số tiền tương ứng để chủ động chi tiêu cá nhân.
+            </p>
+
+            <div class="fs-9 fw-bold text-secondary mb-2">CHỌN LOẠI ẢNH CÔNG TƠ BẠN MUỐN CHỤP / TẢI LÊN ĐỂ TÍNH TIỀN:</div>
+            <div class="d-flex flex-wrap gap-2">
+                <button id="modeBtnElectric" class="btn btn-sm btn-outline-primary rounded-3 fw-bold px-3 py-2" onclick="selectOcrMode('electric')">
+                    <i class="bi bi-lightning-charge-fill me-1"></i> ⚡ Chỉ tính Điện (1 ảnh)
+                </button>
+                <button id="modeBtnWater" class="btn btn-sm btn-outline-info rounded-3 fw-bold px-3 py-2" onclick="selectOcrMode('water')">
+                    <i class="bi bi-droplet-fill me-1"></i> 💧 Chỉ tính Nước (1 ảnh)
+                </button>
+                <button id="modeBtnBoth" class="btn btn-sm btn-primary rounded-3 fw-bold px-3 py-2 shadow-sm" onclick="selectOcrMode('both')">
+                    <i class="bi bi-stars me-1"></i> ⚡+💧 Tính cả Điện & Nước (2 ảnh)
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
-<div class="row g-4">
-    <!-- Cột Trái: Camera / Upload Ảnh -->
-    <div class="col-lg-6">
-        <div class="card-custom h-100">
-            <h6 class="fw-bold text-slate-800 mb-3"><i class="bi bi-image text-primary me-2"></i>Khu Vực Quét Ảnh Camera</h6>
-            
-            <div class="border rounded-4 p-4 text-center bg-light position-relative" style="min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden;" id="dropZone">
-                <!-- Khung quét AI Bounding Box -->
-                <div id="scanOverlay" class="position-absolute d-none" style="top: 25%; left: 20%; width: 60%; height: 50%; border: 2px dashed #EF4444; border-radius: 12px; pointer-events: none; animation: pulseBorder 1.5s infinite;">
-                    <span class="badge bg-danger position-absolute" style="top: -12px; left: 10px; font-size: 10px;">VÙNG NHẬN DIỆN AI (ROI)</span>
+<!-- 2. BANNER THÔNG BÁO KẾT QUẢ TIÊU THỤ THÁNG NÀY CHO CƯ DÂN BIẾT TRƯỚC -->
+<div class="rounded-4 p-4 mb-4 text-white shadow-sm" style="background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <div class="d-flex align-items-center gap-3">
+            <div class="rounded-3 p-2 d-flex align-items-center justify-content-center" style="background: rgba(251, 191, 36, 0.2);">
+                <i class="bi bi-bell-fill text-warning fs-4"></i>
+            </div>
+            <div>
+                <div class="fs-9 fw-bold text-info text-uppercase">THÔNG BÁO KẾT QUẢ TẠM TÍNH CHO BẠN (TỪ KỲ THANH TOÁN TRƯỚC 05/10 ĐẾN HÔM NAY)</div>
+                <h5 class="fw-bold mb-0 text-white mt-1" id="bannerHeadline">
+                    Tháng này phòng bạn đã dùng 120 ký điện (kWh) & 8 khối nước (m³)
+                </h5>
+            </div>
+        </div>
+        <div class="px-3 py-2 rounded-3 text-end" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);">
+            <div class="fs-9 fw-bold text-light opacity-75">TỔNG TIỀN TẠM TÍNH</div>
+            <div class="fs-4 fw-bold text-info" id="bannerTotalCost">359.000 đ</div>
+        </div>
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-md-4" id="chipElectricBox">
+            <div class="p-2 px-3 rounded-3" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.12);">
+                <div class="fs-9 text-light opacity-75"><i class="bi bi-lightning-charge-fill text-warning me-1"></i>Tiêu thụ Điện (<span id="chipElecRange">1420 → 1540</span>)</div>
+                <div class="fs-8 fw-bold text-white" id="chipElecValue">120 kWh (ký điện) • 254.000 đ</div>
+            </div>
+        </div>
+        <div class="col-md-4" id="chipWaterBox">
+            <div class="p-2 px-3 rounded-3" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.12);">
+                <div class="fs-9 text-light opacity-75"><i class="bi bi-droplet-fill text-info me-1"></i>Tiêu thụ Nước (<span id="chipWaterRange">84 → 92</span>)</div>
+                <div class="fs-8 fw-bold text-white" id="chipWaterValue">8 m³ (khối nước) • 105.000 đ</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-2 px-3 rounded-3" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.12);">
+                <div class="fs-9 text-light opacity-75"><i class="bi bi-people-fill text-success me-1"></i>Chia 3 người ở (P.305)</div>
+                <div class="fs-8 fw-bold text-white" id="chipPerMember">~119.667 đ / người</div>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn btn-warning w-100 fw-bold rounded-3 py-2 text-dark shadow-sm" onclick="toggleDetailCalculation()">
+        <i class="bi bi-receipt-cutoff me-1"></i> <span id="btnToggleDetailText">📊 XEM CHI TIẾT CÁCH TÍNH TIỀN & BẢNG LŨY TIẾN BẬC THANG</span>
+    </button>
+</div>
+
+<!-- 3. KHUNG XEM CHI TIẾT CÁCH TÍNH LŨY TIẾN BẬC THANG & DỰ BÁO ĐỜI SỐNG -->
+<div id="detailCalculationBox" class="card-custom mb-4 border-primary d-none" style="border-width: 2px !important;">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+        <h6 class="fw-bold text-slate-900 mb-0">
+            <i class="bi bi-calculator-fill text-primary me-2"></i>Diễn Giải Chi Tiết Cách Tính Tiền Điện / Nước Cho Cư Dân
+        </h6>
+        <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-1 fs-9">Đúng biểu giá bậc thang hiện hành</span>
+    </div>
+    <p class="text-muted fs-8 mb-3">
+        Công thức gốc: <strong>Sản lượng tiêu thụ = [Chỉ số mới trên ảnh vừa chụp/tải lên] − [Chỉ số chốt ở kỳ thanh toán hóa đơn lần trước (05/10/2026)]</strong>. Sau đó nhân theo từng bậc thang lũy tiến:
+    </p>
+
+    <div class="row g-3 mb-3">
+        <div class="col-lg-6" id="detailElectricSection">
+            <div class="p-3 rounded-3 border bg-primary-subtle bg-opacity-10 h-100">
+                <div class="fw-bold text-primary fs-8 mb-2" id="detailElecTitle">
+                    ⚡ 1. Chi Tiết Cách Tính Tiền Điện (1540 − 1420 = 120 kWh / ký điện)
                 </div>
-
-                <img id="previewImg" src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80" alt="Preview Meter" class="img-fluid rounded-3 mb-3 shadow-sm" style="max-height: 240px; object-fit: cover;">
-
-                <div class="d-flex flex-wrap justify-content-center gap-2 mt-2">
-                    <label class="btn btn-sm btn-primary rounded-3 cursor-pointer shadow-sm mb-0">
-                        <i class="bi bi-camera me-1"></i> Chụp ảnh bằng Camera / Chọn file
-                        <input type="file" accept="image/*" capture="environment" style="display: none;" onchange="handleFileSelect(this)">
-                    </label>
-                    <button class="btn btn-sm btn-danger rounded-3 shadow-sm fw-semibold" id="btnScanAi" onclick="startAiOcrScan()">
-                        <i class="bi bi-cpu me-1"></i> KÍCH HOẠT QUÉT AI OCR
-                    </button>
+                <div id="detailElecRows" class="fs-8 text-dark"></div>
+                <hr class="my-2">
+                <div class="d-flex justify-content-between fw-bold fs-8">
+                    <span>Cộng thành tiền Điện:</span>
+                    <span class="text-primary" id="detailElecTotal">254.000 đ</span>
                 </div>
             </div>
+        </div>
+        <div class="col-lg-6" id="detailWaterSection">
+            <div class="p-3 rounded-3 border bg-info-subtle bg-opacity-10 h-100">
+                <div class="fw-bold text-info-emphasis fs-8 mb-2" id="detailWaterTitle">
+                    💧 2. Chi Tiết Cách Tính Tiền Nước (92 − 84 = 8 m³ / khối nước)
+                </div>
+                <div id="detailWaterRows" class="fs-8 text-dark"></div>
+                <hr class="my-2">
+                <div class="d-flex justify-content-between fw-bold fs-8">
+                    <span>Cộng thành tiền Nước:</span>
+                    <span class="text-info-emphasis" id="detailWaterTotal">105.000 đ</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="p-3 rounded-3 bg-light border fs-8 text-slate-800" id="lifestyleForecastBox">
+        <!-- JS tự động điền dự báo 30 ngày & lời khuyên tiết kiệm -->
+    </div>
+</div>
+
+<!-- 4. Hai Cột: Cột Trái (Chụp/Tải Ảnh Công Tơ) & Cột Phải (Đối Chiếu Chỉ Số & Lưu Sổ Cá Nhân) -->
+<div class="row g-4">
+    <!-- Cột Trái: Camera / Upload Ảnh Công Tơ Điện & Nước -->
+    <div class="col-lg-6">
+        <div class="card-custom h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-slate-800 mb-0"><i class="bi bi-images text-primary me-2"></i>Ảnh Chụp / Tải Lên Từ Điện Thoại Cư Dân</h6>
+                <span class="badge bg-secondary-subtle text-dark rounded-pill fs-9" id="photoCountBadge">2 Ảnh (Điện + Nước)</span>
+            </div>
+
+            <!-- Khung Ảnh Công Tơ Điện -->
+            <div id="electricUploadCard" class="border rounded-4 p-3 bg-light mb-3 position-relative">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fs-8 fw-bold text-primary">⚡ Ảnh Công Tơ Điện (Đơn vị: kWh - ký/chữ điện)</span>
+                    <span class="badge bg-primary text-white fs-9" id="badgeAiElec">AI đọc: 1540 kWh</span>
+                </div>
+                <div class="position-relative text-center">
+                    <div id="scanOverlayElec" class="position-absolute" style="top: 22%; left: 22%; width: 56%; height: 52%; border: 2px dashed #EF4444; border-radius: 10px; pointer-events: none;">
+                        <span class="badge bg-danger position-absolute" style="top: -10px; left: 8px; font-size: 9px;">ROI AI: ĐIỆN (kWh)</span>
+                    </div>
+                    <img id="previewImgElectric" src="https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80" alt="Công tơ điện" class="img-fluid rounded-3 shadow-sm w-100" style="max-height: 175px; object-fit: cover;">
+                </div>
+                <div class="mt-2">
+                    <label class="btn btn-sm btn-outline-primary w-100 rounded-3 cursor-pointer fw-semibold mb-0">
+                        <i class="bi bi-camera me-1"></i> Chụp ảnh Công Tơ Điện mới / Chọn ảnh từ máy
+                        <input type="file" accept="image/*" capture="environment" style="display: none;" onchange="handleMeterFileSelect(this, 'electric')">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Khung Ảnh Đồng Hồ Nước -->
+            <div id="waterUploadCard" class="border rounded-4 p-3 bg-light mb-3 position-relative">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fs-8 fw-bold text-info-emphasis">💧 Ảnh Đồng Hồ Nước (Đơn vị: m³ - khối nước)</span>
+                    <span class="badge bg-info text-dark fs-9" id="badgeAiWater">AI đọc: 92 m³</span>
+                </div>
+                <div class="position-relative text-center">
+                    <div id="scanOverlayWater" class="position-absolute" style="top: 22%; left: 22%; width: 56%; height: 52%; border: 2px dashed #EF4444; border-radius: 10px; pointer-events: none;">
+                        <span class="badge bg-danger position-absolute" style="top: -10px; left: 8px; font-size: 9px;">ROI AI: NƯỚC (m³)</span>
+                    </div>
+                    <img id="previewImgWater" src="https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80" alt="Đồng hồ nước" class="img-fluid rounded-3 shadow-sm w-100" style="max-height: 175px; object-fit: cover;">
+                </div>
+                <div class="mt-2">
+                    <label class="btn btn-sm btn-outline-info w-100 rounded-3 cursor-pointer fw-semibold mb-0">
+                        <i class="bi bi-camera me-1"></i> Chụp ảnh Đồng Hồ Nước mới / Chọn ảnh từ máy
+                        <input type="file" accept="image/*" capture="environment" style="display: none;" onchange="handleMeterFileSelect(this, 'water')">
+                    </label>
+                </div>
+            </div>
+
+            <button class="btn btn-danger w-100 py-2 rounded-3 shadow-sm fw-bold" id="btnScanAi" onclick="startAiOcrScan()">
+                <i class="bi bi-upc-scan me-1"></i> 🔍 QUÉT AI OCR & BÁO KẾT QUẢ TIỀN TẠM TÍNH NGAY
+            </button>
 
             <!-- Loading Spinner AI -->
             <div id="aiScanningIndicator" class="text-center p-3 rounded-3 bg-white border mt-3 d-none">
                 <div class="spinner-border spinner-border-sm text-danger me-2" role="status"></div>
-                <span class="fs-8 fw-bold text-danger">AI đang bóc tách chữ số công tơ qua mô hình Convolutional OCR...</span>
+                <span class="fs-8 fw-bold text-danger">AI đang đọc chỉ số trên ảnh công tơ & tính tiền lũy tiến cho bạn...</span>
             </div>
         </div>
     </div>
 
-    <!-- Cột Phải: Kết Quả Nhận Diện AI & Đối Soát -->
+    <!-- Cột Phải: Kết Quả Đối Chiếu & Lưu Sổ Theo Dõi Cá Nhân (KHÔNG GỬI ADMIN) -->
     <div class="col-lg-6">
         <div class="card-custom h-100">
-            <h6 class="fw-bold text-slate-800 mb-3"><i class="bi bi-clipboard2-check-fill text-success me-2"></i>Kết Quả Phân Tích & Đối Soát Tự Động</h6>
+            <h6 class="fw-bold text-slate-800 mb-3">
+                <i class="bi bi-clipboard2-check-fill text-success me-2"></i>Bảng Đối Chiếu Chỉ Số Từ Lần Thanh Toán Trước Đến Nay
+            </h6>
 
             <div class="p-3 rounded-3 bg-light border mb-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fs-8 fw-bold text-muted">LOẠI THIẾT BỊ:</span>
-                    <span class="badge bg-primary text-white" id="resMeterType">Công Tơ Điện Tử 1 Pha</span>
+                    <span class="fs-8 fw-bold text-muted">CHẾ ĐỘ ĐANG TÍNH:</span>
+                    <span class="badge bg-primary text-white" id="resModeBadge">⚡+💧 Tính cả Điện & Nước</span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="fs-8 fw-bold text-muted">ĐỘ TIN CẬY AI (CONFIDENCE):</span>
-                    <span class="badge bg-success-subtle text-success fs-8" id="resConfidence">99.4% (Rất cao)</span>
+                    <span class="badge bg-success-subtle text-success fs-8" id="resConfidence">99.5% (Rất cao)</span>
                 </div>
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fs-8 fw-bold text-muted">CHỈ SỐ CŨ THÁNG 09:</span>
-                    <span class="fw-bold text-dark fs-7" id="resOldIndex">1.420 kWh</span>
+
+                <div id="summaryElectricBlock" class="pt-2 mt-2 border-top">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fs-8 fw-bold text-secondary">⚡ ĐIỆN (Kỳ trước → Ảnh mới chụp):</span>
+                        <span class="fw-bold text-dark fs-8" id="resElecCompare">1.420 → 1.540 kWh</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                        <span class="fs-8 text-muted">→ Đã tiêu thụ Điện tháng này:</span>
+                        <span class="fw-bold text-primary fs-7" id="resElecAmount">120 ký điện (254.000 đ)</span>
+                    </div>
                 </div>
-                <div class="d-flex justify-content-between align-items-center mb-2 pt-2 border-top">
-                    <span class="fs-7 fw-bold text-danger">CHỈ SỐ AI BÓC TÁCH ĐƯỢC:</span>
-                    <span class="fw-bold fs-4 text-danger" id="resNewIndex">1.540 kWh</span>
+
+                <div id="summaryWaterBlock" class="pt-2 mt-2 border-top">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fs-8 fw-bold text-secondary">💧 NƯỚC (Kỳ trước → Ảnh mới chụp):</span>
+                        <span class="fw-bold text-dark fs-8" id="resWaterCompare">84 → 92 m³</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                        <span class="fs-8 text-muted">→ Đã tiêu thụ Nước tháng này:</span>
+                        <span class="fw-bold text-info-emphasis fs-7" id="resWaterAmount">8 khối nước (105.000 đ)</span>
+                    </div>
                 </div>
-                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                    <span class="fs-8 fw-bold text-muted">LƯỢNG TIÊU THỤ THÁNG 10:</span>
-                    <span class="fw-bold text-primary fs-6" id="resConsumption">120 kWh</span>
+
+                <div class="d-flex justify-content-between align-items-center pt-2 mt-2 border-top">
+                    <span class="fs-7 fw-bold text-danger">TỔNG TIỀN TẠM TÍNH ĐẾN HÔM NAY:</span>
+                    <span class="fw-bold fs-4 text-danger" id="resTotalMoney">359.000 đ</span>
                 </div>
             </div>
 
-            <!-- Cảnh Báo Anomaly Detection -->
+            <!-- Cho phép chỉnh sửa nhanh chỉ số để cư dân thử nghiệm -->
+            <div class="fs-9 fw-bold text-muted mb-2">TÙY CHỈNH CHỈ SỐ (NẾU MUỐN TỰ NHẬP HOẶC KIỂM THỬ THÊM):</div>
+            <div class="row g-2 mb-2" id="inputElectricGroup">
+                <div class="col-6">
+                    <label class="form-label fs-9 text-muted mb-1">Điện kỳ trước (kWh)</label>
+                    <input type="number" id="inputElecOld" class="form-control form-control-sm" value="1420" oninput="recalculateAll()">
+                </div>
+                <div class="col-6">
+                    <label class="form-label fs-9 text-muted mb-1">Điện ảnh mới chụp (kWh)</label>
+                    <input type="number" id="inputElecNew" class="form-control form-control-sm" value="1540" oninput="recalculateAll()">
+                </div>
+            </div>
+            <div class="row g-2 mb-3" id="inputWaterGroup">
+                <div class="col-6">
+                    <label class="form-label fs-9 text-muted mb-1">Nước kỳ trước (m³)</label>
+                    <input type="number" id="inputWaterOld" class="form-control form-control-sm" value="84" oninput="recalculateAll()">
+                </div>
+                <div class="col-6">
+                    <label class="form-label fs-9 text-muted mb-1">Nước ảnh mới chụp (m³)</label>
+                    <input type="number" id="inputWaterNew" class="form-control form-control-sm" value="92" oninput="recalculateAll()">
+                </div>
+            </div>
+
+            <!-- Cảnh Báo Mức Tiêu Thụ -->
             <div class="alert alert-success border-0 rounded-3 p-3 mb-3 d-flex align-items-start gap-2" id="anomalyBox">
-                <i class="bi bi-shield-check fs-4 text-success"></i>
-                <div class="fs-8">
-                    <strong class="text-success">Không phát hiện gian lận hoặc bất thường!</strong>
-                    <div>Chỉ số tăng đều so với mức tiêu thụ trung bình 3 tháng gần nhất (115 kWh). Không có dấu hiệu can thiệp đồng hồ hoặc rò rỉ bất thường.</div>
+                <i class="bi bi-shield-check fs-4 text-success" id="anomalyIcon"></i>
+                <div class="fs-8" id="anomalyText">
+                    <strong class="text-success">Mức tiêu thụ ổn định & hợp lý!</strong>
+                    <div>Lượng điện nước tăng đều so với trung bình các tháng trước của phòng P.305. Không có dấu hiệu rò rỉ thiết bị.</div>
                 </div>
             </div>
 
-            <!-- Nút lưu vào hệ thống -->
-            <button class="btn btn-success w-100 py-2 rounded-3 fw-semibold shadow-sm" id="btnSaveIndex" onclick="saveIndexToDatabase()">
-                <i class="bi bi-database-check me-1"></i> XÁC NHẬN & LƯU CHỈ SỐ VÀO HỆ THỐNG PHÒNG P.305
-            </button>
+            <!-- Cam kết riêng tư không gửi về Admin -->
+            <div class="p-2 px-3 rounded-3 bg-primary-subtle border border-primary-subtle text-primary-emphasis fs-8 mb-3 d-flex align-items-center gap-2">
+                <i class="bi bi-lock-fill fs-5"></i>
+                <span><strong>Chế độ riêng tư:</strong> Kết quả này chỉ hiển thị để bạn biết trước số tiền, <strong>TUYỆT ĐỐI KHÔNG gửi về Admin / Ban Quản Lý</strong>.</span>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary w-50 py-2 rounded-3 fw-bold fs-8" onclick="toggleDetailCalculation()">
+                    <i class="bi bi-calculator me-1"></i> Xem chi tiết cách tính
+                </button>
+                <button class="btn btn-success w-50 py-2 rounded-3 fw-bold fs-8 shadow-sm" onclick="saveToPersonalLog()">
+                    <i class="bi bi-journal-bookmark-fill me-1"></i> Lưu Sổ cá nhân của tôi
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
-<style>
-    keyframes pulseBorder {
-        0% { opacity: 0.4; transform: scale(0.98); }
-        50% { opacity: 1; transform: scale(1.02); }
-        100% { opacity: 0.4; transform: scale(0.98); }
-    }
-</style>
+<!-- 5. SỔ THEO DÕI ĐIỆN NƯỚC CÁ NHÂN CỦA CƯ DÂN -->
+<div class="card-custom mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-bold text-slate-900 mb-0">
+            <i class="bi bi-journal-check text-success me-2"></i>Sổ Theo Dõi Chỉ Số Cá Nhân Của Bạn (Lưu Riêng Trên Thiết Bị)
+        </h6>
+        <span class="badge bg-success-subtle text-success rounded-pill px-3 py-1 fs-9" id="personalLogCount">2 lần tự kiểm tra</span>
+    </div>
+    <div id="personalLogList" class="d-flex flex-column gap-2">
+        <div class="p-3 rounded-3 bg-light border d-flex justify-content-between align-items-center">
+            <div>
+                <div class="fw-bold fs-8 text-dark">20/10/2026 (Kiểm tra giữa tháng)</div>
+                <div class="fs-9 text-muted">Điện + Nước • Tiêu thụ: 78 kWh điện • 5 m³ nước</div>
+            </div>
+            <div class="fw-bold text-success fs-7">215.400 đ</div>
+        </div>
+        <div class="p-3 rounded-3 bg-light border d-flex justify-content-between align-items-center">
+            <div>
+                <div class="fw-bold fs-8 text-dark">12/10/2026 (Sau 1 tuần lắp máy lạnh)</div>
+                <div class="fs-9 text-muted">Chỉ tính Điện • Tiêu thụ: 35 kWh điện (chữ điện)</div>
+            </div>
+            <div class="fw-bold text-success fs-7">63.000 đ</div>
+        </div>
+    </div>
+</div>
 
 <script>
-    let currentType = 'electric';
+    let currentOcrMode = 'both'; // 'electric' | 'water' | 'both'
+    let showDetail = false;
+    let logCount = 2;
 
-    function loadSampleImage(type) {
-        currentType = type;
-        const img = document.getElementById('previewImg');
-        if (type === 'electric') {
-            img.src = 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80';
-            document.getElementById('resMeterType').innerText = 'Công Tơ Điện Tử EMIC 1 Pha';
-            document.getElementById('resOldIndex').innerText = '1.420 kWh';
-            document.getElementById('resNewIndex').innerText = '1.540 kWh';
-            document.getElementById('resConsumption').innerText = '120 kWh';
-        } else {
-            img.src = 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80';
-            document.getElementById('resMeterType').innerText = 'Đồng Hồ Đo Lưu Lượng Nước Sinh Hoạt';
-            document.getElementById('resOldIndex').innerText = '84 m³';
-            document.getElementById('resNewIndex').innerText = '92 m³';
-            document.getElementById('resConsumption').innerText = '8 m³';
-        }
-        showOcrAlert(`Đã tải ảnh mẫu ${type === 'electric' ? 'công tơ điện' : 'đồng hồ nước'} vào khung quét AI.`);
+    function formatVnd(amount) {
+        return Math.round(amount).toLocaleString('vi-VN') + ' đ';
     }
 
-    function handleFileSelect(input) {
+    function calculateTieredElectricity(kwh) {
+        if (kwh <= 0) return { total: 0, tiers: [] };
+        const brackets = [
+            { name: 'Bậc 1 (0 - 50 kWh)', limit: 50, price: 1800 },
+            { name: 'Bậc 2 (51 - 100 kWh)', limit: 50, price: 2100 },
+            { name: 'Bậc 3 (101 - 200 kWh)', limit: 100, price: 2500 },
+            { name: 'Bậc 4 (Trên 200 kWh)', limit: Infinity, price: 3000 }
+        ];
+        let remaining = kwh;
+        let total = 0;
+        const tiers = [];
+        for (const b of brackets) {
+            if (remaining <= 0) break;
+            const qty = Math.min(remaining, b.limit);
+            const sub = qty * b.price;
+            tiers.push({ name: b.name, qty, price: b.price, sub });
+            total += sub;
+            remaining -= qty;
+        }
+        return { total, tiers };
+    }
+
+    function calculateTieredWater(m3) {
+        if (m3 <= 0) return { total: 0, tiers: [] };
+        const brackets = [
+            { name: 'Bậc 1 (0 - 4 m³)', limit: 4, price: 12000 },
+            { name: 'Bậc 2 (5 - 6 m³)', limit: 2, price: 16000 },
+            { name: 'Bậc 3 (Trên 6 m³)', limit: Infinity, price: 20000 }
+        ];
+        let remaining = m3;
+        let total = 0;
+        const tiers = [];
+        for (const b of brackets) {
+            if (remaining <= 0) break;
+            const qty = Math.min(remaining, b.limit);
+            const sub = qty * b.price;
+            tiers.push({ name: b.name, qty, price: b.price, sub });
+            total += sub;
+            remaining -= qty;
+        }
+        return { total, tiers };
+    }
+
+    function selectOcrMode(mode) {
+        currentOcrMode = mode;
+        document.getElementById('modeBtnElectric').className = mode === 'electric'
+            ? 'btn btn-sm btn-primary rounded-3 fw-bold px-3 py-2 shadow-sm'
+            : 'btn btn-sm btn-outline-primary rounded-3 fw-bold px-3 py-2';
+        document.getElementById('modeBtnWater').className = mode === 'water'
+            ? 'btn btn-sm btn-info text-dark rounded-3 fw-bold px-3 py-2 shadow-sm'
+            : 'btn btn-sm btn-outline-info rounded-3 fw-bold px-3 py-2';
+        document.getElementById('modeBtnBoth').className = mode === 'both'
+            ? 'btn btn-sm btn-primary rounded-3 fw-bold px-3 py-2 shadow-sm'
+            : 'btn btn-sm btn-outline-primary rounded-3 fw-bold px-3 py-2';
+
+        recalculateAll();
+        const label = mode === 'electric' ? 'Chỉ tính tiền Điện' : (mode === 'water' ? 'Chỉ tính tiền Nước' : 'Tính gộp cả Điện & Nước');
+        showOcrAlert(`Đã chuyển sang chế độ [${label}]. Hệ thống tự động trừ chỉ số kỳ thanh toán trước (05/10) để tính cho bạn!`);
+    }
+
+    function recalculateAll() {
+        const incElec = currentOcrMode === 'electric' || currentOcrMode === 'both';
+        const incWater = currentOcrMode === 'water' || currentOcrMode === 'both';
+
+        const elecOld = parseFloat(document.getElementById('inputElecOld').value) || 0;
+        const elecNew = parseFloat(document.getElementById('inputElecNew').value) || 0;
+        const elecUsed = incElec && elecNew >= elecOld ? (elecNew - elecOld) : 0;
+
+        const waterOld = parseFloat(document.getElementById('inputWaterOld').value) || 0;
+        const waterNew = parseFloat(document.getElementById('inputWaterNew').value) || 0;
+        const waterUsed = incWater && waterNew >= waterOld ? (waterNew - waterOld) : 0;
+
+        const elecCalc = calculateTieredElectricity(elecUsed);
+        const waterCalc = calculateTieredWater(waterUsed);
+        const totalCost = (incElec ? elecCalc.total : 0) + (incWater ? waterCalc.total : 0);
+
+        // Ẩn/hiện theo mode
+        document.getElementById('electricUploadCard').classList.toggle('d-none', !incElec);
+        document.getElementById('waterUploadCard').classList.toggle('d-none', !incWater);
+        document.getElementById('summaryElectricBlock').classList.toggle('d-none', !incElec);
+        document.getElementById('summaryWaterBlock').classList.toggle('d-none', !incWater);
+        document.getElementById('inputElectricGroup').classList.toggle('d-none', !incElec);
+        document.getElementById('inputWaterGroup').classList.toggle('d-none', !incWater);
+        document.getElementById('chipElectricBox').classList.toggle('d-none', !incElec);
+        document.getElementById('chipWaterBox').classList.toggle('d-none', !incWater);
+        document.getElementById('detailElectricSection').classList.toggle('d-none', !incElec);
+        document.getElementById('detailWaterSection').classList.toggle('d-none', !incWater);
+
+        document.getElementById('photoCountBadge').innerText = currentOcrMode === 'both' ? '2 Ảnh (Điện + Nước)' : '1 Ảnh công tơ';
+        document.getElementById('resModeBadge').innerText = currentOcrMode === 'electric'
+            ? '⚡ Chỉ tính Điện'
+            : (currentOcrMode === 'water' ? '💧 Chỉ tính Nước' : '⚡+💧 Tính cả Điện & Nước');
+
+        // Cập nhật Banner thông báo
+        if (currentOcrMode === 'electric') {
+            document.getElementById('bannerHeadline').innerText = `Tháng này phòng bạn đã dùng ${elecUsed} ký điện (kWh)`;
+        } else if (currentOcrMode === 'water') {
+            document.getElementById('bannerHeadline').innerText = `Tháng này phòng bạn đã dùng ${waterUsed} khối nước (m³)`;
+        } else {
+            document.getElementById('bannerHeadline').innerText = `Tháng này phòng bạn đã dùng ${elecUsed} ký điện (kWh) & ${waterUsed} khối nước (m³)`;
+        }
+        document.getElementById('bannerTotalCost').innerText = formatVnd(totalCost);
+        document.getElementById('chipElecRange').innerText = `${elecOld} → ${elecNew}`;
+        document.getElementById('chipElecValue').innerText = `${elecUsed} kWh (ký điện) • ${formatVnd(elecCalc.total)}`;
+        document.getElementById('chipWaterRange').innerText = `${waterOld} → ${waterNew}`;
+        document.getElementById('chipWaterValue').innerText = `${waterUsed} m³ (khối nước) • ${formatVnd(waterCalc.total)}`;
+        document.getElementById('chipPerMember').innerText = `~${formatVnd(totalCost / 3)} / người`;
+
+        // Cập nhật cột phải
+        document.getElementById('badgeAiElec').innerText = `AI đọc: ${elecNew} kWh`;
+        document.getElementById('badgeAiWater').innerText = `AI đọc: ${waterNew} m³`;
+        document.getElementById('resElecCompare').innerText = `${elecOld.toLocaleString('vi-VN')} → ${elecNew.toLocaleString('vi-VN')} kWh`;
+        document.getElementById('resElecAmount').innerText = `${elecUsed} ký điện (${formatVnd(elecCalc.total)})`;
+        document.getElementById('resWaterCompare').innerText = `${waterOld.toLocaleString('vi-VN')} → ${waterNew.toLocaleString('vi-VN')} m³`;
+        document.getElementById('resWaterAmount').innerText = `${waterUsed} khối nước (${formatVnd(waterCalc.total)})`;
+        document.getElementById('resTotalMoney').innerText = formatVnd(totalCost);
+
+        // Cập nhật bảng chi tiết bậc thang
+        document.getElementById('detailElecTitle').innerText = `⚡ Chi Tiết Cách Tính Tiền Điện (${elecNew} − ${elecOld} = ${elecUsed} kWh / ký điện)`;
+        document.getElementById('detailElecRows').innerHTML = elecCalc.tiers.length === 0
+            ? '<div class="text-muted">Chưa phát sinh tiêu thụ điện.</div>'
+            : elecCalc.tiers.map(t => `<div class="d-flex justify-content-between py-1"><span>• ${t.name}: ${t.qty} kWh × ${t.price.toLocaleString('vi-VN')} đ</span><strong>${formatVnd(t.sub)}</strong></div>`).join('');
+        document.getElementById('detailElecTotal').innerText = formatVnd(elecCalc.total);
+
+        document.getElementById('detailWaterTitle').innerText = `💧 Chi Tiết Cách Tính Tiền Nước (${waterNew} − ${waterOld} = ${waterUsed} m³ / khối nước)`;
+        document.getElementById('detailWaterRows').innerHTML = waterCalc.tiers.length === 0
+            ? '<div class="text-muted">Chưa phát sinh tiêu thụ nước.</div>'
+            : waterCalc.tiers.map(t => `<div class="d-flex justify-content-between py-1"><span>• ${t.name}: ${t.qty} m³ × ${t.price.toLocaleString('vi-VN')} đ</span><strong>${formatVnd(t.sub)}</strong></div>`).join('');
+        document.getElementById('detailWaterTotal').innerText = formatVnd(waterCalc.total);
+
+        // Dự báo 30 ngày
+        const days = 25;
+        const projElec = (elecUsed / days) * 30;
+        const projWater = (waterUsed / days) * 30;
+        const projCost = (incElec ? calculateTieredElectricity(projElec).total : 0) + (incWater ? calculateTieredWater(projWater).total : 0);
+        document.getElementById('lifestyleForecastBox').innerHTML = `
+            <div class="fw-bold mb-1">💡 PHÂN TÍCH ĐỜI SỐNG THỰC TẾ & DỰ BÁO ĐẾN CUỐI THÁNG (30 NGÀY):</div>
+            <div>• Số ngày tính từ lần thanh toán trước (05/10) đến ảnh chụp hôm nay: <strong>${days} ngày</strong>.</div>
+            ${incElec ? `<div>• Trung bình mỗi ngày phòng bạn xài: <strong>${(elecUsed / days).toFixed(1)} kWh/ngày</strong> → Dự kiến đủ 30 ngày sẽ hết khoảng <strong>${Math.round(projElec)} kWh</strong>.</div>` : ''}
+            ${incWater ? `<div>• Trung bình mỗi ngày phòng bạn xài: <strong>${(waterUsed / days).toFixed(2)} m³/ngày</strong> → Dự kiến đủ 30 ngày sẽ hết khoảng <strong>${projWater.toFixed(1)} m³</strong>.</div>` : ''}
+            <div>• Ước tính tổng tiền cuối tháng: <strong class="text-danger">${formatVnd(projCost)}</strong> (Chia 3 thành viên P.305 ≈ <strong>${formatVnd(projCost / 3)}/người</strong>).</div>
+        `;
+    }
+
+    function toggleDetailCalculation() {
+        showDetail = !showDetail;
+        document.getElementById('detailCalculationBox').classList.toggle('d-none', !showDetail);
+        document.getElementById('btnToggleDetailText').innerText = showDetail
+            ? 'ẨN BẢNG CHI TIẾT CÁCH TÍNH TIỀN'
+            : '📊 XEM CHI TIẾT CÁCH TÍNH TIỀN & BẢNG LŨY TIẾN BẬC THANG';
+    }
+
+    function handleMeterFileSelect(input, meterType) {
         if (input.files && input.files[0]) {
             const reader = new FileReader();
             reader.onload = function(e) {
-                document.getElementById('previewImg').src = e.target.result;
-                showOcrAlert('Đã tải ảnh chụp công tơ từ thiết bị thành công! Bấm "KÍCH HOẠT QUÉT AI OCR" để nhận diện.');
-            }
+                if (meterType === 'electric') {
+                    document.getElementById('previewImgElectric').src = e.target.result;
+                } else {
+                    document.getElementById('previewImgWater').src = e.target.result;
+                }
+                startAiOcrScan();
+            };
             reader.readAsDataURL(input.files[0]);
         }
     }
 
     function startAiOcrScan() {
-        const overlay = document.getElementById('scanOverlay');
         const indicator = document.getElementById('aiScanningIndicator');
         const btn = document.getElementById('btnScanAi');
-
-        overlay.classList.remove('d-none');
         indicator.classList.remove('d-none');
         btn.disabled = true;
 
         setTimeout(() => {
             indicator.classList.add('d-none');
             btn.disabled = false;
-
-            if (currentType === 'electric') {
-                document.getElementById('resNewIndex').innerText = '1.540 kWh';
-                document.getElementById('resConfidence').innerText = '99.7% (Cực chính xác)';
-            } else {
-                document.getElementById('resNewIndex').innerText = '92 m³';
-                document.getElementById('resConfidence').innerText = '98.9% (Cực chính xác)';
-            }
-
-            showOcrAlert('AI OCR hoàn tất nhận diện! Các con số đã được đọc tự động với độ tin cậy > 98%.');
-        }, 1200);
+            recalculateAll();
+            const headline = document.getElementById('bannerHeadline').innerText;
+            const total = document.getElementById('bannerTotalCost').innerText;
+            showOcrAlert(`🔔 Thông báo tạm tính: ${headline} • Tổng tiền: ${total} (Chỉ hiển thị cho bạn biết trước, không gửi về Admin).`);
+        }, 700);
     }
 
-    function saveIndexToDatabase() {
-        showOcrAlert('Đã lưu chỉ số được đọc bởi AI vào Cơ Sở Dữ Liệu Supabase Cloud! Hệ thống đã tính toán hóa đơn phòng P.305 tháng 10.');
+    function saveToPersonalLog() {
+        recalculateAll();
+        logCount++;
+        document.getElementById('personalLogCount').innerText = `${logCount} lần tự kiểm tra`;
+        const modeText = document.getElementById('resModeBadge').innerText;
+        const headline = document.getElementById('bannerHeadline').innerText;
+        const total = document.getElementById('bannerTotalCost').innerText;
+        const list = document.getElementById('personalLogList');
+        const item = document.createElement('div');
+        item.className = 'p-3 rounded-3 bg-light border d-flex justify-content-between align-items-center';
+        item.innerHTML = `
+            <div>
+                <div class="fw-bold fs-8 text-dark">Hôm nay (Tự chụp kiểm tra)</div>
+                <div class="fs-9 text-muted">${modeText} • ${headline}</div>
+            </div>
+            <div class="fw-bold text-success fs-7">${total}</div>
+        `;
+        list.prepend(item);
+        showOcrAlert(`📌 Đã lưu kết quả tạm tính (${total}) vào Sổ theo dõi cá nhân của riêng bạn (Không gửi Admin)!`);
     }
 
     function showOcrAlert(msg) {
@@ -186,6 +539,10 @@
         setTimeout(() => {
             box.classList.remove('show');
             box.classList.add('d-none');
-        }, 5000);
+        }, 5500);
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        recalculateAll();
+    });
 </script>

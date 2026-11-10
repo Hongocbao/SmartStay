@@ -26,6 +26,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
   final _memberCountController = TextEditingController(text: '3');
   final _meterOldController = TextEditingController(text: '1420');
   final _meterNewController = TextEditingController(text: '1540');
+  final _waterOldController = TextEditingController(text: '84');
+  final _waterNewController = TextEditingController(text: '92');
   final _listingTitleController = TextEditingController();
   final _listingPriceController = TextEditingController(text: '50000');
   final _listingDescriptionController = TextEditingController();
@@ -111,14 +113,33 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
   String _marketFilter = 'Tất cả';
   String _listingCategory = 'Điện gia dụng';
 
-  // State cho AI Camera OCR (/CuDan/AiOcr)
-  String _meterType = 'Điện';
+  // State cho AI Camera OCR Tự Kiểm Tra Điện Nước Cá Nhân (/CuDan/AiOcr)
+  // 'electric' = Chỉ tính Điện | 'water' = Chỉ tính Nước | 'both' = Tính cả Điện & Nước
+  String _ocrMode = 'both';
   String _ocrConfidence = '99.4% (Rất cao)';
-  String _ocrPreviewUrl =
+  final String _electricPreviewUrl =
       'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80';
+  final String _waterPreviewUrl =
+      'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80';
   bool _isScanningOcr = false;
-  bool _showRoiOverlay = false;
-  int? _savedMeterConsumption;
+  bool _showRoiOverlay = true;
+  bool _showCalculationDetail = false;
+  final int _daysSinceLastPayment = 25; // Từ kỳ thanh toán trước (05/10) đến hôm nay
+
+  final List<_PersonalMeterLog> _personalMeterLogs = [
+    const _PersonalMeterLog(
+      dateLabel: '20/10/2026 (Kiểm tra giữa tháng)',
+      modeLabel: 'Điện + Nước',
+      consumptionSummary: '78 kWh điện • 5 m³ nước',
+      estimatedCost: 215400,
+    ),
+    const _PersonalMeterLog(
+      dateLabel: '12/10/2026 (Sau 1 tuần lắp máy lạnh)',
+      modeLabel: 'Chỉ tính Điện',
+      consumptionSummary: '35 kWh điện (chữ điện)',
+      estimatedCost: 63000,
+    ),
+  ];
 
   @override
   void initState() {
@@ -148,6 +169,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
     _memberCountController.dispose();
     _meterOldController.dispose();
     _meterNewController.dispose();
+    _waterOldController.dispose();
+    _waterNewController.dispose();
     _listingTitleController.dispose();
     _listingPriceController.dispose();
     _listingDescriptionController.dispose();
@@ -863,46 +886,110 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
   }
 
   // ===========================================================================
-  // TAB 3: AI CAMERA QUÉT CÔNG TƠ ĐIỆN NƯỚC TỰ ĐỘNG (/CuDan/AiOcr)
-  // Giao diện giống hệt 100% ảnh chụp màn hình Web của người dùng!
+  // TAB 3: AI CAMERA TỰ KIỂM TRA & DỰ TOÁN ĐIỆN NƯỚC CÁ NHÂN (/CuDan/AiOcr)
+  // Cư dân chụp/tải ảnh công tơ Điện, Nước hoặc Cả Hai -> Tính từ kỳ thanh toán
+  // trước đến ảnh mới chụp -> Thông báo số ký điện (kWh) / khối nước (m³) +
+  // Xem chi tiết cách tính bậc thang lũy tiến (Riêng tư cho cư dân, KHÔNG gửi Admin)
   // ===========================================================================
   Widget _buildMeterReader() {
-    final oldIndex = double.tryParse(_meterOldController.text) ?? 1420;
-    final newIndex = double.tryParse(_meterNewController.text) ?? 1540;
-    final consumption = newIndex >= oldIndex ? newIndex - oldIndex : 0.0;
-    final averageConsumption = _meterType == 'Điện' ? 115.0 : 7.5;
-    final unit = _meterType == 'Điện' ? 'kWh' : 'm³';
-    final anomaly = consumption > averageConsumption * 1.3;
+    final includeElectric = _ocrMode == 'electric' || _ocrMode == 'both';
+    final includeWater = _ocrMode == 'water' || _ocrMode == 'both';
 
-    final calcResult = _meterType == 'Điện'
-        ? TieredUtilityService.calculateElectricity(consumption)
-        : TieredUtilityService.calculateWater(consumption);
+    final elecOld = double.tryParse(_meterOldController.text) ?? 1420;
+    final elecNew = double.tryParse(_meterNewController.text) ?? 1540;
+    final elecConsumption =
+        includeElectric && elecNew >= elecOld ? elecNew - elecOld : 0.0;
 
-    void selectSample(String type) {
+    final waterOld = double.tryParse(_waterOldController.text) ?? 84;
+    final waterNew = double.tryParse(_waterNewController.text) ?? 92;
+    final waterConsumption =
+        includeWater && waterNew >= waterOld ? waterNew - waterOld : 0.0;
+
+    final elecResult = TieredUtilityService.calculateElectricity(elecConsumption);
+    final waterResult = TieredUtilityService.calculateWater(waterConsumption);
+
+    final totalEstimatedCost =
+        (includeElectric ? elecResult.totalAmount : 0.0) +
+        (includeWater ? waterResult.totalAmount : 0.0);
+
+    final days = _daysSinceLastPayment.clamp(1, 31);
+    final dailyElec = elecConsumption / days;
+    final dailyWater = waterConsumption / days;
+    final projected30DayElec = dailyElec * 30;
+    final projected30DayWater = dailyWater * 30;
+    final projected30DayCost =
+        (includeElectric
+            ? TieredUtilityService.calculateElectricity(projected30DayElec)
+                .totalAmount
+            : 0.0) +
+        (includeWater
+            ? TieredUtilityService.calculateWater(projected30DayWater)
+                .totalAmount
+            : 0.0);
+    final perMemberCost = totalEstimatedCost / 3; // Phòng P.305 có 3 thành viên
+
+    final elecAnomaly = includeElectric && elecConsumption > 115.0 * 1.3;
+    final waterAnomaly = includeWater && waterConsumption > 7.5 * 1.3;
+    final hasAnomaly = elecAnomaly || waterAnomaly;
+
+    void selectMode(String mode) {
       setState(() {
-        _meterType = type;
-        _showRoiOverlay = false;
-        if (type == 'Điện') {
-          _ocrPreviewUrl =
-              'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80';
-          _meterOldController.text = '1420';
-          _meterNewController.text = '1540';
-          _ocrConfidence = '99.4% (Rất cao)';
+        _ocrMode = mode;
+        _showRoiOverlay = true;
+        if (mode == 'electric') {
+          _ocrConfidence = '99.6% (Đã nhận diện ảnh Điện)';
+        } else if (mode == 'water') {
+          _ocrConfidence = '99.1% (Đã nhận diện ảnh Nước)';
         } else {
-          _ocrPreviewUrl =
-              'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80';
-          _meterOldController.text = '84';
-          _meterNewController.text = '92';
-          _ocrConfidence = '98.9% (Rất cao)';
+          _ocrConfidence = '99.5% (Đã nhận diện cả Điện & Nước)';
         }
       });
+      final modeText = mode == 'electric'
+          ? 'Chỉ tính tiền Điện'
+          : mode == 'water'
+              ? 'Chỉ tính tiền Nước'
+              : 'Tính gộp cả Điện & Nước';
       _showMessage(
-        'Đã tải ảnh mẫu ${type == 'Điện' ? 'công tơ điện' : 'đồng hồ nước'} vào khung quét AI.',
+        'Đã chuyển sang chế độ [$modeText]. Hệ thống tự động tính từ kỳ thanh toán trước (05/10) đến chỉ số ảnh mới chụp!',
+      );
+    }
+
+    void triggerAiScanSimulation() async {
+      setState(() {
+        _isScanningOcr = true;
+        _showRoiOverlay = true;
+      });
+      await Future.delayed(const Duration(milliseconds: 750));
+      if (!mounted) return;
+      setState(() {
+        _isScanningOcr = false;
+        if (includeElectric && _meterNewController.text.trim().isEmpty) {
+          _meterNewController.text = '1540';
+        }
+        if (includeWater && _waterNewController.text.trim().isEmpty) {
+          _waterNewController.text = '92';
+        }
+        _ocrConfidence = '99.7% (Gemini Vision OCR)';
+      });
+
+      final summaryParts = <String>[];
+      if (includeElectric) {
+        summaryParts.add(
+          '${elecConsumption.toStringAsFixed(0)} kWh (ký điện) = ${AppFormatters.currency(elecResult.totalAmount)}',
+        );
+      }
+      if (includeWater) {
+        summaryParts.add(
+          '${waterConsumption.toStringAsFixed(0)} m³ (khối nước) = ${AppFormatters.currency(waterResult.totalAmount)}',
+        );
+      }
+      _showMessage(
+        '🔔 Thông báo tạm tính tháng này: Đã tiêu thụ ${summaryParts.join(' & ')} • Tổng: ${AppFormatters.currency(totalEstimatedCost)} (Chỉ báo trước cho bạn, không gửi Admin).',
       );
     }
 
     return _page([
-      // 1. Header Card giống hệt /CuDan/AiOcr
+      // 1. Header Card + Cam kết Riêng Tư Cư Dân
       Container(
         padding: const EdgeInsets.all(18),
         margin: const EdgeInsets.only(bottom: 16),
@@ -918,12 +1005,22 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
               spacing: 8,
               runSpacing: 6,
               children: [
-                _buildPillBadge('AI COMPUTER VISION', const Color(0xFFDC2626), Colors.white),
+                _buildPillBadge(
+                  'TỰ KIỂM TRA & DỰ TOÁN CÁ NHÂN',
+                  const Color(0xFFDC2626),
+                  Colors.white,
+                ),
                 _buildPillBadge(
                   'Gemini Vision OCR',
                   const Color(0xFFEFF6FF),
                   const Color(0xFF2563EB),
                   borderColor: const Color(0xFFBFDBFE),
+                ),
+                _buildPillBadge(
+                  '🔒 Riêng tư 100% • KHÔNG gửi về Admin',
+                  const Color(0xFFECFDF5),
+                  const Color(0xFF047857),
+                  borderColor: const Color(0xFFA7F3D0),
                 ),
               ],
             ),
@@ -934,7 +1031,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'AI Camera Quét Chỉ Số Công Tơ Điện & Nước Tự Động',
+                    'Chụp / Tải Ảnh Công Tơ — Tự Tính Tiền Điện Nước Tạm Tính Tháng Này',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -946,37 +1043,45 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
             ),
             const SizedBox(height: 4),
             const Text(
-              'Chụp ảnh đồng hồ công tơ thực tế bằng camera điện thoại, AI tự động phát hiện viền màn hình, bóc tách chỉ số kWh / m³ và đối chiếu gian lận',
-              style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              'Bạn có thể chụp hoặc tải lên ảnh công tơ Điện, đồng hồ Nước hoặc cả hai bất kỳ lúc nào trong tháng. AI sẽ tự động trừ đi chỉ số lần thanh toán trước để báo ngay bạn đã xài hết bao nhiêu ký điện (kWh), bao nhiêu khối nước (m³) và số tiền tương ứng để chủ động chi tiêu.',
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
+
+            // Bộ chọn 3 chế độ theo ảnh cư dân cung cấp
+            const Text(
+              'CHỌN LOẠI ẢNH CÔNG TƠ BẠN MUỐN CHỤP / TẢI LÊN ĐỂ TÍNH TIỀN:',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF475569),
+              ),
+            ),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 10,
               runSpacing: 8,
               children: [
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.bolt_rounded, size: 16, color: Color(0xFF2563EB)),
-                  label: const Text(
-                    'Ảnh mẫu Công Tơ Điện',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF2563EB), fontWeight: FontWeight.w600),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF2563EB)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: () => selectSample('Điện'),
+                _buildModeSelectorButton(
+                  mode: 'electric',
+                  icon: Icons.bolt_rounded,
+                  label: '⚡ Chỉ tính Điện (1 ảnh)',
+                  activeColor: const Color(0xFF2563EB),
+                  onTap: () => selectMode('electric'),
                 ),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.water_drop_outlined, size: 16, color: Color(0xFF0284C7)),
-                  label: const Text(
-                    'Ảnh mẫu Đồng Hồ Nước',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF0284C7), fontWeight: FontWeight.w600),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF0284C7)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  onPressed: () => selectSample('Nước'),
+                _buildModeSelectorButton(
+                  mode: 'water',
+                  icon: Icons.water_drop_rounded,
+                  label: '💧 Chỉ tính Nước (1 ảnh)',
+                  activeColor: const Color(0xFF0284C7),
+                  onTap: () => selectMode('water'),
+                ),
+                _buildModeSelectorButton(
+                  mode: 'both',
+                  icon: Icons.auto_awesome_motion_rounded,
+                  label: '⚡+💧 Tính cả Điện & Nước (2 ảnh)',
+                  activeColor: const Color(0xFF7C3AED),
+                  onTap: () => selectMode('both'),
                 ),
               ],
             ),
@@ -984,7 +1089,283 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
         ),
       ),
 
-      // 2. Hai Cột (Khu Vực Quét Ảnh Camera + Kết Quả Phân Tích & Đối Soát Tự Động) giống hệt ảnh Web
+      // 2. BANNER THÔNG BÁO KẾT QUẢ TIÊU THỤ THÁNG NÀY CHO NGƯỜI DÙNG BIẾT TRƯỚC
+      Container(
+        padding: const EdgeInsets.all(18),
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0F172A), Color(0xFF1E3A8A)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1E3A8A).withValues(alpha: 0.18),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.notifications_active_rounded,
+                    color: Color(0xFFFBBF24),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'THÔNG BÁO KẾT QUẢ TẠM TÍNH CHO BẠN (TỪ KỲ THANH TOÁN TRƯỚC 05/10 ĐẾN HÔM NAY)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF93C5FD),
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _ocrMode == 'electric'
+                            ? 'Tháng này phòng bạn đã dùng ${elecConsumption.toStringAsFixed(0)} ký điện (kWh)'
+                            : _ocrMode == 'water'
+                                ? 'Tháng này phòng bạn đã dùng ${waterConsumption.toStringAsFixed(0)} khối nước (m³)'
+                                : 'Tháng này phòng bạn đã dùng ${elecConsumption.toStringAsFixed(0)} ký điện (kWh) & ${waterConsumption.toStringAsFixed(0)} khối nước (m³)',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text(
+                        'TỔNG TIỀN TẠM TÍNH',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFCBD5E1),
+                        ),
+                      ),
+                      Text(
+                        AppFormatters.currency(totalEstimatedCost),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF38BDF8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 10,
+              children: [
+                if (includeElectric)
+                  _buildNotificationStatChip(
+                    icon: Icons.bolt_rounded,
+                    iconColor: const Color(0xFFFBBF24),
+                    title: 'Tiêu thụ Điện (${elecOld.toInt()} → ${elecNew.toInt()})',
+                    value:
+                        '${elecConsumption.toStringAsFixed(0)} kWh (ký điện) • ${AppFormatters.currency(elecResult.totalAmount)}',
+                  ),
+                if (includeWater)
+                  _buildNotificationStatChip(
+                    icon: Icons.water_drop_rounded,
+                    iconColor: const Color(0xFF38BDF8),
+                    title: 'Tiêu thụ Nước (${waterOld.toInt()} → ${waterNew.toInt()})',
+                    value:
+                        '${waterConsumption.toStringAsFixed(0)} m³ (khối nước) • ${AppFormatters.currency(waterResult.totalAmount)}',
+                  ),
+                _buildNotificationStatChip(
+                  icon: Icons.groups_rounded,
+                  iconColor: const Color(0xFF4ADE80),
+                  title: 'Chia 3 người ở (P.305)',
+                  value: '~${AppFormatters.currency(perMemberCost)} / người',
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFF59E0B),
+                      foregroundColor: const Color(0xFF0F172A),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: Icon(
+                      _showCalculationDetail
+                          ? Icons.visibility_off_rounded
+                          : Icons.receipt_long_rounded,
+                      size: 18,
+                    ),
+                    label: Text(
+                      _showCalculationDetail
+                          ? 'ẨN BẢNG CHI TIẾT CÁCH TÍNH TIỀN'
+                          : '📊 XEM CHI TIẾT CÁCH TÍNH TIỀN & BẢNG LŨY TIẾN BẬC THANG',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _showCalculationDetail = !_showCalculationDetail;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+
+      // 3. BẢNG XEM CHI TIẾT CÁCH TÍNH (HIỂN THỊ KHI CƯ DÂN BẤM "XEM CHI TIẾT CÁCH TÍNH")
+      if (_showCalculationDetail)
+        Container(
+          padding: const EdgeInsets.all(18),
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF3B82F6), width: 1.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Expanded(
+                    child: Row(
+                      children: [
+                        Icon(Icons.calculate_rounded, color: Color(0xFF2563EB), size: 22),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Diễn Giải Chi Tiết Cách Tính Tiền Điện / Nước Cho Cư Dân',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _buildPillBadge(
+                    'Đúng biểu giá bậc thang hiện hành',
+                    const Color(0xFFEFF6FF),
+                    const Color(0xFF1D4ED8),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Công thức gốc: Sản lượng tiêu thụ = [Chỉ số mới trên ảnh vừa chụp/tải lên] − [Chỉ số chốt ở kỳ thanh toán hóa đơn lần trước (05/10/2026)]. Sau đó nhân theo từng bậc thang lũy tiến:',
+                style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+              ),
+              const SizedBox(height: 14),
+
+              if (includeElectric) ...[
+                _buildTierBreakdownSection(
+                  title:
+                      '⚡ 1. Chi Tiết Cách Tính Tiền Điện (${elecNew.toInt()} − ${elecOld.toInt()} = ${elecConsumption.toStringAsFixed(0)} kWh / ký điện)',
+                  unitLabel: 'kWh',
+                  result: elecResult,
+                  accentColor: const Color(0xFF2563EB),
+                ),
+                const SizedBox(height: 14),
+              ],
+
+              if (includeWater) ...[
+                _buildTierBreakdownSection(
+                  title:
+                      '💧 ${includeElectric ? '2.' : '1.'} Chi Tiết Cách Tính Tiền Nước (${waterNew.toInt()} − ${waterOld.toInt()} = ${waterConsumption.toStringAsFixed(0)} m³ / khối nước)',
+                  unitLabel: 'm³',
+                  result: waterResult,
+                  accentColor: const Color(0xFF0284C7),
+                ),
+                const SizedBox(height: 14),
+              ],
+
+              // Dự báo cuối tháng & Chia đầu người thực tế đời sống
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '💡 PHÂN TÍCH ĐỜI SỐNG THỰC TẾ & DỰ BÁO ĐẾN CUỐI THÁNG (30 NGÀY):',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '• Số ngày tính từ lần thanh toán trước (05/10) đến ảnh chụp hôm nay: $days ngày.\n'
+                      '${includeElectric ? '• Trung bình mỗi ngày phòng bạn xài: ${dailyElec.toStringAsFixed(1)} kWh/ngày → Dự kiến đủ 30 ngày sẽ hết khoảng ${projected30DayElec.toStringAsFixed(0)} kWh.\n' : ''}'
+                      '${includeWater ? '• Trung bình mỗi ngày phòng bạn xài: ${dailyWater.toStringAsFixed(2)} m³/ngày → Dự kiến đủ 30 ngày sẽ hết khoảng ${projected30DayWater.toStringAsFixed(1)} m³.\n' : ''}'
+                      '• Ước tính tổng tiền cuối tháng (nếu giữ nguyên thói quen sử dụng): ${AppFormatters.currency(projected30DayCost)} (Chia 3 thành viên P.305 ≈ ${AppFormatters.currency(projected30DayCost / 3)}/người).\n'
+                      '• Mẹo tiết kiệm: Hạn chế bật máy lạnh dưới 25°C và tắt bình nóng lạnh sau khi tắm giúp giảm ~18% tiền điện bậc 3 & bậc 4.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF334155),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+      // 4. Hai Cột: Cột Trái (Chụp/Tải Ảnh Công Tơ Điện / Nước) & Cột Phải (Nhập/Chỉnh Chỉ Số & Lưu Sổ Cá Nhân)
       LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth > 720;
@@ -999,133 +1380,102 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Icon(Icons.image_rounded, color: Color(0xFF2563EB), size: 18),
-                    SizedBox(width: 8),
-                    Text(
-                      'Khu Vực Quét Ảnh Camera',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1E293B)),
+                    const Row(
+                      children: [
+                        Icon(Icons.image_rounded, color: Color(0xFF2563EB), size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          'Ảnh Chụp / Tải Lên Từ Điện Thoại Cư Dân',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ],
+                    ),
+                    _buildPillBadge(
+                      _ocrMode == 'both' ? '2 Ảnh (Điện + Nước)' : '1 Ảnh công tơ',
+                      const Color(0xFFF1F5F9),
+                      const Color(0xFF334155),
                     ),
                   ],
                 ),
                 const SizedBox(height: 14),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+
+                // Khung ảnh Công Tơ Điện (hiển thị khi chọn Chỉ Điện hoặc Cả Hai)
+                if (includeElectric)
+                  _buildMeterPhotoUploadBox(
+                    title: '⚡ Ảnh Công Tơ Điện (Đơn vị: kWh - ký/chữ điện)',
+                    imageUrl: _electricPreviewUrl,
+                    readingBadge: '${elecNew.toInt()} kWh',
+                    accentColor: const Color(0xFF2563EB),
+                    onCaptureOrUpload: () {
+                      setState(() {
+                        _showRoiOverlay = true;
+                        _meterNewController.text = '1540';
+                      });
+                      _showMessage(
+                        'Đã tải ảnh chụp Công Tơ Điện lên thành công! AI đọc được chỉ số mới: ${_meterNewController.text} kWh.',
+                      );
+                    },
                   ),
-                  child: Column(
-                    children: [
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              _ocrPreviewUrl,
-                              height: 210,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => Container(
-                                height: 210,
-                                color: const Color(0xFF0F172A),
-                                child: const Center(
-                                  child: Icon(Icons.electric_meter_rounded, size: 72, color: Colors.white70),
-                                ),
-                              ),
+
+                if (includeElectric && includeWater) const SizedBox(height: 12),
+
+                // Khung ảnh Đồng Hồ Nước (hiển thị khi chọn Chỉ Nước hoặc Cả Hai)
+                if (includeWater)
+                  _buildMeterPhotoUploadBox(
+                    title: '💧 Ảnh Đồng Hồ Nước (Đơn vị: m³ - khối nước)',
+                    imageUrl: _waterPreviewUrl,
+                    readingBadge: '${waterNew.toInt()} m³',
+                    accentColor: const Color(0xFF0284C7),
+                    onCaptureOrUpload: () {
+                      setState(() {
+                        _showRoiOverlay = true;
+                        _waterNewController.text = '92';
+                      });
+                      _showMessage(
+                        'Đã tải ảnh chụp Đồng Hồ Nước lên thành công! AI đọc được chỉ số mới: ${_waterNewController.text} m³.',
+                      );
+                    },
+                  ),
+
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: _isScanningOcr
+                        ? const SizedBox(
+                            width: 15,
+                            height: 15,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
                             ),
-                          ),
-                          if (_showRoiOverlay)
-                            Container(
-                              width: 220,
-                              height: 100,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: const Color(0xFFEF4444), width: 2.5),
-                                borderRadius: BorderRadius.circular(12),
-                                color: const Color(0xFFEF4444).withValues(alpha: 0.12),
-                              ),
-                              alignment: Alignment.topLeft,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFEF4444),
-                                  borderRadius: BorderRadius.only(
-                                    topLeft: Radius.circular(9),
-                                    bottomRight: Radius.circular(9),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'VÙNG NHẬN DIỆN AI (ROI)',
-                                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-                        ],
+                          )
+                        : const Icon(Icons.document_scanner_rounded, size: 18),
+                    label: Text(
+                      _isScanningOcr
+                          ? 'AI ĐANG ĐỌC CHỈ SỐ TRÊN ẢNH & TÍNH TIỀN...'
+                          : '🔍 QUÉT AI OCR & BÁO KẾT QUẢ TIỀN TẠM TÍNH NGAY',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(height: 14),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        icon: const Icon(Icons.camera_alt_outlined, size: 16),
-                        label: const Text(
-                          'Chụp ảnh bằng Camera / Chọn file',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                        onPressed: () {
-                          selectSample(_meterType);
-                          _showMessage('Đã tải ảnh chụp công tơ từ thiết bị thành công! Bấm "KÍCH HOẠT QUÉT AI OCR" để nhận diện.');
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFDC2626),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        icon: _isScanningOcr
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.memory_rounded, size: 16),
-                        label: Text(
-                          _isScanningOcr ? 'AI ĐANG BÓC TÁCH CHỮ SỐ...' : 'KÍCH HOẠT QUÉT AI OCR',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                        ),
-                        onPressed: _isScanningOcr
-                            ? null
-                            : () async {
-                                setState(() {
-                                  _isScanningOcr = true;
-                                  _showRoiOverlay = true;
-                                });
-                                await Future.delayed(const Duration(milliseconds: 800));
-                                if (!mounted) return;
-                                setState(() {
-                                  _isScanningOcr = false;
-                                  if (_meterType == 'Điện') {
-                                    _meterOldController.text = '1420';
-                                    _meterNewController.text = '1540';
-                                    _ocrConfidence = '99.7% (Cực chính xác)';
-                                  } else {
-                                    _meterOldController.text = '84';
-                                    _meterNewController.text = '92';
-                                    _ocrConfidence = '98.9% (Cực chính xác)';
-                                  }
-                                });
-                                _showMessage('AI OCR hoàn tất nhận diện! Các con số đã được đọc tự động với độ tin cậy > 98%.');
-                              },
-                      ),
-                    ],
+                    ),
+                    onPressed: _isScanningOcr ? null : triggerAiScanSimulation,
                   ),
                 ),
               ],
@@ -1144,15 +1494,22 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.assignment_turned_in_rounded, color: Color(0xFF16A34A), size: 18),
+                    Icon(Icons.fact_check_rounded, color: Color(0xFF16A34A), size: 18),
                     SizedBox(width: 8),
-                    Text(
-                      'Kết Quả Phân Tích & Đối Soát Tự Động',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1E293B)),
+                    Expanded(
+                      child: Text(
+                        'Bảng Đối Chiếu Chỉ Số Từ Lần Thanh Toán Trước Đến Nay',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 14),
+
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -1165,52 +1522,147 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('LOẠI THIẾT BỊ:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                          const Text(
+                            'CHẾ ĐỘ ĐANG TÍNH:',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
                           _buildPillBadge(
-                            _meterType == 'Điện' ? 'Công Tơ Điện Tử 1 Pha' : 'Đồng Hồ Đo Nước Sinh Hoạt',
+                            _ocrMode == 'electric'
+                                ? '⚡ Chỉ tính Điện'
+                                : _ocrMode == 'water'
+                                    ? '💧 Chỉ tính Nước'
+                                    : '⚡+💧 Tính cả Điện & Nước',
                             const Color(0xFF2563EB),
                             Colors.white,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('ĐỘ TIN CẬY AI (CONFIDENCE):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                          _buildPillBadge(_ocrConfidence, const Color(0xFFECFDF5), const Color(0xFF059669)),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('CHỈ SỐ CŨ THÁNG 09:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                          Text(
-                            '${Formatters.formatNumber(oldIndex.round())} $unit',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                          const Text(
+                            'ĐỘ TIN CẬY AI (CONFIDENCE):',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                          _buildPillBadge(
+                            _ocrConfidence,
+                            const Color(0xFFECFDF5),
+                            const Color(0xFF059669),
                           ),
                         ],
                       ),
+                      if (includeElectric) ...[
+                        const Divider(height: 18),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              '⚡ ĐIỆN (Kỳ trước → Ảnh mới chụp):',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                            Text(
+                              '${Formatters.formatNumber(elecOld.round())} → ${Formatters.formatNumber(elecNew.round())} kWh',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              '   → Đã tiêu thụ Điện tháng này:',
+                              style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            ),
+                            Text(
+                              '${elecConsumption.toStringAsFixed(0)} ký điện (${AppFormatters.currency(elecResult.totalAmount)})',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF2563EB),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (includeWater) ...[
+                        const Divider(height: 18),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              '💧 NƯỚC (Kỳ trước → Ảnh mới chụp):',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                            Text(
+                              '${Formatters.formatNumber(waterOld.round())} → ${Formatters.formatNumber(waterNew.round())} m³',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              '   → Đã tiêu thụ Nước tháng này:',
+                              style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            ),
+                            Text(
+                              '${waterConsumption.toStringAsFixed(0)} khối nước (${AppFormatters.currency(waterResult.totalAmount)})',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0284C7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const Divider(height: 20),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('CHỈ SỐ AI BÓC TÁCH ĐƯỢC:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
-                          Text(
-                            '${Formatters.formatNumber(newIndex.round())} $unit',
-                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                          const Text(
+                            'TỔNG TIỀN TẠM TÍNH ĐẾN HÔM NAY:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFDC2626),
+                            ),
                           ),
-                        ],
-                      ),
-                      const Divider(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('LƯỢNG TIÊU THỤ THÁNG 10:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
                           Text(
-                            '${consumption.toStringAsFixed(0)} $unit (${AppFormatters.currency(calcResult.totalAmount)})',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
+                            AppFormatters.currency(totalEstimatedCost),
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFDC2626),
+                            ),
                           ),
                         ],
                       ),
@@ -1219,124 +1671,227 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 ),
                 const SizedBox(height: 12),
 
-                // Cho phép chỉnh tay chỉ số nếu cần kiểm thử Anomaly
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _meterOldController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: 'Chỉ số cũ ($unit)',
-                          isDense: true,
-                          border: const OutlineInputBorder(),
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _meterNewController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: 'Chỉ số AI đọc ($unit)',
-                          isDense: true,
-                          border: const OutlineInputBorder(),
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                  ],
+                // Ô chỉnh sửa nhanh chỉ số nếu ảnh chụp bị mờ hoặc muốn thử nghiệm
+                const Text(
+                  'TÙY CHỈNH CHỈ SỐ (NẾU MUỐN TỰ NHẬP HOẶC KIỂM THỬ THÊM):',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+                if (includeElectric)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _meterOldController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Điện kỳ trước (kWh)',
+                              isDense: true,
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: _meterNewController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Điện ảnh mới chụp (kWh)',
+                              isDense: true,
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (includeWater)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _waterOldController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Nước kỳ trước (m³)',
+                              isDense: true,
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: _waterNewController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Nước ảnh mới chụp (m³)',
+                              isDense: true,
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
-                // Cảnh báo Anomaly Detection giống hệt ảnh Web
+                // Cảnh báo mức tiêu thụ so với trung bình
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: anomaly ? const Color(0xFFFEF2F2) : const Color(0xFFD1FAE5).withValues(alpha: 0.65),
+                    color: hasAnomaly
+                        ? const Color(0xFFFEF2F2)
+                        : const Color(0xFFD1FAE5).withValues(alpha: 0.65),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Icon(
-                        anomaly ? Icons.warning_amber_rounded : Icons.verified_user_outlined,
-                        color: anomaly ? const Color(0xFFDC2626) : const Color(0xFF047857),
-                        size: 24,
+                        hasAnomaly
+                            ? Icons.warning_amber_rounded
+                            : Icons.verified_user_outlined,
+                        color: hasAnomaly
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF047857),
+                        size: 22,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              anomaly
-                                  ? 'Cảnh báo tiêu thụ tăng đột biến!'
-                                  : 'Không phát hiện gian lận hoặc bất thường!',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: anomaly ? const Color(0xFFDC2626) : const Color(0xFF065F46),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              anomaly
-                                  ? 'Chỉ số tăng cao hơn 30% so với trung bình 3 tháng (${averageConsumption.toStringAsFixed(0)} $unit). Đề nghị kiểm tra rò rỉ thiết bị!'
-                                  : 'Chỉ số tăng đều so với mức tiêu thụ trung bình 3 tháng gần nhất (${averageConsumption.toStringAsFixed(0)} $unit). Không có dấu hiệu can thiệp đồng hồ hoặc rò rỉ bất thường.',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: anomaly ? const Color(0xFF991B1B) : const Color(0xFF065F46),
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          hasAnomaly
+                              ? 'Cảnh báo cho bạn: Lượng tiêu thụ hiện cao hơn >30% so với trung bình tháng trước. Hãy kiểm tra vòi nước rò rỉ hoặc thiết bị điện công suất lớn!'
+                              : 'Mức tiêu thụ hoàn toàn bình thường và ổn định so với trung bình các tháng trước của phòng P.305.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: hasAnomaly
+                                ? const Color(0xFF991B1B)
+                                : const Color(0xFF065F46),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 12),
 
-                // Nút xác nhận & lưu chỉ số màu xanh lá giống hệt ảnh Web
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF15803D),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    icon: const Icon(Icons.storage_rounded, size: 18),
-                    label: const Text(
-                      'XÁC NHẬN & LƯU CHỈ SỐ VÀO HỆ THỐNG PHÒNG P.305',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                    ),
-                    onPressed: () {
-                      final admin = context.read<AdminProvider>();
-                      if (_meterType == 'Điện') {
-                        admin.recordMeters(305, newIndex.round(), 92);
-                      } else {
-                        admin.recordMeters(305, 1540, newIndex.round());
-                      }
-                      setState(() => _savedMeterConsumption = consumption.round());
-                      _showMessage(
-                        'Đã lưu chỉ số được đọc bởi AI (${newIndex.round()} $unit) vào Cơ Sở Dữ Liệu Supabase Cloud! Hệ thống đã tính toán hóa đơn phòng P.305 tháng 10.',
-                      );
-                    },
+                // Cam kết không gửi về Admin & Nút Lưu vào Sổ theo dõi cá nhân
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.lock_outline_rounded, size: 16, color: Color(0xFF1D4ED8)),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Chế độ riêng tư: Kết quả này chỉ hiện để bạn biết trước số tiền, KHÔNG gửi về Admin / Ban Quản Lý.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1E40AF),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                if (_savedMeterConsumption != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      '✓ Đã đồng bộ lên Supabase: $_savedMeterConsumption $unit (${AppFormatters.currency(calcResult.totalAmount)})',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF16A34A)),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF2563EB),
+                          side: const BorderSide(color: Color(0xFF2563EB)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: const Icon(Icons.calculate_outlined, size: 17),
+                        label: Text(
+                          _showCalculationDetail
+                              ? 'Ẩn chi tiết cách tính'
+                              : 'Xem chi tiết cách tính',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _showCalculationDetail = !_showCalculationDetail;
+                          });
+                        },
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F766E),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: const Icon(Icons.bookmark_added_rounded, size: 17),
+                        label: const Text(
+                          'Lưu Sổ cá nhân của tôi',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        onPressed: () {
+                          final modeLabel = _ocrMode == 'electric'
+                              ? 'Chỉ tính Điện'
+                              : _ocrMode == 'water'
+                                  ? 'Chỉ tính Nước'
+                                  : 'Điện + Nước';
+                          final summary = _ocrMode == 'electric'
+                              ? '${elecConsumption.toStringAsFixed(0)} kWh điện'
+                              : _ocrMode == 'water'
+                                  ? '${waterConsumption.toStringAsFixed(0)} m³ nước'
+                                  : '${elecConsumption.toStringAsFixed(0)} kWh điện • ${waterConsumption.toStringAsFixed(0)} m³ nước';
+                          setState(() {
+                            _personalMeterLogs.insert(
+                              0,
+                              _PersonalMeterLog(
+                                dateLabel: 'Hôm nay (Tự chụp kiểm tra)',
+                                modeLabel: modeLabel,
+                                consumptionSummary: summary,
+                                estimatedCost: totalEstimatedCost,
+                              ),
+                            );
+                          });
+                          _showMessage(
+                            '📌 Đã lưu kết quả tạm tính (${AppFormatters.currency(totalEstimatedCost)}) vào Sổ theo dõi cá nhân của riêng bạn (Không gửi Admin)!',
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           );
@@ -1360,7 +1915,381 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
           );
         },
       ),
+
+      const SizedBox(height: 16),
+
+      // 5. SỔ THEO DÕI ĐIỆN NƯỚC CÁ NHÂN CỦA CƯ DÂN (LỊCH SỬ TỰ CHỤP KIỂM TRA)
+      Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.history_edu_rounded, color: Color(0xFF0F766E), size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Sổ Theo Dõi Chỉ Số Cá Nhân Của Bạn (Lưu Riêng Trên Thiết Bị)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+                _buildPillBadge(
+                  '${_personalMeterLogs.length} lần tự kiểm tra',
+                  const Color(0xFFF0FDFA),
+                  const Color(0xFF0F766E),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ..._personalMeterLogs.map(
+              (log) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            log.dateLabel,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${log.modeLabel} • Tiêu thụ: ${log.consumptionSummary}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      AppFormatters.currency(log.estimatedCost),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Color(0xFF0F766E),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     ]);
+  }
+
+  Widget _buildModeSelectorButton({
+    required String mode,
+    required IconData icon,
+    required String label,
+    required Color activeColor,
+    required VoidCallback onTap,
+  }) {
+    final isSelected = _ocrMode == mode;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? activeColor : const Color(0xFFCBD5E1),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? Colors.white : activeColor,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? Colors.white : const Color(0xFF1E293B),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationStatChip({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: iconColor, size: 18),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(fontSize: 10, color: Color(0xFFCBD5E1)),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMeterPhotoUploadBox({
+    required String title,
+    required String imageUrl,
+    required String readingBadge,
+    required Color accentColor,
+    required VoidCallback onCaptureOrUpload,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: accentColor,
+                  ),
+                ),
+              ),
+              _buildPillBadge(
+                'AI đọc: $readingBadge',
+                accentColor,
+                Colors.white,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network(
+                  imageUrl,
+                  height: _ocrMode == 'both' ? 135 : 195,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                    height: _ocrMode == 'both' ? 135 : 195,
+                    color: const Color(0xFF0F172A),
+                    child: const Center(
+                      child: Icon(
+                        Icons.speed_rounded,
+                        size: 56,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (_showRoiOverlay)
+                Container(
+                  width: 190,
+                  height: 74,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFEF4444), width: 2),
+                    borderRadius: BorderRadius.circular(10),
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  ),
+                  alignment: Alignment.topLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEF4444),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(7),
+                        bottomRight: Radius.circular(7),
+                      ),
+                    ),
+                    child: Text(
+                      'ROI AI: $readingBadge',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: accentColor,
+                side: BorderSide(color: accentColor),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              icon: const Icon(Icons.add_a_photo_outlined, size: 15),
+              label: const Text(
+                'Chụp ảnh mới / Tải ảnh từ máy lên',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              ),
+              onPressed: onCaptureOrUpload,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTierBreakdownSection({
+    required String title,
+    required String unitLabel,
+    required CalculationResult result,
+    required Color accentColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accentColor.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: accentColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (result.tiers.isEmpty)
+            const Text(
+              'Chưa phát sinh sản lượng tiêu thụ (Chỉ số mới ≤ Chỉ số kỳ trước).',
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            )
+          else
+            ...result.tiers.map(
+              (tier) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '• ${tier.tierName}: ${tier.quantity.toStringAsFixed(0)} $unitLabel × ${Formatters.formatNumber(tier.unitPrice.round())} đ',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      AppFormatters.currency(tier.totalAmount),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const Divider(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Cộng thành tiền (${result.totalQuantity.toStringAsFixed(0)} $unitLabel):',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              Text(
+                AppFormatters.currency(result.totalAmount),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: accentColor,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   // ===========================================================================
@@ -1742,4 +2671,18 @@ class _MarketListing {
     this.description,
     this.imageUrl,
   );
+}
+
+class _PersonalMeterLog {
+  final String dateLabel;
+  final String modeLabel;
+  final String consumptionSummary;
+  final double estimatedCost;
+
+  const _PersonalMeterLog({
+    required this.dateLabel,
+    required this.modeLabel,
+    required this.consumptionSummary,
+    required this.estimatedCost,
+  });
 }
