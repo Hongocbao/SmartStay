@@ -167,9 +167,10 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Tự động đồng bộ Schema PostgreSQL (Supabase) & bật RLS/Realtime cho Phương án A
-using (var scope = app.Services.CreateScope())
+// Đồng bộ Schema PostgreSQL (Supabase) & RLS chạy ngầm không chặn cổng Health Check (/api/health) của Render
+_ = Task.Run(async () =>
 {
+    using var scope = app.Services.CreateScope();
     try
     {
         var db = scope.ServiceProvider.GetRequiredService<SmartStayDbContext>();
@@ -212,7 +213,7 @@ using (var scope = app.Services.CreateScope())
     {
         Console.WriteLine($"[SmartStay] Khởi động ở chế độ Resilient (Bỏ qua đồng bộ DB tự động: {ex.Message})");
     }
-}
+});
 
 if (args.Contains("--init-db"))
 {

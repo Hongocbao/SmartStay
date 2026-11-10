@@ -27,7 +27,7 @@ services:
     name: smartstay-client
     runtime: static
     rootDir: SmartStay
-    buildCommand: bash scripts/render_build.sh
+    buildCommand: echo "Serving prebuilt Flutter Web release"
     staticPublishPath: build/web
     autoDeployTrigger: commit
     envVars:
