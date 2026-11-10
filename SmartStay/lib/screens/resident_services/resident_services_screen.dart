@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../providers/admin_provider.dart';
+import '../../services/supabase_direct_service.dart';
 import '../../services/system_config.dart';
 import '../../services/tiered_utility_service.dart';
 import '../../utils/formatters.dart';
@@ -125,6 +127,9 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
   bool _showRoiOverlay = true;
   bool _showCalculationDetail = false;
   final int _daysSinceLastPayment = 25; // Từ kỳ thanh toán trước (05/10) đến hôm nay
+  Timer? _residentMeterSyncTimer;
+  DateTime? _lastLocalMeterEdit;
+  final SupabaseDirectService _supabase = SupabaseDirectService();
 
   final List<_PersonalMeterLog> _personalMeterLogs = [
     const _PersonalMeterLog(
@@ -149,6 +154,104 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       vsync: this,
       initialIndex: widget.initialTab.clamp(0, 3),
     );
+    _pullResidentMeterFromCloud();
+    _residentMeterSyncTimer = Timer.periodic(
+      const Duration(seconds: 4),
+      (_) => _pullResidentMeterFromCloud(),
+    );
+  }
+
+  Future<void> _pullResidentMeterFromCloud() async {
+    if (!mounted) return;
+    // Tránh ghi đè khi người dùng vừa gõ phím trong vòng 3 giây
+    if (_lastLocalMeterEdit != null &&
+        DateTime.now().difference(_lastLocalMeterEdit!).inSeconds < 3) {
+      return;
+    }
+    final snapshot = await _supabase.fetchUnifiedSnapshot();
+    if (!mounted || snapshot == null) return;
+
+    bool changed = false;
+    final meter = snapshot['chiSoCuDan'];
+    if (meter is Map) {
+      final mode = (meter['cheDo'] ?? meter['CheDo'] ?? '').toString().trim();
+      final elecOld = (meter['dienKyTruoc'] ?? meter['DienKyTruoc'] ?? 1420) as num;
+      final elecNew = (meter['dienMoiChup'] ?? meter['DienMoiChup'] ?? 1540) as num;
+      final waterOld = (meter['nuocKyTruoc'] ?? meter['NuocKyTruoc'] ?? 84) as num;
+      final waterNew = (meter['nuocMoiChup'] ?? meter['NuocMoiChup'] ?? 92) as num;
+
+      if (mode.isNotEmpty && mode != _ocrMode) {
+        _ocrMode = mode;
+        changed = true;
+      }
+      if (_meterOldController.text != elecOld.round().toString()) {
+        _meterOldController.text = elecOld.round().toString();
+        changed = true;
+      }
+      if (_meterNewController.text != elecNew.round().toString()) {
+        _meterNewController.text = elecNew.round().toString();
+        changed = true;
+      }
+      if (_waterOldController.text != waterOld.round().toString()) {
+        _waterOldController.text = waterOld.round().toString();
+        changed = true;
+      }
+      if (_waterNewController.text != waterNew.round().toString()) {
+        _waterNewController.text = waterNew.round().toString();
+        changed = true;
+      }
+    }
+
+    final cloudLogs = snapshot['soTheoDoiCuDan'];
+    if (cloudLogs is List && cloudLogs.isNotEmpty) {
+      for (final raw in cloudLogs) {
+        if (raw is! Map) continue;
+        final timeLabel = (raw['thoiDiem'] ?? raw['ThoiDiem'] ?? '').toString();
+        final modeLabel = (raw['cheDo'] ?? raw['CheDo'] ?? '').toString();
+        final summary = (raw['tomTatTieuThu'] ?? raw['TomTatTieuThu'] ?? '').toString();
+        final cost = (raw['tongTienTamTinh'] ?? raw['TongTienTamTinh'] ?? 0) as num;
+        if (summary.isEmpty) continue;
+        final exists = _personalMeterLogs.any(
+          (l) => l.consumptionSummary == summary && (l.estimatedCost - cost.toDouble()).abs() < 1,
+        );
+        if (!exists) {
+          _personalMeterLogs.insert(
+            0,
+            _PersonalMeterLog(
+              dateLabel: timeLabel.isNotEmpty ? timeLabel : 'Đồng bộ từ thiết bị khác',
+              modeLabel: modeLabel.isNotEmpty ? modeLabel : 'Điện + Nước',
+              consumptionSummary: summary,
+              estimatedCost: cost.toDouble(),
+            ),
+          );
+          changed = true;
+        }
+      }
+    }
+
+    if (changed && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _pushResidentMeterToCloud({
+    bool saveToLog = false,
+    String? summary,
+    String? dateLabel,
+    required double totalEstimatedCost,
+  }) {
+    _lastLocalMeterEdit = DateTime.now();
+    _supabase.syncResidentMeterCheck(
+      mode: _ocrMode,
+      elecOld: double.tryParse(_meterOldController.text) ?? 1420,
+      elecNew: double.tryParse(_meterNewController.text) ?? 1540,
+      waterOld: double.tryParse(_waterOldController.text) ?? 84,
+      waterNew: double.tryParse(_waterNewController.text) ?? 92,
+      totalEstimatedCost: totalEstimatedCost,
+      consumptionSummary: summary,
+      dateLabel: dateLabel,
+      saveToPersonalLog: saveToLog,
+    );
   }
 
   @override
@@ -162,6 +265,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
 
   @override
   void dispose() {
+    _residentMeterSyncTimer?.cancel();
     _tabController.dispose();
     _guestNameController.dispose();
     _guestPhoneController.dispose();
@@ -944,6 +1048,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
           _ocrConfidence = '99.5% (Đã nhận diện cả Điện & Nước)';
         }
       });
+      _pushResidentMeterToCloud(totalEstimatedCost: totalEstimatedCost);
       final modeText = mode == 'electric'
           ? 'Chỉ tính tiền Điện'
           : mode == 'water'
@@ -971,6 +1076,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
         }
         _ocrConfidence = '99.7% (Gemini Vision OCR)';
       });
+
+      _pushResidentMeterToCloud(totalEstimatedCost: totalEstimatedCost);
 
       final summaryParts = <String>[];
       if (includeElectric) {
@@ -1695,7 +1802,12 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                               isDense: true,
                               border: OutlineInputBorder(),
                             ),
-                            onChanged: (_) => setState(() {}),
+                            onChanged: (_) {
+                              setState(() {});
+                              _pushResidentMeterToCloud(
+                                totalEstimatedCost: totalEstimatedCost,
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -1708,7 +1820,12 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                               isDense: true,
                               border: OutlineInputBorder(),
                             ),
-                            onChanged: (_) => setState(() {}),
+                            onChanged: (_) {
+                              setState(() {});
+                              _pushResidentMeterToCloud(
+                                totalEstimatedCost: totalEstimatedCost,
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -1728,7 +1845,12 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                               isDense: true,
                               border: OutlineInputBorder(),
                             ),
-                            onChanged: (_) => setState(() {}),
+                            onChanged: (_) {
+                              setState(() {});
+                              _pushResidentMeterToCloud(
+                                totalEstimatedCost: totalEstimatedCost,
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -1741,7 +1863,12 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                               isDense: true,
                               border: OutlineInputBorder(),
                             ),
-                            onChanged: (_) => setState(() {}),
+                            onChanged: (_) {
+                              setState(() {});
+                              _pushResidentMeterToCloud(
+                                totalEstimatedCost: totalEstimatedCost,
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -1884,8 +2011,14 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                               ),
                             );
                           });
+                          _pushResidentMeterToCloud(
+                            saveToLog: true,
+                            summary: summary,
+                            dateLabel: 'Hôm nay (Đồng bộ Giả lập Android & Web)',
+                            totalEstimatedCost: totalEstimatedCost,
+                          );
                           _showMessage(
-                            '📌 Đã lưu kết quả tạm tính (${AppFormatters.currency(totalEstimatedCost)}) vào Sổ theo dõi cá nhân của riêng bạn (Không gửi Admin)!',
+                            '📌 Đã lưu kết quả tạm tính (${AppFormatters.currency(totalEstimatedCost)}) vào Sổ theo dõi cá nhân & đồng bộ sang các thiết bị của bạn (Không gửi Admin)!',
                           );
                         },
                       ),

@@ -20,6 +20,8 @@ public class SyncApiController : ControllerBase
     private static readonly ConcurrentDictionary<string, SyncRoomItem> _liveRooms = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, SyncTicketItem> _liveTickets = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentQueue<SyncNoticeItem> _liveNotices = new();
+    private static SyncResidentMeterState _latestResidentMeter = new();
+    private static readonly ConcurrentQueue<SyncResidentMeterLogItem> _residentMeterLogs = new();
 
     public SyncApiController(SmartStayDbContext db)
     {
@@ -76,7 +78,7 @@ public class SyncApiController : ControllerBase
                     SoPhieuSuCo = s.SoPhieuSuCo,
                     KyHieuPhong = s.MaPhongNavigation != null ? s.MaPhongNavigation.KyHieuPhong : "P.305",
                     TieuDe = s.TieuDe,
-                    MoTa = s.MoTa,
+                    MoTa = s.MoTa ?? string.Empty,
                     UuTien = s.UuTien,
                     TrangThai = s.TrangThai,
                     ThoiDiemTao = s.ThoiDiemTao,
@@ -130,7 +132,49 @@ public class SyncApiController : ControllerBase
             timestamp = DateTime.UtcNow,
             phongs = roomsResult,
             suCos = ticketsResult.OrderByDescending(t => t.ThoiDiemTao).ToList(),
-            thongBaos = noticesResult.OrderByDescending(n => n.ThoiDiemCongBo).ToList()
+            thongBaos = noticesResult.OrderByDescending(n => n.ThoiDiemCongBo).ToList(),
+            chiSoCuDan = _latestResidentMeter,
+            soTheoDoiCuDan = _residentMeterLogs.Reverse().Take(15).ToList()
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("chi-so-cu-dan")]
+    public IActionResult DongBoChiSoTuKiemTraCuDan([FromBody] SyncResidentMeterDto req)
+    {
+        _latestResidentMeter = new SyncResidentMeterState
+        {
+            KyHieuPhong = string.IsNullOrWhiteSpace(req.KyHieuPhong) ? "P.305" : req.KyHieuPhong.Trim(),
+            CheDo = string.IsNullOrWhiteSpace(req.CheDo) ? "both" : req.CheDo.Trim(),
+            DienKyTruoc = req.DienKyTruoc > 0 ? req.DienKyTruoc : 1420,
+            DienMoiChup = req.DienMoiChup > 0 ? req.DienMoiChup : 1540,
+            NuocKyTruoc = req.NuocKyTruoc > 0 ? req.NuocKyTruoc : 84,
+            NuocMoiChup = req.NuocMoiChup > 0 ? req.NuocMoiChup : 92,
+            TongTienTamTinh = req.TongTienTamTinh,
+            NguonCapNhat = string.IsNullOrWhiteSpace(req.NguonCapNhat) ? "Android/Web" : req.NguonCapNhat.Trim(),
+            CapNhatLuc = DateTime.UtcNow
+        };
+
+        if (req.LuuVaoSoCaNhan && !string.IsNullOrWhiteSpace(req.TomTatTieuThu))
+        {
+            _residentMeterLogs.Enqueue(new SyncResidentMeterLogItem
+            {
+                ThoiDiem = string.IsNullOrWhiteSpace(req.NhanThoiGian)
+                    ? $"Vừa xong ({_latestResidentMeter.NguonCapNhat})"
+                    : req.NhanThoiGian.Trim(),
+                CheDo = _latestResidentMeter.CheDo == "electric"
+                    ? "Chỉ tính Điện"
+                    : (_latestResidentMeter.CheDo == "water" ? "Chỉ tính Nước" : "Điện + Nước"),
+                TomTatTieuThu = req.TomTatTieuThu.Trim(),
+                TongTienTamTinh = req.TongTienTamTinh
+            });
+        }
+
+        return Ok(new
+        {
+            success = true,
+            chiSoCuDan = _latestResidentMeter,
+            soTheoDoiCuDan = _residentMeterLogs.Reverse().Take(15).ToList()
         });
     }
 
@@ -307,4 +351,40 @@ public class DangThongBaoSyncDto
     public string NoiDung { get; set; } = string.Empty;
     public string PhamViNhan { get; set; } = "Toàn tòa nhà";
     public bool LaKhanCap { get; set; }
+}
+
+public class SyncResidentMeterState
+{
+    public string KyHieuPhong { get; set; } = "P.305";
+    public string CheDo { get; set; } = "both";
+    public double DienKyTruoc { get; set; } = 1420;
+    public double DienMoiChup { get; set; } = 1540;
+    public double NuocKyTruoc { get; set; } = 84;
+    public double NuocMoiChup { get; set; } = 92;
+    public double TongTienTamTinh { get; set; } = 359000;
+    public string NguonCapNhat { get; set; } = "Khởi tạo";
+    public DateTime CapNhatLuc { get; set; } = DateTime.UtcNow;
+}
+
+public class SyncResidentMeterLogItem
+{
+    public string ThoiDiem { get; set; } = string.Empty;
+    public string CheDo { get; set; } = string.Empty;
+    public string TomTatTieuThu { get; set; } = string.Empty;
+    public double TongTienTamTinh { get; set; }
+}
+
+public class SyncResidentMeterDto
+{
+    public string? KyHieuPhong { get; set; }
+    public string? CheDo { get; set; }
+    public double DienKyTruoc { get; set; }
+    public double DienMoiChup { get; set; }
+    public double NuocKyTruoc { get; set; }
+    public double NuocMoiChup { get; set; }
+    public double TongTienTamTinh { get; set; }
+    public string? TomTatTieuThu { get; set; }
+    public string? NhanThoiGian { get; set; }
+    public string? NguonCapNhat { get; set; }
+    public bool LuuVaoSoCaNhan { get; set; }
 }

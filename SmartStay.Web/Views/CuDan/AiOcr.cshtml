@@ -322,6 +322,84 @@
     let currentOcrMode = 'both'; // 'electric' | 'water' | 'both'
     let showDetail = false;
     let logCount = 2;
+    let lastLocalInputTime = 0;
+
+    async function pushMeterStateToCloud(saveToLog = false) {
+        lastLocalInputTime = Date.now();
+        const incElec = currentOcrMode === 'electric' || currentOcrMode === 'both';
+        const incWater = currentOcrMode === 'water' || currentOcrMode === 'both';
+        const elecOld = parseFloat(document.getElementById('inputElecOld').value) || 1420;
+        const elecNew = parseFloat(document.getElementById('inputElecNew').value) || 1540;
+        const waterOld = parseFloat(document.getElementById('inputWaterOld').value) || 84;
+        const waterNew = parseFloat(document.getElementById('inputWaterNew').value) || 92;
+        const elecUsed = incElec && elecNew >= elecOld ? (elecNew - elecOld) : 0;
+        const waterUsed = incWater && waterNew >= waterOld ? (waterNew - waterOld) : 0;
+        const totalCost = (incElec ? calculateTieredElectricity(elecUsed).total : 0) + (incWater ? calculateTieredWater(waterUsed).total : 0);
+        const summary = currentOcrMode === 'electric'
+            ? `${elecUsed} kWh điện`
+            : (currentOcrMode === 'water' ? `${waterUsed} m³ nước` : `${elecUsed} kWh điện • ${waterUsed} m³ nước`);
+
+        try {
+            await fetch('/api/sync/chi-so-cu-dan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    KyHieuPhong: 'P.305',
+                    CheDo: currentOcrMode,
+                    DienKyTruoc: elecOld,
+                    DienMoiChup: elecNew,
+                    NuocKyTruoc: waterOld,
+                    NuocMoiChup: waterNew,
+                    TongTienTamTinh: totalCost,
+                    TomTatTieuThu: summary,
+                    NhanThoiGian: 'Hôm nay (Đồng bộ từ Web Cư Dân)',
+                    NguonCapNhat: 'Web Cư Dân (Render)',
+                    LuuVaoSoCaNhan: saveToLog
+                })
+            });
+        } catch (_) {}
+    }
+
+    async function pullMeterStateFromCloud() {
+        if (Date.now() - lastLocalInputTime < 3500) return;
+        try {
+            const res = await fetch('/api/sync/snapshot');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!data || !data.chiSoCuDan) return;
+            const m = data.chiSoCuDan;
+            const mode = m.cheDo || m.CheDo || 'both';
+            const eOld = m.dienKyTruoc ?? m.DienKyTruoc ?? 1420;
+            const eNew = m.dienMoiChup ?? m.DienMoiChup ?? 1540;
+            const wOld = m.nuocKyTruoc ?? m.NuocKyTruoc ?? 84;
+            const wNew = m.nuocMoiChup ?? m.NuocMoiChup ?? 92;
+
+            let changed = false;
+            if (mode !== currentOcrMode) {
+                currentOcrMode = mode;
+                changed = true;
+            }
+            if (parseFloat(document.getElementById('inputElecOld').value) !== eOld) {
+                document.getElementById('inputElecOld').value = eOld;
+                changed = true;
+            }
+            if (parseFloat(document.getElementById('inputElecNew').value) !== eNew) {
+                document.getElementById('inputElecNew').value = eNew;
+                changed = true;
+            }
+            if (parseFloat(document.getElementById('inputWaterOld').value) !== wOld) {
+                document.getElementById('inputWaterOld').value = wOld;
+                changed = true;
+            }
+            if (parseFloat(document.getElementById('inputWaterNew').value) !== wNew) {
+                document.getElementById('inputWaterNew').value = wNew;
+                changed = true;
+            }
+            if (changed) {
+                recalculateAll(false);
+            }
+        } catch (_) {}
+    }
 
     function formatVnd(amount) {
         return Math.round(amount).toLocaleString('vi-VN') + ' đ';
@@ -382,12 +460,15 @@
             ? 'btn btn-sm btn-primary rounded-3 fw-bold px-3 py-2 shadow-sm'
             : 'btn btn-sm btn-outline-primary rounded-3 fw-bold px-3 py-2';
 
-        recalculateAll();
+        recalculateAll(true);
         const label = mode === 'electric' ? 'Chỉ tính tiền Điện' : (mode === 'water' ? 'Chỉ tính tiền Nước' : 'Tính gộp cả Điện & Nước');
         showOcrAlert(`Đã chuyển sang chế độ [${label}]. Hệ thống tự động trừ chỉ số kỳ thanh toán trước (05/10) để tính cho bạn!`);
     }
 
-    function recalculateAll() {
+    function recalculateAll(shouldSync = true) {
+        if (shouldSync) {
+            pushMeterStateToCloud(false);
+        }
         const incElec = currentOcrMode === 'electric' || currentOcrMode === 'both';
         const incWater = currentOcrMode === 'water' || currentOcrMode === 'both';
 
@@ -511,7 +592,8 @@
     }
 
     function saveToPersonalLog() {
-        recalculateAll();
+        recalculateAll(false);
+        pushMeterStateToCloud(true);
         logCount++;
         document.getElementById('personalLogCount').innerText = `${logCount} lần tự kiểm tra`;
         const modeText = document.getElementById('resModeBadge').innerText;
@@ -528,7 +610,7 @@
             <div class="fw-bold text-success fs-7">${total}</div>
         `;
         list.prepend(item);
-        showOcrAlert(`📌 Đã lưu kết quả tạm tính (${total}) vào Sổ theo dõi cá nhân của riêng bạn (Không gửi Admin)!`);
+        showOcrAlert(`📌 Đã lưu kết quả tạm tính (${total}) vào Sổ theo dõi cá nhân & đồng bộ sang App Android của bạn (Không gửi Admin)!`);
     }
 
     function showOcrAlert(msg) {
@@ -543,6 +625,8 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        recalculateAll();
+        recalculateAll(false);
+        pullMeterStateFromCloud();
+        setInterval(pullMeterStateFromCloud, 4000);
     });
 </script>
