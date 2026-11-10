@@ -745,11 +745,13 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          m.isPaid ? '🛡️ VietQR NAPAS 247 chính chủ' : '📲 Quét mã này để nộp phần của mình',
+                          m.isPaid
+                              ? '🛡️ TK Định danh Ảo: VA-P305-${m.code} (Sandbox Bảo Mật)'
+                              : '📲 QR Token Sandbox Đồ Án (Ẩn STK thật 100%)',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
-                            color: m.isPaid ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                            color: m.isPaid ? const Color(0xFF16A34A) : const Color(0xFF1D4ED8),
                           ),
                         ),
                       ],
@@ -762,15 +764,15 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                         ? OutlinedButton.icon(
                             onPressed: null,
                             icon: const Icon(Icons.verified_rounded, size: 15, color: Color(0xFF16A34A)),
-                            label: const Text('Đã Đối Soát Chuyển Khoản', style: TextStyle(fontSize: 11, color: Color(0xFF16A34A))),
+                            label: const Text('Đã Đối Soát Qua Cổng Sandbox', style: TextStyle(fontSize: 11, color: Color(0xFF16A34A))),
                           )
                         : ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
                             icon: const Icon(Icons.check_circle_outline, size: 15, color: Colors.white),
-                            label: const Text('Giả Lập Quét VietQR Thanh Toán Ngay', style: TextStyle(fontSize: 11, color: Colors.white)),
+                            label: const Text('⚡ Giả Lập Thanh Toán Sandbox 1 Chạm', style: TextStyle(fontSize: 11, color: Colors.white)),
                             onPressed: () {
                               setState(() => m.isPaid = true);
-                              _showMessage('Ngân hàng báo có: ${m.name} đã chuyển khoản ${AppFormatters.currency(shareAmount.toDouble())} qua VietQR Napas 247! Hóa đơn phòng P.305 đã hoàn tất 100%.');
+                              _showMessage('Webhook Sandbox báo có: ${m.name} đã nộp ${AppFormatters.currency(shareAmount.toDouble())} qua TK Định danh Ảo (VA-P305-${m.code})! Không lộ STK thật — Hóa đơn P.305 đã hoàn tất 100%.');
                             },
                           ),
                   ),

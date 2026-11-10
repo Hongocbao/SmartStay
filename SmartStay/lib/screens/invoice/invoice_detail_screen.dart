@@ -409,19 +409,44 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.qr_code_2_rounded, color: Color(0xFF1D4ED8), size: 28),
+                        const Icon(Icons.verified_user_rounded, color: Color(0xFF1D4ED8), size: 24),
                         const SizedBox(width: 8),
-                        const Text(
-                          'MÃ THANH TOÁN VIETQR CHUẨN NAPAS 247',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E40AF),
-                            letterSpacing: 0.3,
+                        Flexible(
+                          child: Text(
+                            SystemConfig().isSandboxMode
+                                ? 'CỔNG THANH TOÁN ĐỊNH DANH ẢO (SANDBOX ĐỒ ÁN)'
+                                : 'MÃ THANH TOÁN VIETQR CHUẨN NAPAS 247',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E40AF),
+                              letterSpacing: 0.3,
+                            ),
                           ),
                         ),
                       ],
                     ),
+                    if (SystemConfig().isSandboxMode) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
+                        ),
+                        child: const Text(
+                          '🛡️ Bảo mật Đồ Án: Dùng Tài khoản Định danh Ảo (Masked VA) — Không lộ STK ngân hàng thật',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF047857),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 14),
 
                     // Khung ảnh VietQR thật
@@ -474,27 +499,76 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                         style: TextStyle(fontSize: 10, color: Color(0xFF475569))),
                     const SizedBox(height: 16),
 
-                    // Thông tin chuyển khoản chi tiết
-                    _buildBankInfoRow('Ngân hàng', SystemConfig().bank.fullName, SystemConfig().bank.shortName),
-                    _buildBankInfoRow('Số tài khoản', SystemConfig().accountNumber, SystemConfig().accountNumber, isCopyable: true),
-                    _buildBankInfoRow('Chủ tài khoản', SystemConfig().accountHolder, ''),
+                    // Thông tin chuyển khoản chi tiết (Tài khoản Định danh Ảo hóa không lộ STK thật)
+                    _buildBankInfoRow(
+                      'Cổng thanh toán',
+                      SystemConfig().isSandboxMode
+                          ? 'SmartStay FinTech Sandbox (Tokenized VA)'
+                          : SystemConfig().bank.fullName,
+                      SystemConfig().bank.shortName,
+                    ),
+                    _buildBankInfoRow(
+                      'Mã TK Định danh Ảo',
+                      SystemConfig().maskedAccountDisplay,
+                      SystemConfig().accountNumber,
+                      isCopyable: true,
+                    ),
+                    _buildBankInfoRow('Đơn vị thụ hưởng', SystemConfig().accountHolder, ''),
                     _buildBankInfoRow('Số tiền', AppFormatters.currency(invoice.remainingAmount),
                         invoice.remainingAmount.round().toString(),
                         isCopyable: true),
-                    _buildBankInfoRow('Nội dung CK', invoice.qrContent, invoice.qrContent, isCopyable: true),
+                    _buildBankInfoRow('Mã tham chiếu', invoice.qrContent, invoice.qrContent, isCopyable: true),
                     const SizedBox(height: 16),
 
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: () => _showSubmitReceiptDialog(invoice),
-                        icon: const Icon(Icons.cloud_upload_outlined),
-                        label: const Text('Tải ảnh biên lai để đối soát nhanh',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final prov = context.read<InvoiceProvider>();
+                          final success = await prov.submitPaymentReceipt(
+                            invoiceId: invoice.invoiceId,
+                            amount: invoice.remainingAmount,
+                            receiptImageUrl: _qrUrl(invoice),
+                            note: 'Thanh toán qua Cổng Sandbox Định danh Ảo (VA-SMARTSTAY-8899)',
+                          );
+                          if (mounted && success) {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  '⚡ Giả lập Webhook Sandbox thành công! Đã ghi nhận giao dịch qua Tài khoản Định danh Ảo (Không cần STK thật).',
+                                ),
+                                backgroundColor: Color(0xFF16A34A),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.bolt_rounded),
+                        label: const Text(
+                          '⚡ Giả Lập Thanh Toán Sandbox 1 Chạm (Không Cần STK Thật)',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
+                          backgroundColor: const Color(0xFF16A34A),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _showSubmitReceiptDialog(invoice),
+                        icon: const Icon(Icons.cloud_upload_outlined),
+                        label: const Text('Hoặc tải biên lai đối soát thủ công',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF2563EB),
+                          side: const BorderSide(color: Color(0xFF2563EB)),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),

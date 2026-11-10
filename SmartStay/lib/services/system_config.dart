@@ -22,10 +22,11 @@ class SystemConfig extends ChangeNotifier {
     BankOption('970407', 'Techcombank', 'Techcombank - Kỹ Thương Việt Nam'),
   ];
 
-  // 1. Cổng thanh toán VietQR
+  // 1. Cổng thanh toán Định danh Ảo & Sandbox Học Thuật (Mặc định bật Sandbox để bảo mật STK tuyệt đối khi bảo vệ Đồ Án)
+  bool isSandboxMode = true;
   String bankBin = '970422';
-  String accountNumber = '0987654321';
-  String accountHolder = 'SMARTSTAY MANAGEMENT';
+  String accountNumber = 'VA-SMARTSTAY-••••8899';
+  String accountHolder = 'QUY NOI KHU SMARTSTAY (SANDBOX)';
 
   // 3. Cổng IoT & Cloud
   String mqttHost = 'mqtt.smartstay.vn:1883';
@@ -43,7 +44,17 @@ class SystemConfig extends ChangeNotifier {
       .map((t) => (t['price'] as num).toDouble())
       .toList();
 
+  String get maskedAccountDisplay => isSandboxMode
+      ? 'VA-SMARTSTAY-••••8899 (Tài khoản Định danh Ảo - Sandbox)'
+      : accountNumber;
+
   String vietQrUrl({required double amount, required String content}) {
+    if (isSandboxMode) {
+      final tokenPayload = Uri.encodeComponent(
+        'SMARTSTAY-SANDBOX-PAY|VA:VA-P305-8899|AMOUNT:${amount.round()}|VND|REF:$content|SECURITY:PCI_DSS_MASKED_DEMO',
+      );
+      return 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&color=1E3A8A&data=$tokenPayload';
+    }
     final info = Uri.encodeComponent(content);
     final holder = Uri.encodeComponent(accountHolder);
     return 'https://img.vietqr.io/image/$bankBin-$accountNumber-compact2.png'
@@ -51,6 +62,7 @@ class SystemConfig extends ChangeNotifier {
   }
 
   void save({
+    bool? isSandboxMode,
     required String bankBin,
     required String accountNumber,
     required String accountHolder,
@@ -60,6 +72,9 @@ class SystemConfig extends ChangeNotifier {
     required String supabaseHost,
     required int heartbeatSeconds,
   }) {
+    if (isSandboxMode != null) {
+      this.isSandboxMode = isSandboxMode;
+    }
     this.bankBin = bankBin;
     this.accountNumber = accountNumber.trim();
     this.accountHolder = accountHolder.trim().toUpperCase();

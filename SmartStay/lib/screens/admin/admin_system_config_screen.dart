@@ -12,6 +12,7 @@ class AdminSystemConfigScreen extends StatefulWidget {
 class _AdminSystemConfigScreenState extends State<AdminSystemConfigScreen> {
   final SystemConfig _cfg = SystemConfig();
 
+  late bool _isSandboxMode;
   late String _selectedBankBin;
   late TextEditingController _accountNumberCtrl;
   late TextEditingController _accountHolderCtrl;
@@ -26,6 +27,7 @@ class _AdminSystemConfigScreenState extends State<AdminSystemConfigScreen> {
   @override
   void initState() {
     super.initState();
+    _isSandboxMode = _cfg.isSandboxMode;
     _selectedBankBin = _cfg.bankBin;
     _accountNumberCtrl = TextEditingController(text: _cfg.accountNumber);
     _accountHolderCtrl = TextEditingController(text: _cfg.accountHolder);
@@ -67,6 +69,7 @@ class _AdminSystemConfigScreenState extends State<AdminSystemConfigScreen> {
         .toList();
 
     _cfg.save(
+      isSandboxMode: _isSandboxMode,
       bankBin: _selectedBankBin,
       accountNumber: _accountNumberCtrl.text,
       accountHolder: _accountHolderCtrl.text,
@@ -139,19 +142,65 @@ class _AdminSystemConfigScreenState extends State<AdminSystemConfigScreen> {
             ),
             const SizedBox(height: 16),
 
-            // 1. Cổng Thanh Toán VietQR NAPAS 247
+            // 1. Cổng Thanh Toán Định Danh Ảo & Sandbox Học Thuật
             _buildSectionCard(
-              icon: Icons.qr_code_2_rounded,
+              icon: Icons.verified_user_rounded,
               iconColor: const Color(0xFF2563EB),
-              title: '1. Cổng Thanh Toán VietQR NAPAS 247',
-              subtitle: 'Tự động gắn mã QR động vào hóa đơn tiền phòng từng căn hộ',
+              title: '1. Cổng Thanh Toán Định Danh Ảo (Virtual Account Sandbox)',
+              subtitle:
+                  'Bảo mật tuyệt đối cho Đồ Án Chuyên Ngành: Mã hóa ẩn STK ngân hàng thật theo chuẩn Tokenization PCI-DSS & Nghị định 13/2023',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: _isSandboxMode
+                          ? const Color(0xFFECFDF5)
+                          : const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _isSandboxMode
+                            ? const Color(0xFFA7F3D0)
+                            : const Color(0xFFFDE68A),
+                      ),
+                    ),
+                    child: SwitchListTile(
+                      dense: true,
+                      value: _isSandboxMode,
+                      activeThumbColor: const Color(0xFF059669),
+                      title: Text(
+                        _isSandboxMode
+                            ? '🛡️ Đang BẬT Chế độ Sandbox Đồ Án (Ẩn STK thật 100%)'
+                            : '🏦 Đang BẬT Chế độ VietQR Ngân hàng thực tế',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      subtitle: Text(
+                        _isSandboxMode
+                            ? 'Sinh mã QR Token nội khu (VA-SMARTSTAY-••••8899). Giảng viên/sinh viên quét thử thoải mái không bao giờ lộ STK thật hay chuyển nhầm tiền thật.'
+                            : 'Sử dụng API VietQR kết nối trực tiếp STK ngân hàng.',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
+                      ),
+                      onChanged: (val) {
+                        setState(() {
+                          _isSandboxMode = val;
+                          if (val) {
+                            _accountNumberCtrl.text = 'VA-SMARTSTAY-••••8899';
+                            _accountHolderCtrl.text =
+                                'QUY NOI KHU SMARTSTAY (SANDBOX)';
+                          }
+                        });
+                      },
+                    ),
+                  ),
                   DropdownButtonFormField<String>(
                     initialValue: _selectedBankBin,
                     decoration: const InputDecoration(
-                      labelText: 'Ngân hàng thụ hưởng',
+                      labelText: 'Ngân hàng đối tác định danh (Virtual Account)',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
@@ -171,7 +220,7 @@ class _AdminSystemConfigScreenState extends State<AdminSystemConfigScreen> {
                   TextField(
                     controller: _accountNumberCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Số tài khoản nhận tiền',
+                      labelText: 'Mã Tài khoản Định danh Ảo (Masked Virtual Account)',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
@@ -180,7 +229,7 @@ class _AdminSystemConfigScreenState extends State<AdminSystemConfigScreen> {
                   TextField(
                     controller: _accountHolderCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Tên chủ tài khoản (In hoa không dấu)',
+                      labelText: 'Tên Quỹ Nội Khu / Đơn vị thụ hưởng Sandbox',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
