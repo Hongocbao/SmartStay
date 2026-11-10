@@ -310,22 +310,25 @@
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="SoPhong">Căn hộ / Số phòng thuê <span class="text-danger">*</span></label>
+                        <label class="form-label" for="SoPhong">Tình trạng căn hộ / Phòng <span class="text-danger">*</span></label>
                         <div class="input-group-custom">
                             <i class="bi bi-door-open prefix-icon"></i>
-                            <select asp-for="SoPhong" class="form-control-custom">
-                                <option value="P.305">P.305 (Studio Cao Cấp - Tầng 3)</option>
-                                <option value="P.101">P.101 (Phòng Standard - Tầng 1)</option>
-                                <option value="P.102">P.102 (Phòng Standard - Tầng 1)</option>
-                                <option value="P.201">P.201 (Studio Ban Công - Tầng 2)</option>
-                                <option value="P.202">P.202 (Studio Ban Công - Tầng 2)</option>
-                                <option value="P.301">P.301 (Studio View Hồ - Tầng 3)</option>
-                                <option value="P.401">P.401 (Duplex 2PN - Tầng 4)</option>
-                                <option value="P.402">P.402 (Duplex 2PN - Tầng 4)</option>
-                                <option value="P.501">P.501 (Penthouse Smart - Tầng 5)</option>
+                            <select asp-for="SoPhong" class="form-control-custom" id="selectSoPhong" onchange="onRoomChanged(this.value)">
+                                <option value="CHUA_CO_PHONG" selected>⭐ Chưa có phòng (Nộp hồ sơ tìm/ghép Co-Living)</option>
+                                <option value="P.305">P.305 (Co-Living Nam - Còn 1 Giường C trống)</option>
+                                <option value="P.302">P.302 (Studio Đơn - Trống nguyên căn)</option>
+                                <option value="P.102">P.102 (Standard Đơn - Trống nguyên căn)</option>
                             </select>
                         </div>
                     </div>
+                </div>
+
+                <!-- Alert giải thích logic thực tế -->
+                <div id="roomGuideBox" class="alert alert-info py-2 px-3 mb-3 border-0 rounded-3 fs-9" style="background: rgba(56, 189, 248, 0.12); color: #38BDF8; font-size: 12px;">
+                    <i class="bi bi-info-circle-fill me-1"></i>
+                    <span id="roomGuideText">
+                        <strong>Người mới chưa có phòng:</strong> Tài khoản của bạn sẽ được tạo ở trạng thái <em>[Ứng viên tìm phòng]</em>. Bạn có thể tra cứu các phòng còn giường trống và gửi nguyện vọng ghép phòng để Cư dân phòng và BQL xét duyệt.
+                    </span>
                 </div>
 
                 <!-- Section 3: Mật khẩu -->
@@ -380,6 +383,17 @@
     </div>
 
     <script>
+        function onRoomChanged(val) {
+            const guideText = document.getElementById('roomGuideText');
+            if (val === 'CHUA_CO_PHONG') {
+                guideText.innerHTML = '<strong>Người mới chưa có phòng:</strong> Tài khoản của bạn sẽ được tạo ở trạng thái <em>[Ứng viên tìm phòng]</em>. Bạn có thể tra cứu các phòng còn giường trống và gửi nguyện vọng ghép phòng để Cư dân phòng và BQL xét duyệt.';
+            } else if (val === 'P.305') {
+                guideText.innerHTML = '<strong>Đăng ký xin ghép vào P.305:</strong> Phòng Co-Living Nam đang còn Giường C trống. Đơn của bạn sẽ được gửi tới Hồ Ngọc Bảo & BQL để biểu quyết chấp thuận trước khi ký hợp đồng.';
+            } else {
+                guideText.innerHTML = '<strong>Đăng ký thuê phòng ' + val + ':</strong> Phòng trống nguyên căn. Yêu cầu của bạn sẽ được gửi tới BQL để xếp lịch hẹn xem phòng và ký hợp đồng lưu trú.';
+            }
+        }
+
         function togglePass(inputId, iconId) {
             const input = document.getElementById(inputId);
             const icon = document.getElementById(iconId);

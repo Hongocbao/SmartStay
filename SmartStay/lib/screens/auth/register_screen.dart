@@ -20,8 +20,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  String _selectedRoom = 'P.305';
-  final List<String> _availableRooms = ['P.101', 'P.102', 'P.201', 'P.202', 'P.301', 'P.305', 'P.401', 'P.402', 'P.501', 'P.502'];
+  String _selectedRoom = 'CHUA_CO_PHONG';
+  final List<Map<String, String>> _availableRooms = [
+    {
+      'code': 'CHUA_CO_PHONG',
+      'label': 'Chưa có phòng (Nộp hồ sơ tìm/ghép phòng)',
+      'desc': 'Dành cho người mới cần tìm phòng hoặc tìm bạn cùng phòng',
+      'icon': 'search',
+    },
+    {
+      'code': 'P.305',
+      'label': 'P.305 (Co-Living Nam - Còn Giường C)',
+      'desc': 'Phòng Nam 3 giường • Đã có Hồ Ngọc Bảo & Nguyễn Dương Bảo',
+      'icon': 'people',
+    },
+    {
+      'code': 'P.302',
+      'label': 'P.302 (Studio Đơn - Trống nguyên căn)',
+      'desc': 'Phòng trống 100% • Sẵn sàng dọn vào ở ngay',
+      'icon': 'door',
+    },
+    {
+      'code': 'P.102',
+      'label': 'P.102 (Standard - Trống nguyên căn)',
+      'desc': 'Phòng đơn tầng 1 • Sẵn sàng cho thuê',
+      'icon': 'door',
+    },
+  ];
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -75,7 +100,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const Icon(Icons.check_circle_rounded, color: Colors.white),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Đăng ký thành công! Chào mừng ${_fullNameController.text.trim()} đến với SmartStay.'),
+                child: Text(
+                  _selectedRoom == 'CHUA_CO_PHONG'
+                      ? 'Đăng ký thành công! Hồ sơ tìm phòng của ${_fullNameController.text.trim()} đã được gửi tới Ban Quản Lý.'
+                      : 'Đăng ký thành công! Hồ sơ cư dân phòng $_selectedRoom của ${_fullNameController.text.trim()} đã được kích hoạt.',
+                ),
               ),
             ],
           ),
@@ -139,7 +168,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2563EB).withOpacity(0.1),
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -183,7 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 16,
                         offset: const Offset(0, 4),
                       ),
@@ -277,13 +306,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _buildFieldLabel('Phòng *'),
+                                _buildFieldLabel('Tình trạng phòng *'),
                                 DropdownButtonFormField<String>(
-                                  value: _selectedRoom,
+                                  initialValue: _selectedRoom,
+                                  isExpanded: true,
                                   decoration: InputDecoration(
                                     filled: true,
                                     fillColor: const Color(0xFFF8FAFC),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
                                       borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -299,8 +329,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   ),
                                   items: _availableRooms.map((room) {
                                     return DropdownMenuItem(
-                                      value: room,
-                                      child: Text(room, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                      value: room['code'],
+                                      child: Text(
+                                        room['label']!,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: room['code'] == 'CHUA_CO_PHONG'
+                                              ? const Color(0xFF2563EB)
+                                              : const Color(0xFF0F172A),
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     );
                                   }).toList(),
                                   onChanged: (val) {
@@ -311,6 +351,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           ),
                         ],
+                      ),
+
+                      // Hộp chỉ dẫn logic thực tế
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _selectedRoom == 'CHUA_CO_PHONG'
+                              ? const Color(0xFFEFF6FF)
+                              : const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _selectedRoom == 'CHUA_CO_PHONG'
+                                ? const Color(0xFFBFDBFE)
+                                : const Color(0xFFBBF7D0),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              _selectedRoom == 'CHUA_CO_PHONG'
+                                  ? Icons.info_outline_rounded
+                                  : Icons.verified_user_outlined,
+                              size: 18,
+                              color: _selectedRoom == 'CHUA_CO_PHONG'
+                                  ? const Color(0xFF2563EB)
+                                  : const Color(0xFF16A34A),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _selectedRoom == 'CHUA_CO_PHONG'
+                                    ? '💡 Đăng ký chưa có phòng: Hệ thống sẽ tạo tài khoản người tìm phòng để bạn nộp nguyện vọng ghép Co-Living hoặc chờ BQL xếp phòng (Không tự tiện chọn bừa phòng người khác).'
+                                    : '✓ Bạn đang đăng ký nộp hồ sơ vào phòng $_selectedRoom. Yêu cầu sẽ được gửi tới Ban Quản Lý và Trưởng phòng để phê duyệt.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: _selectedRoom == 'CHUA_CO_PHONG'
+                                      ? const Color(0xFF1E40AF)
+                                      : const Color(0xFF166534),
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
 
                       const SizedBox(height: 16),
