@@ -123,13 +123,14 @@
 
             <div class="p-3 rounded-3 bg-light border text-center mb-3">
                 <div class="text-muted fs-8">Số tiền cần đóng:</div>
-                <div class="fw-bold fs-5 text-success">1.386.333 đ</div>
+                <div class="fw-bold fs-5 text-success" id="amount-user1">1.386.333 đ</div>
                 <div class="fs-9 text-muted mt-1">Cú pháp: <code>HD1026 P305 BAO1</code></div>
+                <div class="fs-9 text-primary fw-bold mt-1" id="sub-user1">Chia đều: 1/3 hóa đơn</div>
             </div>
 
             <!-- Mã QR VietQR của Bảo 1 -->
             <div class="text-center p-3 rounded-3 bg-white border mb-3">
-                <img src="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=1386333&addInfo=HD1026%20P305%20BAO1%20HONGOCBAO&accountName=SMARTSTAY%20MANAGEMENT" alt="QR Bảo" class="img-fluid rounded border p-1" style="max-height: 180px;">
+                <img id="qr-user1" src="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=1386333&addInfo=HD1026%20P305%20BAO1%20HONGOCBAO&accountName=SMARTSTAY%20MANAGEMENT" alt="QR Bảo" class="img-fluid rounded border p-1" style="max-height: 180px;">
                 <div class="fs-9 text-muted mt-2"><i class="bi bi-shield-check text-success"></i> VietQR NAPAS 247 chính chủ</div>
             </div>
 
@@ -153,13 +154,14 @@
 
             <div class="p-3 rounded-3 bg-light border text-center mb-3">
                 <div class="text-muted fs-8">Số tiền cần đóng:</div>
-                <div class="fw-bold fs-5 text-success">1.386.333 đ</div>
+                <div class="fw-bold fs-5 text-success" id="amount-user2">1.386.333 đ</div>
                 <div class="fs-9 text-muted mt-1">Cú pháp: <code>HD1026 P305 BAO2</code></div>
+                <div class="fs-9 text-primary fw-bold mt-1" id="sub-user2">Chia đều: 1/3 hóa đơn</div>
             </div>
 
             <!-- Mã QR VietQR của Bảo 2 -->
             <div class="text-center p-3 rounded-3 bg-white border mb-3">
-                <img src="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=1386333&addInfo=HD1026%20P305%20BAO2%20DUONGBAO&accountName=SMARTSTAY%20MANAGEMENT" alt="QR Dương Bảo" class="img-fluid rounded border p-1" style="max-height: 180px;">
+                <img id="qr-user2" src="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=1386333&addInfo=HD1026%20P305%20BAO2%20DUONGBAO&accountName=SMARTSTAY%20MANAGEMENT" alt="QR Dương Bảo" class="img-fluid rounded border p-1" style="max-height: 180px;">
                 <div class="fs-9 text-muted mt-2"><i class="bi bi-shield-check text-success"></i> VietQR NAPAS 247 chính chủ</div>
             </div>
 
@@ -183,13 +185,14 @@
 
             <div class="p-3 rounded-3 bg-light border text-center mb-3">
                 <div class="text-muted fs-8">Số tiền cần đóng:</div>
-                <div class="fw-bold fs-5 text-danger">1.386.334 đ</div>
+                <div class="fw-bold fs-5 text-danger" id="amount-user3">1.386.334 đ</div>
                 <div class="fs-9 text-muted mt-1">Cú pháp: <code>HD1026 P305 BAO3</code></div>
+                <div class="fs-9 text-primary fw-bold mt-1" id="sub-user3">Chia đều: 1/3 hóa đơn</div>
             </div>
 
             <!-- Mã QR VietQR của Bảo 3 -->
             <div class="text-center p-3 rounded-3 bg-white border mb-3">
-                <img src="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=1386334&addInfo=HD1026%20P305%20BAO3%20GIABAO&accountName=SMARTSTAY%20MANAGEMENT" alt="QR Gia Bảo" class="img-fluid rounded border p-1" style="max-height: 180px;">
+                <img id="qr-user3" src="https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=1386334&addInfo=HD1026%20P305%20BAO3%20GIABAO&accountName=SMARTSTAY%20MANAGEMENT" alt="QR Gia Bảo" class="img-fluid rounded border p-1" style="max-height: 180px;">
                 <div class="fs-9 text-danger mt-2 fw-semibold"><i class="bi bi-qr-code-scan"></i> Quét mã này để nộp phần của mình</div>
             </div>
 
@@ -230,11 +233,45 @@
     }
 
     function changeSplitMethod(val) {
+        const total = 4159000;
+        const fixedCost = 3800000; // Tiền phòng 3.5tr + Dịch vụ chung 300k chia đều
+        const utilCost = 359000;   // Điện 254k + Nước 105k chia theo ngày ở thực tế
+        let a1 = 1386333, a2 = 1386333, a3 = 1386334;
+
         if (val === 'days') {
-            showSplitAlert('Đã chuyển sang chế độ tính theo số ngày ở thực tế: Bảo 1 (30 ngày), Bảo 2 (30 ngày), Bảo 3 (28 ngày do về quê 2 ngày). Hệ thống đã cập nhật số tiền tương ứng.');
+            // Bảo 1 (30 ngày), Bảo 2 (28 ngày), Bảo 3 (20 ngày - về quê thực tập) -> Tổng 78 ngày
+            const fixedEach = fixedCost / 3;
+            a1 = Math.round(fixedEach + utilCost * (30 / 78));
+            a2 = Math.round(fixedEach + utilCost * (28 / 78));
+            a3 = total - a1 - a2;
+            document.getElementById('sub-user1').innerText = 'Ở thực tế: 30/30 ngày';
+            document.getElementById('sub-user2').innerText = 'Ở thực tế: 28/30 ngày';
+            document.getElementById('sub-user3').innerText = 'Ở thực tế: 20/30 ngày (Về quê 10 ngày)';
+            showSplitAlert('Đã chuyển sang chia theo số ngày ở thực tế: Tiền phòng chia đều, riêng Tiền Điện + Nước chia theo số ngày ở (Bảo 1: 30 ngày, Bảo 2: 28 ngày, Bảo 3: 20 ngày).');
+        } else if (val === 'custom') {
+            a1 = Math.round(total * 0.40);
+            a2 = Math.round(total * 0.30);
+            a3 = total - a1 - a2;
+            document.getElementById('sub-user1').innerText = 'Tỷ lệ thỏa thuận: 40%';
+            document.getElementById('sub-user2').innerText = 'Tỷ lệ thỏa thuận: 30%';
+            document.getElementById('sub-user3').innerText = 'Tỷ lệ thỏa thuận: 30%';
+            showSplitAlert('Đã chuyển sang chia theo tỷ lệ thỏa thuận cá nhân (40% - 30% - 30%).');
         } else {
+            document.getElementById('sub-user1').innerText = 'Chia đều: 1/3 hóa đơn';
+            document.getElementById('sub-user2').innerText = 'Chia đều: 1/3 hóa đơn';
+            document.getElementById('sub-user3').innerText = 'Chia đều: 1/3 hóa đơn';
             showSplitAlert('Đã chuyển sang chế độ chia đều 3 thành viên trong phòng (1/3 tổng chi phí).');
         }
+
+        const fmt = (n) => n.toLocaleString('vi-VN') + ' đ';
+        document.getElementById('amount-user1').innerText = fmt(a1);
+        document.getElementById('amount-user2').innerText = fmt(a2);
+        document.getElementById('amount-user3').innerText = fmt(a3);
+        document.getElementById('collectedAmount').innerText = fmt(a1 + a2);
+        document.getElementById('remainingAmount').innerText = fmt(a3);
+        document.getElementById('qr-user1').src = `https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=${a1}&addInfo=HD1026%20P305%20BAO1%20HONGOCBAO&accountName=SMARTSTAY%20MANAGEMENT`;
+        document.getElementById('qr-user2').src = `https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=${a2}&addInfo=HD1026%20P305%20BAO2%20DUONGBAO&accountName=SMARTSTAY%20MANAGEMENT`;
+        document.getElementById('qr-user3').src = `https://img.vietqr.io/image/970422-0987654321-compact2.png?amount=${a3}&addInfo=HD1026%20P305%20BAO3%20GIABAO&accountName=SMARTSTAY%20MANAGEMENT`;
     }
 
     function showSplitAlert(msg) {

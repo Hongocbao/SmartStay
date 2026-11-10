@@ -35,6 +35,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
   final _listingDescriptionController = TextEditingController();
 
   String _splitMethod = 'equal'; // equal, days, custom
+  bool _isDoorUnlockedTemporarily = false;
+  final Set<String> _claimedListings = {};
 
   final List<_RoommateShare> _roommates = [
     _RoommateShare(
@@ -43,6 +45,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       mssv: '2380600133',
       code: 'BAO1',
       isPaid: true,
+      stayDays: 30,
+      customRatio: 0.40,
     ),
     _RoommateShare(
       name: 'Nguyễn Dương Bảo',
@@ -50,6 +54,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       mssv: '2380600154',
       code: 'BAO2',
       isPaid: true,
+      stayDays: 28,
+      customRatio: 0.30,
     ),
     _RoommateShare(
       name: 'Trần Hoàng Gia Bảo',
@@ -57,6 +63,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       mssv: '2380600178',
       code: 'BAO3',
       isPaid: false,
+      stayDays: 20,
+      customRatio: 0.30,
     ),
   ];
 
@@ -339,16 +347,57 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
   // TAB 1: CHIA TIỀN PHÒNG Ở GHÉP & ĐA MÃ VIETQR (/CuDan/ChiaTien)
   // ===========================================================================
   Widget _buildSplitBill() {
-    final total = double.tryParse(_splitTotalController.text) ?? 4159000;
-    final members = _roommates.length;
-    final perPerson = (total / members).floor();
-    final remainder = total.round() - perPerson * members;
+    // Liên thông trực tiếp với chỉ số Điện/Nước tạm tính từ Tab AI Quét Công Tơ
+    final elecOld = double.tryParse(_meterOldController.text) ?? 1420;
+    final elecNew = double.tryParse(_meterNewController.text) ?? 1540;
+    final elecUsed = elecNew >= elecOld ? elecNew - elecOld : 0.0;
+    final elecCost = TieredUtilityService.calculateElectricity(elecUsed).totalAmount;
 
+    final waterOld = double.tryParse(_waterOldController.text) ?? 84;
+    final waterNew = double.tryParse(_waterNewController.text) ?? 92;
+    final waterUsed = waterNew >= waterOld ? waterNew - waterOld : 0.0;
+    final waterCost = TieredUtilityService.calculateWater(waterUsed).totalAmount;
+
+    const fixedRoomRent = 3500000.0;
+    const commonServiceFee = 300000.0;
+    const fixedSharedTotal = fixedRoomRent + commonServiceFee; // 3.800.000 đ cố định
+    final utilityTotal = elecCost + waterCost;
+    final total = fixedSharedTotal + utilityTotal;
+
+    final members = _roommates.length;
+    final totalStayDays = _roommates
+        .fold<int>(0, (sum, m) => sum + m.stayDays)
+        .clamp(1, 999);
+
+    // Tính số tiền hợp lý theo đời sống cho từng thành viên:
+    // - 'equal': Chia đều 100% hóa đơn cho 3 người
+    // - 'days': Tiền phòng + dịch vụ cố định chia đều 3 người, riêng Tiền Điện + Nước chia theo số ngày ở thực tế!
+    // - 'custom': Chia theo tỷ lệ % thỏa thuận (ví dụ 40% - 30% - 30%)
+    final List<int> memberAmounts = List.generate(members, (idx) {
+      final m = _roommates[idx];
+      if (_splitMethod == 'days') {
+        final fixedPerPerson = fixedSharedTotal / members;
+        final utilityByDays = utilityTotal * (m.stayDays / totalStayDays);
+        return (fixedPerPerson + utilityByDays).round();
+      } else if (_splitMethod == 'custom') {
+        return (total * m.customRatio).round();
+      } else {
+        return (total / members).floor();
+      }
+    });
+    // Cân bằng số tiền lẻ vào thành viên cuối để tổng khớp 100% hóa đơn
+    final sumFirst = memberAmounts.take(members - 1).fold<int>(0, (a, b) => a + b);
+    memberAmounts[members - 1] = (total.round() - sumFirst).clamp(0, total.round());
+
+    final perPerson = (total / members).round();
     final paidCount = _roommates.where((m) => m.isPaid).length;
     final progress = _roommates.isEmpty ? 0.0 : paidCount / _roommates.length;
-    final collectedAmount = paidCount == members
-        ? total
-        : paidCount * perPerson.toDouble();
+    double collectedAmount = 0;
+    for (var i = 0; i < members; i++) {
+      if (_roommates[i].isPaid) {
+        collectedAmount += memberAmounts[i];
+      }
+    }
     final remainingAmount = (total - collectedAmount).clamp(0.0, total);
 
     return _page([
@@ -451,8 +500,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
               childAspectRatio: 2.3,
               children: [
                 _buildMiniFeeBox('Tiền phòng cố định', '3.500.000 đ', const Color(0xFF0F172A)),
-                _buildMiniFeeBox('Điện (120 kWh)', '254.000 đ', const Color(0xFF2563EB)),
-                _buildMiniFeeBox('Nước (8 m³)', '105.000 đ', const Color(0xFF0284C7)),
+                _buildMiniFeeBox('Điện (${elecUsed.toStringAsFixed(0)} kWh)', AppFormatters.currency(elecCost), const Color(0xFF2563EB)),
+                _buildMiniFeeBox('Nước (${waterUsed.toStringAsFixed(0)} m³)', AppFormatters.currency(waterCost), const Color(0xFF0284C7)),
                 _buildMiniFeeBox('Dịch vụ chung', '300.000 đ', const Color(0xFF475569)),
               ],
             ),
@@ -569,7 +618,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
           final cards = _roommates.asMap().entries.map((entry) {
             final idx = entry.key;
             final m = entry.value;
-            final shareAmount = idx == _roommates.length - 1 ? perPerson + remainder : perPerson;
+            final shareAmount = memberAmounts[idx];
             final qrUrl = SystemConfig().vietQrUrl(
               amount: shareAmount.toDouble(),
               content: 'HD1026 P305 ${m.code}',
@@ -634,6 +683,43 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                           ),
                         ),
                         Text('Cú pháp: HD1026 P305 ${m.code}', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                        if (_splitMethod == 'days') ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              InkWell(
+                                onTap: () {
+                                  if (m.stayDays > 1) {
+                                    setState(() => m.stayDays -= 1);
+                                  }
+                                },
+                                child: const Icon(Icons.remove_circle_outline, size: 16, color: Color(0xFF4F46E5)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                child: Text(
+                                  'Ở thực tế: ${m.stayDays}/30 ngày',
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
+                                ),
+                              ),
+                              InkWell(
+                                onTap: () {
+                                  if (m.stayDays < 30) {
+                                    setState(() => m.stayDays += 1);
+                                  }
+                                },
+                                child: const Icon(Icons.add_circle_outline, size: 16, color: Color(0xFF4F46E5)),
+                              ),
+                            ],
+                          ),
+                        ] else if (_splitMethod == 'custom') ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Tỷ lệ thỏa thuận: ${(m.customRatio * 100).round()}% tổng hóa đơn',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF7C3AED)),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -788,9 +874,28 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
               ),
               child: Column(
                 children: [
-                  const Icon(Icons.lock_rounded, size: 42, color: Color(0xFF16A34A)),
+                  Icon(
+                    _isDoorUnlockedTemporarily
+                        ? Icons.lock_open_rounded
+                        : Icons.lock_rounded,
+                    size: 42,
+                    color: _isDoorUnlockedTemporarily
+                        ? const Color(0xFFF59E0B)
+                        : const Color(0xFF16A34A),
+                  ),
                   const SizedBox(height: 6),
-                  const Text('LOCK-A-305 (Trạng Thái: Đang Khóa)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    _isDoorUnlockedTemporarily
+                        ? '🔓 LOCK-A-305 (ĐANG MỞ CỬA — Tự khóa chốt sau 5 giây)'
+                        : '🔒 LOCK-A-305 (Trạng Thái: Đang Khóa An Toàn)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: _isDoorUnlockedTemporarily
+                          ? const Color(0xFFD97706)
+                          : const Color(0xFF0F172A),
+                    ),
+                  ),
                   const Text('Mức pin: 92% (Tốt) • WiFi: Mạnh', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                   const SizedBox(height: 6),
                   _buildPillBadge('Mã PIN Thường Trực: 305888', const Color(0xFFECFDF5), const Color(0xFF059669)),
@@ -802,15 +907,25 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
               width: double.infinity,
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.lock_open_rounded, color: Color(0xFF16A34A)),
-                label: const Text('Mở Cửa Ngay Từ Xa (Remote Unlock)', style: TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.bold)),
+                label: Text(
+                  _isDoorUnlockedTemporarily
+                      ? 'Cửa Đang Mở (Sẽ tự khóa sau 5 giây...)'
+                      : 'Mở Cửa Ngay Từ Xa (Remote Unlock)',
+                  style: const TextStyle(color: Color(0xFF16A34A), fontWeight: FontWeight.bold),
+                ),
                 style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFF16A34A))),
-                onPressed: admin.isLoading
+                onPressed: admin.isLoading || _isDoorUnlockedTemporarily
                     ? null
                     : () async {
                         await admin.remoteUnlockRoom('P.305');
-                        if (mounted) {
-                          _showMessage('Đã gửi lệnh mở khóa qua giao thức MQTT tới khóa phòng P.305! Cửa đã được mở thành công.');
-                        }
+                        if (!mounted) return;
+                        setState(() => _isDoorUnlockedTemporarily = true);
+                        _showMessage('Đã gửi lệnh mở khóa qua giao thức MQTT tới khóa phòng P.305! Khóa sẽ tự động chốt lại sau 5 giây.');
+                        Future.delayed(const Duration(seconds: 5), () {
+                          if (mounted) {
+                            setState(() => _isDoorUnlockedTemporarily = false);
+                          }
+                        });
                       },
               ),
             ),
@@ -1875,6 +1990,35 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                     ),
                   ),
 
+                // Cảnh báo nếu nhập nhầm Chỉ số mới < Chỉ số kỳ trước (Đồng hồ không quay ngược)
+                if ((includeElectric && elecNew < elecOld) ||
+                    (includeWater && waterNew < waterOld))
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFCA5A5)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 22),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '⚠️ Lưu ý: Chỉ số ảnh mới đang nhỏ hơn chỉ số kỳ thanh toán trước! Đồng hồ công tơ chạy lũy kế một chiều (không quay ngược) — vui lòng kiểm tra lại số vừa nhập.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF991B1B),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 // Cảnh báo mức tiêu thụ so với trung bình
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -2585,19 +2729,36 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                           ],
                         ),
                         ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
-                          icon: Icon(isFree ? Icons.card_giftcard_rounded : Icons.add_shopping_cart_rounded, size: 15, color: Colors.white),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _claimedListings.contains(item.title)
+                                ? const Color(0xFF64748B)
+                                : const Color(0xFF16A34A),
+                          ),
+                          icon: Icon(
+                            _claimedListings.contains(item.title)
+                                ? Icons.check_circle_rounded
+                                : (isFree
+                                    ? Icons.card_giftcard_rounded
+                                    : Icons.add_shopping_cart_rounded),
+                            size: 15,
+                            color: Colors.white,
+                          ),
                           label: Text(
-                            isFree ? 'Xin Nhận Sách' : 'Nhắn Mua Ngay',
+                            _claimedListings.contains(item.title)
+                                ? '✓ Đã Đặt Giữ Chỗ'
+                                : (isFree ? 'Xin Nhận Miễn Phí' : 'Nhắn Mua Ngay'),
                             style: const TextStyle(fontSize: 12, color: Colors.white),
                           ),
-                          onPressed: () {
-                            _showMessage(
-                              isFree
-                                  ? 'Đã gửi yêu cầu xin nhận "${item.title}" tới bạn ${item.sellerName}! Bạn có thể ghé phòng ${item.room} để nhận đồ.'
-                                  : 'Đã kết nối chat trực tiếp với người bán ${item.sellerName} để mua "${item.title}" (${AppFormatters.currency(item.price.toDouble())})!',
-                            );
-                          },
+                          onPressed: _claimedListings.contains(item.title)
+                              ? null
+                              : () {
+                                  setState(() => _claimedListings.add(item.title));
+                                  _showMessage(
+                                    isFree
+                                        ? 'Đã đặt giữ chỗ nhận miễn phí "${item.title}" từ bạn ${item.sellerName}! Bạn có thể ghé phòng ${item.room} để nhận đồ.'
+                                        : 'Đã đặt giữ chỗ & kết nối chat trực tiếp với người bán ${item.sellerName} để mua "${item.title}" (${AppFormatters.currency(item.price.toDouble())})!',
+                                  );
+                                },
                         ),
                       ],
                     ),
@@ -2765,6 +2926,8 @@ class _RoommateShare {
   final String mssv;
   final String code;
   bool isPaid;
+  int stayDays;
+  double customRatio;
 
   _RoommateShare({
     required this.name,
@@ -2772,6 +2935,8 @@ class _RoommateShare {
     required this.mssv,
     required this.code,
     required this.isPaid,
+    this.stayDays = 30,
+    this.customRatio = 0.333,
   });
 }
 
