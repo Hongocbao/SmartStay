@@ -427,10 +427,13 @@ class _MainLayoutState extends State<MainLayout> {
         ? fullName.trim().split(' ').first.toUpperCase()
         : 'HB';
     final roleBadge = auth.isAdmin ? 'QuanLy_KyThuat' : 'CuDan';
+    final isCompact = MediaQuery.of(context).size.width < 600;
+    final rawTitle = _getCurrentPageTitle(auth.isAdmin, safeIndex);
+    final displayTitle = isCompact ? rawTitle.replaceAll(' - SmartStay', '') : rawTitle;
 
     return Container(
       height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 20),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(
@@ -440,20 +443,25 @@ class _MainLayoutState extends State<MainLayout> {
       child: Row(
         children: [
           if (!isDesktop) ...[
-            IconButton(
-              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-              icon: const Icon(Icons.menu_rounded, color: Color(0xFF0F172A)),
-              tooltip: 'Mở danh mục tính năng',
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+                icon: const Icon(Icons.menu_rounded, color: Color(0xFF0F172A)),
+                tooltip: 'Mở danh mục tính năng',
+              ),
             ),
             const SizedBox(width: 4),
           ],
           Expanded(
             child: Text(
-              _getCurrentPageTitle(auth.isAdmin, safeIndex),
-              style: const TextStyle(
-                fontSize: 16,
+              displayTitle,
+              style: TextStyle(
+                fontSize: isCompact ? 14 : 16,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF1E293B),
+                color: const Color(0xFF1E293B),
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -491,7 +499,7 @@ class _MainLayoutState extends State<MainLayout> {
           ],
           // User Pill
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 10, vertical: isCompact ? 4 : 5),
             decoration: BoxDecoration(
               color: const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(30),
@@ -501,7 +509,7 @@ class _MainLayoutState extends State<MainLayout> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircleAvatar(
-                  radius: 14,
+                  radius: isCompact ? 12 : 14,
                   backgroundColor: const Color(0xFF2563EB),
                   child: Text(
                     initials.length > 3 ? initials.substring(0, 3) : initials,
@@ -512,57 +520,81 @@ class _MainLayoutState extends State<MainLayout> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      fullName,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A),
-                        height: 1.1,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        roleBadge,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
+                const SizedBox(width: 6),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: isCompact ? 92 : 160),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fullName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: isCompact ? 11 : 12,
                           fontWeight: FontWeight.bold,
+                          color: const Color(0xFF0F172A),
+                          height: 1.1,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2563EB),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          isCompact ? (auth.isAdmin ? 'Admin' : 'Cư dân') : roleBadge,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          // Nút Đăng xuất giống bản Web
-          OutlinedButton.icon(
-            onPressed: auth.logout,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFDC2626),
-              side: const BorderSide(color: Color(0xFFFCA5A5)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          SizedBox(width: isCompact ? 6 : 10),
+          // Nút Đăng xuất giống bản Web (40x40 IconButton gọn trên mobile 375px)
+          if (isCompact)
+            Tooltip(
+              message: 'Đăng xuất',
+              child: InkWell(
+                onTap: auth.logout,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                  ),
+                  child: const Icon(Icons.logout_rounded, size: 18, color: Color(0xFFDC2626)),
+                ),
+              ),
+            )
+          else
+            OutlinedButton.icon(
+              onPressed: auth.logout,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFDC2626),
+                side: const BorderSide(color: Color(0xFFFCA5A5)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              icon: const Icon(Icons.logout_rounded, size: 15),
+              label: const Text(
+                'Đăng xuất',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
             ),
-            icon: const Icon(Icons.logout_rounded, size: 15),
-            label: const Text(
-              'Đăng xuất',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-          ),
         ],
       ),
     );
@@ -681,6 +713,67 @@ class _MainLayoutState extends State<MainLayout> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 900;
 
+    final List<int> mobileScreenMap = auth.isAdmin ? const [0, 1, 2, 4] : const [0, 1, 2, 3];
+    final List<BottomNavigationBarItem> mobileNavItems = auth.isAdmin
+        ? const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard_outlined),
+              activeIcon: Icon(Icons.dashboard_rounded),
+              label: 'Điều hành',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.grid_view_outlined),
+              activeIcon: Icon(Icons.grid_view_rounded),
+              label: 'Phòng',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.build_circle_outlined),
+              activeIcon: Icon(Icons.build_circle_rounded),
+              label: 'Kanban',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long_outlined),
+              activeIcon: Icon(Icons.receipt_long_rounded),
+              label: 'Tài chính',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.menu_open_rounded),
+              activeIcon: Icon(Icons.menu_open_rounded),
+              label: 'Danh mục',
+            ),
+          ]
+        : const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home_rounded),
+              label: 'Trang chủ',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long_outlined),
+              activeIcon: Icon(Icons.receipt_long_rounded),
+              label: 'Hóa đơn',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.apps_outlined),
+              activeIcon: Icon(Icons.apps_rounded),
+              label: 'Tiện ích',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.smart_toy_outlined),
+              activeIcon: Icon(Icons.smart_toy_rounded),
+              label: 'Trợ lý AI',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.menu_open_rounded),
+              activeIcon: Icon(Icons.menu_open_rounded),
+              label: 'Danh mục',
+            ),
+          ];
+
+    final mappedMobileIdx = mobileScreenMap.indexOf(safeIndex);
+    final mobileNavCurrentIdx = mappedMobileIdx != -1 ? mappedMobileIdx : 4;
+    assert(navItems.length >= mobileNavItems.length);
+
     return Scaffold(
       key: _scaffoldKey,
       drawer: isDesktop
@@ -722,8 +815,14 @@ class _MainLayoutState extends State<MainLayout> {
               ),
               child: SafeArea(
                 child: BottomNavigationBar(
-                  currentIndex: safeIndex,
-                  onTap: (idx) => _onTabSelected(idx),
+                  currentIndex: mobileNavCurrentIdx,
+                  onTap: (idx) {
+                    if (idx == 4) {
+                      _scaffoldKey.currentState?.openDrawer();
+                    } else {
+                      _onTabSelected(mobileScreenMap[idx]);
+                    }
+                  },
                   type: BottomNavigationBarType.fixed,
                   backgroundColor: Colors.white,
                   selectedItemColor: auth.isAdmin
@@ -733,7 +832,7 @@ class _MainLayoutState extends State<MainLayout> {
                   selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                   unselectedLabelStyle: const TextStyle(fontSize: 11),
                   elevation: 0,
-                  items: navItems,
+                  items: mobileNavItems,
                 ),
               ),
             ),

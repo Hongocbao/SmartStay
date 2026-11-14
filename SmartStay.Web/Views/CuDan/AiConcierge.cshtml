@@ -134,18 +134,21 @@
         sendUserMessage();
     }
 
+    function escapeAiHtml(s) {
+        return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     function sendUserMessage() {
         const input = document.getElementById('userMsgInput');
         const text = input.value.trim();
         if (!text) return;
 
-        appendMessage('user', text);
+        appendMessage('user', escapeAiHtml(text));
         input.value = '';
 
-        // Giả lập xử lý Agentic AI
         setTimeout(() => {
             processAiAgentResponse(text);
-        }, 800);
+        }, 450);
     }
 
     function appendMessage(sender, text, actionCard = null) {
@@ -178,11 +181,25 @@
         container.scrollTop = container.scrollHeight;
     }
 
-    function processAiAgentResponse(userQuery) {
+    async function processAiAgentResponse(userQuery) {
         const q = userQuery.toLowerCase();
         const actionBox = document.getElementById('aiActionBox');
 
         if (q.includes('rỉ nước') || q.includes('vòi sen') || q.includes('sửa') || q.includes('hỏng')) {
+            const ticketCode = `SC-2026-${Math.floor(100 + Math.random() * 899)}`;
+            fetch('/api/sync/su-co', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    SoPhieuSuCo: ticketCode,
+                    KyHieuPhong: 'P.305',
+                    TieuDe: userQuery.slice(0, 80),
+                    MoTa: `Tạo tự động bởi AI Agent: ${userQuery}`,
+                    UuTien: 'Khẩn cấp',
+                    TrangThai: 'Chờ xử lý'
+                })
+            }).catch(() => {});
+
             // Tự động tạo ticket Kanban
             actionBox.innerHTML = `
                 <div class="d-flex align-items-center gap-2 mb-2">
@@ -190,26 +207,26 @@
                 </div>
                 <div class="fs-8">
                     <div><strong>Phòng:</strong> P.305 (Hồ Ngọc Bảo)</div>
-                    <div><strong>Vấn đề:</strong> Rò rỉ nước vòi sen</div>
+                    <div><strong>Vấn đề:</strong> ${escapeAiHtml(userQuery)}</div>
                     <div><strong>Mức độ:</strong> Khẩn cấp (Xử lý trong 2h)</div>
                     <div><strong>Kỹ thuật phụ trách:</strong> Nguyễn Văn Bình</div>
-                    <div class="text-success fw-bold mt-1"><i class="bi bi-check-circle me-1"></i>Phiếu SC-2026-095 đã được đẩy lên Bảng Kanban!</div>
+                    <div class="text-success fw-bold mt-1"><i class="bi bi-check-circle me-1"></i>Phiếu ${ticketCode} đã đẩy Realtime lên Bảng Kanban!</div>
                 </div>
             `;
 
             const card = `
                 <div class="p-2 rounded-3 bg-white border mt-2 border-danger-subtle">
                     <div class="d-flex justify-content-between">
-                        <span class="badge bg-danger text-white fs-9">SC-2026-095 • Khẩn cấp</span>
-                        <span class="fs-9 text-muted">Vừa tạo</span>
+                        <span class="badge bg-danger text-white fs-9">${ticketCode} • Khẩn cấp</span>
+                        <span class="fs-9 text-muted">Đã đồng bộ Kanban</span>
                     </div>
-                    <div class="fw-bold mt-1 text-slate-900 fs-8">Rò rỉ nước vòi sen phòng tắm P.305</div>
-                    <div class="fs-9 text-muted">Kỹ thuật viên <strong>Nguyễn Văn Bình</strong> đã nhận nhiệm vụ và sẽ có mặt trong 30 phút.</div>
+                    <div class="fw-bold mt-1 text-slate-900 fs-8">${escapeAiHtml(userQuery)} (Phòng P.305)</div>
+                    <div class="fs-9 text-muted">Đã gửi sang Kanban Kỹ thuật viên <strong>Nguyễn Văn Bình</strong> tiếp nhận.</div>
                 </div>
             `;
 
-            appendMessage('bot', 'Tôi đã nhận diện được sự cố khẩn cấp tại phòng bạn và **đã tự động tạo phiếu sửa chữa SC-2026-095** trên hệ thống Ban Quản Lý!', card);
-            showAiAlert('AI Agent đã tự động tạo thành công 1 Ticket sự cố mới trên bảng Kanban!');
+            appendMessage('bot', `Tôi đã nhận diện sự cố tại phòng bạn và <strong>đã tự động tạo phiếu ${ticketCode}</strong> đồng bộ lên Bảng Kanban Ban Quản Lý!`, card);
+            showAiAlert(`AI Agent đã tạo và đồng bộ phiếu ${ticketCode} sang Bảng Kanban!`);
         } else if (q.includes('tiền điện') || q.includes('hóa đơn') || q.includes('cao')) {
             actionBox.innerHTML = `
                 <div class="d-flex align-items-center gap-2 mb-2">
@@ -235,8 +252,23 @@
                 </div>
             `;
 
-            appendMessage('bot', 'Tôi đã kiểm tra dữ liệu công tơ của phòng bạn: Tháng 10 bạn tiêu thụ **120 kWh** (tăng 30 kWh so với tháng 9). Tiền điện tăng do 20 kWh cuối bị tính theo **Bậc 3 giá cao**.', breakdown);
+            appendMessage('bot', 'Tôi đã kiểm tra dữ liệu công tơ của phòng bạn: Tháng 10 bạn tiêu thụ <strong>120 kWh</strong> (tăng 30 kWh so với tháng 9). Tiền điện tăng do 20 kWh cuối bị tính theo <strong>Bậc 3 giá cao</strong>.', breakdown);
         } else {
+            try {
+                const res = await fetch('/api/tro-ly/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ TinNhan: userQuery })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const reply = (data.traLoi || data.TraLoi || '').replace(/\n/g, '<br/>');
+                    if (reply) {
+                        appendMessage('bot', reply);
+                        return;
+                    }
+                }
+            } catch (e) { }
             appendMessage('bot', 'Quy định giữ xe qua đêm của SmartStay: Miễn phí gửi xe máy cho cư dân đã đăng ký biển số. Đối với khách vãng lai, phí gửi qua đêm là 10.000đ/đêm (từ 23:00 đến 06:00 sáng hôm sau). Bạn có thể cấp mã khách trên ứng dụng để khách được miễn phí!');
         }
     }

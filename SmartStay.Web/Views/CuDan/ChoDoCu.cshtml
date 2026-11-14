@@ -29,10 +29,10 @@
 
 <!-- Bộ lọc danh mục -->
 <div class="d-flex flex-wrap gap-2 mb-4">
-    <button class="btn btn-sm btn-outline-secondary rounded-pill active" onclick="filterEco('all')">Tất cả (6 món)</button>
-    <button class="btn btn-sm btn-outline-success rounded-pill" onclick="filterEco('free')">🎁 Tặng miễn phí (0đ)</button>
-    <button class="btn btn-sm btn-outline-primary rounded-pill" onclick="filterEco('electronics')">Thiết bị điện gia dụng</button>
-    <button class="btn btn-sm btn-outline-warning rounded-pill" onclick="filterEco('study')">Bàn ghế & Giáo trình</button>
+    <button id="ecoFilterAll" class="btn btn-sm btn-outline-secondary rounded-pill active eco-filter-btn" onclick="filterEco('all', this)">Tất cả (<span id="ecoTotalCount">6</span> món)</button>
+    <button class="btn btn-sm btn-outline-success rounded-pill eco-filter-btn" onclick="filterEco('free', this)">🎁 Tặng miễn phí (0đ)</button>
+    <button class="btn btn-sm btn-outline-primary rounded-pill eco-filter-btn" onclick="filterEco('electronics', this)">Thiết bị điện gia dụng</button>
+    <button class="btn btn-sm btn-outline-warning rounded-pill eco-filter-btn" onclick="filterEco('study', this)">Bàn ghế &amp; Giáo trình</button>
 </div>
 
 <!-- Lưới sản phẩm đồ cũ -->
@@ -163,7 +163,15 @@
         showEcoAlert(`Đã gửi yêu cầu xin nhận "${name}" tới bạn ${giver}! Bạn có thể ghé phòng ${giver.match(/\((.*?)\)/)[1]} để nhận đồ.`);
     }
 
-    function filterEco(type) {
+    function updateEcoCount() {
+        const cnt = document.querySelectorAll('#ecoGrid .eco-item').length;
+        const el = document.getElementById('ecoTotalCount');
+        if (el) el.innerText = cnt.toString();
+    }
+
+    function filterEco(type, btn) {
+        document.querySelectorAll('.eco-filter-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
         const items = document.querySelectorAll('.eco-item');
         items.forEach(el => {
             if (type === 'all' || el.getAttribute('data-type') === type) {
@@ -207,7 +215,10 @@
         `;
 
         document.getElementById('ecoGrid').insertAdjacentHTML('afterbegin', newCard);
-        bootstrap.Modal.getInstance(document.getElementById('modalPostItem')).hide();
+        updateEcoCount();
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalPostItem'));
+        if (modal) modal.hide();
+        filterEco('all', document.getElementById('ecoFilterAll'));
         showEcoAlert(`Đã đăng món đồ "${title}" lên sàn trao đổi nội khu Co-Living thành công!`);
     }
 

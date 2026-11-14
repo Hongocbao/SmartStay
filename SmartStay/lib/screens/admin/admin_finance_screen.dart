@@ -710,7 +710,7 @@ class _AdminFinanceScreenState extends State<AdminFinanceScreen> {
                   width: 210,
                   height: 210,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const SizedBox(
+                  errorBuilder: (_, _, _) => const SizedBox(
                     width: 180,
                     height: 180,
                     child: Center(child: Icon(Icons.qr_code_2_rounded, size: 120, color: Color(0xFF1E293B))),

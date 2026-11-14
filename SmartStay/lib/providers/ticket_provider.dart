@@ -223,6 +223,14 @@ class TicketProvider extends ChangeNotifier {
         activityLogs: List<TicketActivityLogModel>.from(t.activityLogs)..add(log),
       );
       notifyListeners();
+      _supabase.syncTicket(
+        ticketCode: t.ticketCode,
+        roomCode: t.roomCode,
+        title: t.title,
+        description: '${t.description} (KTV: $techName)',
+        priority: t.priority,
+        status: t.status,
+      );
     }
   }
 
@@ -245,6 +253,14 @@ class TicketProvider extends ChangeNotifier {
         activityLogs: List<TicketActivityLogModel>.from(t.activityLogs)..add(log),
       );
       notifyListeners();
+      _supabase.syncTicket(
+        ticketCode: t.ticketCode,
+        roomCode: t.roomCode,
+        title: t.title,
+        description: t.description,
+        priority: t.priority,
+        status: 'Đang sửa',
+      );
     }
   }
 
@@ -271,6 +287,14 @@ class TicketProvider extends ChangeNotifier {
         activityLogs: List<TicketActivityLogModel>.from(t.activityLogs)..add(log),
       );
       notifyListeners();
+      _supabase.syncTicket(
+        ticketCode: t.ticketCode,
+        roomCode: t.roomCode,
+        title: t.title,
+        description: t.description,
+        priority: t.priority,
+        status: 'Hoàn thành',
+      );
     }
   }
 
@@ -293,6 +317,14 @@ class TicketProvider extends ChangeNotifier {
         activityLogs: List<TicketActivityLogModel>.from(t.activityLogs)..add(log),
       );
       notifyListeners();
+      _supabase.syncTicket(
+        ticketCode: t.ticketCode,
+        roomCode: t.roomCode,
+        title: t.title,
+        description: t.description,
+        priority: t.priority,
+        status: newStatus,
+      );
     }
   }
 }

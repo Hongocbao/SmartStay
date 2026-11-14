@@ -251,7 +251,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withOpacity(0.1),
+                              color: const Color(0xFF2563EB).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Text(
@@ -284,9 +284,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          color: _roleBannerColor.withOpacity(0.08),
+                          color: _roleBannerColor.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: _roleBannerColor.withOpacity(0.2)),
+                          border: Border.all(color: _roleBannerColor.withValues(alpha: 0.2)),
                         ),
                         child: Row(
                           children: [
@@ -455,22 +455,33 @@ class _LoginScreenState extends State<LoginScreen> {
                           Expanded(
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                               onPressed: () => _fillQuickAccount('2380600133', '123456'),
-                              child: const Text('Cư dân\n(P.305)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
+                              child: const Text('Cư dân\n(P.305)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10.5)),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Expanded(
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                               onPressed: () => _fillQuickAccount('admin', '123456'),
-                              child: const Text('Ban Quản lý & Kỹ thuật\n(Admin / Tech)', textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
+                              child: const Text('Quản lý\n(Admin)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10.5)),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onPressed: () => _fillQuickAccount('kythuat', '123456'),
+                              child: const Text('Kỹ thuật\n(KTV)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10.5)),
                             ),
                           ),
                         ],
@@ -500,7 +511,7 @@ class _LoginScreenState extends State<LoginScreen> {
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
+                      color: Colors.black.withValues(alpha: 0.06),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     )

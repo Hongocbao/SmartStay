@@ -11,12 +11,12 @@
 
 <div class="card-custom mb-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div class="d-flex align-items-center gap-3">
+        <div class="d-flex flex-wrap align-items-center gap-2">
             <span class="fs-7 fw-bold text-slate-800"><i class="bi bi-kanban me-2 text-primary"></i>QUY TRÌNH 3 BƯỚC:</span>
             <span class="badge bg-secondary-subtle text-secondary px-3 py-2 rounded-pill">1. Chờ xử lý</span>
-            <i class="bi bi-arrow-right text-muted"></i>
+            <i class="bi bi-arrow-right text-muted d-none d-sm-inline"></i>
             <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill">2. Đang sửa</span>
-            <i class="bi bi-arrow-right text-muted"></i>
+            <i class="bi bi-arrow-right text-muted d-none d-sm-inline"></i>
             <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill">3. Hoàn thành & Đánh giá</span>
         </div>
         <button class="btn btn-sm btn-primary rounded-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#newTicketModal">
@@ -25,10 +25,18 @@
     </div>
 </div>
 
+<!-- Bộ lọc nhanh cột Kanban trên thiết bị di động -->
+<div class="d-flex d-lg-none flex-wrap gap-2 mb-3">
+    <button type="button" class="btn btn-sm btn-primary rounded-pill kanban-mob-tab" onclick="filterKanbanMobile('all', this)">Tất cả (3)</button>
+    <button type="button" class="btn btn-sm btn-outline-warning rounded-pill kanban-mob-tab" onclick="filterKanbanMobile('pending', this)">1. Chờ xử lý</button>
+    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill kanban-mob-tab" onclick="filterKanbanMobile('inprogress', this)">2. Đang sửa</button>
+    <button type="button" class="btn btn-sm btn-outline-success rounded-pill kanban-mob-tab" onclick="filterKanbanMobile('completed', this)">3. Hoàn thành</button>
+</div>
+
 <!-- 3 Cột Kanban -->
 <div class="row g-4">
     <!-- CỘT 1: CHỜ XỬ LÝ -->
-    <div class="col-lg-4">
+    <div class="col-lg-4 kanban-col-wrap" data-col="pending">
         <div class="kanban-col">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="fw-bold mb-0 text-slate-800">
@@ -58,7 +66,7 @@
     </div>
 
     <!-- CỘT 2: ĐANG SỬA -->
-    <div class="col-lg-4">
+    <div class="col-lg-4 kanban-col-wrap" data-col="inprogress">
         <div class="kanban-col" style="background: #EEF2FF;">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="fw-bold mb-0 text-primary">
@@ -113,7 +121,7 @@
     </div>
 
     <!-- CỘT 3: HOÀN THÀNH -->
-    <div class="col-lg-4">
+    <div class="col-lg-4 kanban-col-wrap" data-col="completed">
         <div class="kanban-col" style="background: #F0FDF4;">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="fw-bold mb-0 text-success">
@@ -207,34 +215,63 @@
 </div>
 
 <script>
+    function escapeHtml(str) {
+        return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+    }
+
+    function updateKanbanCounts() {
+        const c1 = document.querySelectorAll('#colPending .kanban-card').length;
+        const c2 = document.querySelectorAll('#colInProgress .kanban-card').length;
+        const c3 = document.querySelectorAll('#colCompleted .kanban-card').length;
+        document.getElementById('badgeCol1').innerText = `${c1} Ticket${c1 > 1 ? 's' : ''}`;
+        document.getElementById('badgeCol2').innerText = `${c2} Ticket${c2 > 1 ? 's' : ''}`;
+        document.getElementById('badgeCol3').innerText = `${c3} Ticket${c3 > 1 ? 's' : ''}`;
+    }
+
+    function filterKanbanMobile(col, btn) {
+        document.querySelectorAll('.kanban-mob-tab').forEach(b => b.classList.remove('active', 'fw-bold'));
+        if (btn) btn.classList.add('active', 'fw-bold');
+        document.querySelectorAll('.kanban-col-wrap').forEach(el => {
+            el.classList.toggle('d-none', col !== 'all' && el.getAttribute('data-col') !== col);
+        });
+    }
+
     function assignTechnician(cardId, code, room, desc, priority) {
         const ktv = prompt(`Chọn Kỹ thuật viên phụ trách phiếu ${code} (${room}):\n1. Nguyễn Văn Bình (Chuyên Điện Lạnh)\n2. Trần Văn Tuấn (Chuyên Điện Nước)\n3. Lê Minh Khang (Chuyên Khóa IoT)`, "Nguyễn Văn Bình");
         if (ktv) {
             const cardEl = document.getElementById(cardId);
             if (cardEl) cardEl.remove();
 
+            const safeCode = escapeHtml(code);
+            const safeRoom = escapeHtml(room);
+            const safeDesc = escapeHtml(desc);
+            const safePriority = escapeHtml(priority || 'Cao');
+            const safeKtv = escapeHtml(ktv);
+            const badgeCls = safePriority.toLowerCase().includes('khẩn') ? 'bg-danger text-white' : 'bg-warning text-dark';
+
             const newCard = `
-                <div class="kanban-card border-primary-subtle shadow-sm mb-3" id="${cardId}">
+                <div class="kanban-card border-primary-subtle shadow-sm mb-3" id="${cardId}" data-code="${safeCode}">
                     <div class="d-flex justify-content-between align-items-start mb-2">
-                        <span class="badge bg-danger text-white fs-9">${priority}</span>
-                        <span class="fs-8 fw-bold text-muted">${code}</span>
+                        <span class="badge ${badgeCls} fs-9">${safePriority}</span>
+                        <span class="fs-8 fw-bold text-muted">${safeCode}</span>
                     </div>
-                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">${desc}</h6>
-                    <p class="text-muted fs-8 mb-2">Phòng ${room} - Đã phân công KTV tiếp nhận tại căn hộ.</p>
+                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">${safeDesc}</h6>
+                    <p class="text-muted fs-8 mb-2">Phòng ${safeRoom} - Đã phân công KTV tiếp nhận tại căn hộ.</p>
                     <div class="p-2 rounded-2 bg-light fs-8 text-slate-700 mb-2">
-                        <i class="bi bi-person-check-fill text-primary me-1"></i> Kỹ thuật: <strong>${ktv}</strong>
+                        <i class="bi bi-person-check-fill text-primary me-1"></i> Kỹ thuật: <strong>${safeKtv}</strong>
                     </div>
                     <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                        <span class="badge bg-primary-subtle text-primary fs-8">${room}</span>
-                        <button class="btn btn-xs btn-success rounded-pill px-3 py-1 fs-8 shadow-sm" onclick="completeTicket('${cardId}', '${code}', '${room}', 'Cư dân', '${desc}')">
+                        <span class="badge bg-primary-subtle text-primary fs-8">${safeRoom}</span>
+                        <button class="btn btn-xs btn-success rounded-pill px-3 py-1 fs-8 shadow-sm btn-complete-ticket">
                             <i class="bi bi-check2-circle me-1"></i> Hoàn thành
                         </button>
                     </div>
                 </div>
             `;
             document.getElementById('colInProgress').insertAdjacentHTML('afterbegin', newCard);
-            document.getElementById('badgeCol1').innerText = '0 Ticket';
-            document.getElementById('badgeCol2').innerText = '3 Tickets';
+            const inserted = document.getElementById(cardId);
+            inserted.querySelector('.btn-complete-ticket').addEventListener('click', () => completeTicket(cardId, code, room, 'Cư dân', desc));
+            updateKanbanCounts();
             fetch('/api/sync/su-co', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -251,13 +288,13 @@
             if (cardEl) cardEl.remove();
 
             const completedCard = `
-                <div class="kanban-card border-success-subtle mb-3">
+                <div class="kanban-card border-success-subtle mb-3" id="${cardId}" data-code="${escapeHtml(code)}">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <span class="badge bg-success-subtle text-success fs-9">Đã nghiệm thu</span>
-                        <span class="fs-8 fw-bold text-muted">${code}</span>
+                        <span class="fs-8 fw-bold text-muted">${escapeHtml(code)}</span>
                     </div>
-                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">${desc}</h6>
-                    <p class="text-muted fs-8 mb-2">Phòng ${room} - KTV đã hoàn thành sửa chữa và nghiệm thu thực tế.</p>
+                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">${escapeHtml(desc)}</h6>
+                    <p class="text-muted fs-8 mb-2">Phòng ${escapeHtml(room)} - KTV đã hoàn thành sửa chữa và nghiệm thu thực tế.</p>
                     <div class="p-2 rounded-2 bg-warning-subtle text-dark fs-8 mb-2 d-flex align-items-center justify-content-between">
                         <div>
                             <i class="bi bi-star-fill text-warning"></i>
@@ -269,13 +306,13 @@
                         <span class="fw-bold">5/5 Sao</span>
                     </div>
                     <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                        <span class="badge bg-primary-subtle text-primary fs-8">${room}</span>
-                        <span class="fs-8 text-muted">Vật tư: ${cost}</span>
+                        <span class="badge bg-primary-subtle text-primary fs-8">${escapeHtml(room)}</span>
+                        <span class="fs-8 text-muted">Vật tư: ${escapeHtml(cost)}</span>
                     </div>
                 </div>
             `;
             document.getElementById('colCompleted').insertAdjacentHTML('afterbegin', completedCard);
-            document.getElementById('badgeCol3').innerText = '2 Tickets';
+            updateKanbanCounts();
             fetch('/api/sync/su-co', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -283,6 +320,30 @@
             }).catch(() => {});
             showKanbanAlert(`Phiếu ${code} (${room}) đã hoàn thành sửa chữa! Hệ thống đã đẩy thông báo Realtime sang Ứng dụng Android/Web của cư dân ${resident}.`);
         }
+    }
+
+    function createPendingTicketCard(code, room, desc, category, priority) {
+        const cardId = `card-${code.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+        if (document.getElementById(cardId)) return;
+        const badgeCls = (priority || '').toLowerCase().includes('khẩn') ? 'bg-danger text-white' : 'bg-warning text-dark';
+        const newCard = `
+            <div class="kanban-card mb-3" id="${cardId}" data-code="${escapeHtml(code)}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge ${badgeCls} fs-9">${escapeHtml(priority || 'Cao')}</span>
+                    <span class="fs-8 fw-bold text-muted">${escapeHtml(code)}</span>
+                </div>
+                <h6 class="fw-bold fs-7 text-slate-900 mb-1">${escapeHtml(desc)}</h6>
+                <p class="text-muted fs-8 mb-2">${escapeHtml(category || 'Đồng bộ từ Cư dân / Mobile App')}</p>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                    <span class="badge bg-primary-subtle text-primary fs-8">${escapeHtml(room || 'P.305')}</span>
+                    <button class="btn btn-xs btn-outline-primary rounded-pill px-3 py-1 fs-8 shadow-sm btn-assign-ktv">
+                        <i class="bi bi-person-plus me-1"></i> Gán kỹ thuật
+                    </button>
+                </div>
+            </div>
+        `;
+        document.getElementById('colPending').insertAdjacentHTML('afterbegin', newCard);
+        document.getElementById(cardId).querySelector('.btn-assign-ktv').addEventListener('click', () => assignTechnician(cardId, code, room, desc, priority));
     }
 
     function handleCreateTicket(e) {
@@ -293,26 +354,12 @@
         const desc = document.getElementById('tkDesc').value;
         const code = `SC-2026-0${Math.floor(100 + Math.random() * 900)}`;
 
-        const newCard = `
-            <div class="kanban-card mb-3" id="card-${code}">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <span class="badge ${priority === 'Khẩn cấp' ? 'bg-danger' : 'bg-warning text-dark'} fs-9">${priority}</span>
-                    <span class="fs-8 fw-bold text-muted">${code}</span>
-                </div>
-                <h6 class="fw-bold fs-7 text-slate-900 mb-1">${desc}</h6>
-                <p class="text-muted fs-8 mb-2">${category}</p>
-                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                    <span class="badge bg-primary-subtle text-primary fs-8">${room}</span>
-                    <button class="btn btn-xs btn-outline-primary rounded-pill px-3 py-1 fs-8 shadow-sm" onclick="assignTechnician('card-${code}', '${code}', '${room}', '${desc}', '${priority}')">
-                        <i class="bi bi-person-plus me-1"></i> Gán kỹ thuật
-                    </button>
-                </div>
-            </div>
-        `;
-
-        document.getElementById('colPending').insertAdjacentHTML('afterbegin', newCard);
-        bootstrap.Modal.getInstance(document.getElementById('newTicketModal')).hide();
-        document.getElementById('badgeCol1').innerText = '1 Ticket';
+        createPendingTicketCard(code, room, desc, category, priority);
+        const modalEl = document.getElementById('newTicketModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        document.getElementById('tkDesc').value = '';
+        updateKanbanCounts();
         fetch('/api/sync/su-co', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -320,6 +367,72 @@
         }).catch(() => {});
         showKanbanAlert(`Đã tạo thành công phiếu báo hỏng ${code} cho phòng ${room}! Đã đồng bộ Realtime sang Android & Web App.`);
     }
+
+    function syncTicketsFromSnapshot(tickets) {
+        if (!Array.isArray(tickets)) return;
+        tickets.forEach(t => {
+            const code = t.soPhieuSuCo;
+            if (!code) return;
+            const normCode = code.toLowerCase();
+            if ([...document.querySelectorAll('.kanban-card')].some(el => el.innerText.includes(code))) return;
+
+            const status = (t.trangThai || 'Chờ xử lý').toLowerCase();
+            const room = t.kyHieuPhong || 'P.305';
+            const title = t.tieuDe || 'Sự cố kỹ thuật';
+            const desc = t.moTa || 'Đồng bộ Realtime';
+            const priority = t.uuTien || 'Cao';
+            const cardId = `card-sync-${normCode.replace(/[^a-z0-9]/g, '')}`;
+
+            if (status.includes('hoàn') || status.includes('xong')) {
+                const html = `
+                    <div class="kanban-card border-success-subtle mb-3" id="${cardId}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-success-subtle text-success fs-9">Đã nghiệm thu</span>
+                            <span class="fs-8 fw-bold text-muted">${escapeHtml(code)}</span>
+                        </div>
+                        <h6 class="fw-bold fs-7 text-slate-900 mb-1">${escapeHtml(title)}</h6>
+                        <p class="text-muted fs-8 mb-2">${escapeHtml(desc)}</p>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="badge bg-primary-subtle text-primary fs-8">${escapeHtml(room)}</span>
+                            <span class="fs-8 text-success fw-semibold">Đã đồng bộ App</span>
+                        </div>
+                    </div>`;
+                document.getElementById('colCompleted').insertAdjacentHTML('afterbegin', html);
+            } else if (status.includes('đang')) {
+                const html = `
+                    <div class="kanban-card border-primary-subtle shadow-sm mb-3" id="${cardId}">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-warning text-dark fs-9">${escapeHtml(priority)}</span>
+                            <span class="fs-8 fw-bold text-muted">${escapeHtml(code)}</span>
+                        </div>
+                        <h6 class="fw-bold fs-7 text-slate-900 mb-1">${escapeHtml(title)}</h6>
+                        <p class="text-muted fs-8 mb-2">${escapeHtml(desc)}</p>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="badge bg-primary-subtle text-primary fs-8">${escapeHtml(room)}</span>
+                            <button class="btn btn-xs btn-success rounded-pill px-3 py-1 fs-8 shadow-sm btn-complete-ticket">
+                                <i class="bi bi-check2-circle me-1"></i> Hoàn thành
+                            </button>
+                        </div>
+                    </div>`;
+                document.getElementById('colInProgress').insertAdjacentHTML('afterbegin', html);
+                document.getElementById(cardId).querySelector('.btn-complete-ticket').addEventListener('click', () => completeTicket(cardId, code, room, 'Cư dân', title));
+            } else {
+                createPendingTicketCard(code, room, title, desc, priority);
+            }
+        });
+        updateKanbanCounts();
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+        updateKanbanCounts();
+        try {
+            const res = await fetch('/api/sync/snapshot');
+            if (res.ok) {
+                const data = await res.json();
+                syncTicketsFromSnapshot(data.suCos || data.tickets || []);
+            }
+        } catch (e) { }
+    });
 
     function showKanbanAlert(msg) {
         const alertBox = document.getElementById('kanbanAlert');

@@ -87,9 +87,44 @@ public class CuDanController : Controller
     }
 
     [HttpPost]
-    public IActionResult GuiYeuCauSuCo(string danhMuc, string moTa, string mucDoUuTien)
+    public async Task<IActionResult> GuiYeuCauSuCo(string danhMuc, string moTa, string mucDoUuTien)
     {
-        TempData["SuccessMessage"] = $"Đã gửi phiếu báo hỏng [{danhMuc}] thành công! Kỹ thuật viên tòa nhà đã nhận được yêu cầu và sẽ liên hệ hỗ trợ.";
+        var ticketCode = $"SC-2026-{Random.Shared.Next(100, 999)}";
+        var title = $"[{danhMuc}] {(string.IsNullOrWhiteSpace(moTa) ? danhMuc : (moTa.Length > 60 ? moTa[..60] + "..." : moTa))}";
+        var roomCode = "P.305";
+
+        SyncApiController.UpsertLiveTicket(
+            ticketCode,
+            roomCode,
+            title,
+            moTa ?? danhMuc,
+            mucDoUuTien ?? "Trung bình",
+            "Chờ xử lý");
+
+        try
+        {
+            var phong = await _db.Phongs.FirstOrDefaultAsync(p => p.KyHieuPhong == roomCode);
+            if (phong != null)
+            {
+                _db.PhieuSuCos.Add(new Models.PhieuSuCo
+                {
+                    SoPhieuSuCo = ticketCode,
+                    MaPhong = phong.MaPhong,
+                    TieuDe = title,
+                    MoTa = moTa ?? danhMuc,
+                    UuTien = mucDoUuTien ?? "Trung bình",
+                    TrangThai = "Chờ xử lý",
+                    ThoiDiemTao = DateTime.UtcNow
+                });
+                await _db.SaveChangesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Offline fallback sync ticket {Code}", ticketCode);
+        }
+
+        TempData["SuccessMessage"] = $"Đã gửi phiếu báo hỏng {ticketCode} [{danhMuc}] thành công & đồng bộ sang Bảng Kanban Kỹ thuật!";
         return RedirectToAction("SuCo");
     }
 }

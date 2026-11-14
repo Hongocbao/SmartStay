@@ -34,10 +34,11 @@
         </div>
 
         <!-- Bộ lọc Tòa nhà & Nút thêm phòng -->
-        <div class="d-flex gap-2">
-            <select class="form-select form-select-sm rounded-3 fw-semibold">
-                <option value="1">Tòa nhà A - Co-Living SmartStay</option>
-                <option value="2">Tòa nhà B - Boutique Apartments</option>
+        <div class="d-flex flex-wrap gap-2">
+            <select id="buildingFilter" class="form-select form-select-sm rounded-3 fw-semibold" onchange="filterBuilding(this.value)">
+                <option value="all" selected>Tất cả tòa nhà (A &amp; B)</option>
+                <option value="A">Tòa nhà A - Co-Living SmartStay</option>
+                <option value="B">Tòa nhà B - Boutique Apartments</option>
             </select>
             <button class="btn btn-sm btn-primary rounded-3 text-nowrap shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddRoom">
                 <i class="bi bi-plus-lg me-1"></i> Thêm phòng mới
@@ -47,18 +48,18 @@
 </div>
 
 <!-- Ma Trận Phòng Tầng 3 -->
-<div class="card-custom mb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-        <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-layers-fill text-primary me-2"></i>TẦNG 3 (8 Phòng)</h6>
+<div class="card-custom mb-4 room-building-sec" id="sec-tang3" data-building="A">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3 pb-2 border-bottom">
+        <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-layers-fill text-primary me-2"></i>TÒA A - TẦNG 3 (8 Phòng)</h6>
         <span class="fs-8 text-muted" id="statTang3">Lấp đầy: 7/8 (87.5%)</span>
     </div>
     <div class="row g-3" id="tang3Rooms">
         <!-- P.301 -->
-        <div class="col-xl-3 col-md-4 col-sm-6">
-            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #4F46E5 !important; cursor: pointer;" onclick="openRoomModal('P.301', 'Trần Văn Nam', '0912345678', '3.500.000 đ', 'Đang ở', 'Studio Nguyên Căn • 22.5 m²', '94%', 'Nguyên căn (1/1)', 'Nam/Nữ tự do', [{bed:'Giường 1', name:'Trần Văn Nam', phone:'0912345678', status:'Đang ở'}])">
+        <div class="col-xl-3 col-md-4 col-sm-6" id="card-p301" data-room="P.301">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm room-inner-card" style="border-left: 5px solid #4F46E5 !important; cursor: pointer;" onclick="openRoomModal('P.301', 'Trần Văn Nam', '0912345678', '3.500.000 đ', 'Đang ở', 'Studio Nguyên Căn • 22.5 m²', '94%', 'Nguyên căn (1/1)', 'Nam/Nữ tự do', [{bed:'Giường 1', name:'Trần Văn Nam', phone:'0912345678', status:'Đang ở'}])">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="fw-bold fs-5 text-slate-900">P.301</span>
-                    <span class="badge badge-status badge-dango">Nguyên căn (1/1)</span>
+                    <span class="badge badge-status badge-dango" id="badge-p301">Nguyên căn (1/1)</span>
                 </div>
                 <div class="d-flex align-items-center gap-1 mb-2">
                     <span class="badge bg-light text-muted border fs-9">Studio</span>
@@ -73,11 +74,11 @@
         </div>
 
         <!-- P.302 -->
-        <div class="col-xl-3 col-md-4 col-sm-6" id="card-p302">
-            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #10B981 !important; cursor: pointer;" onclick="openRoomModal('P.302', '', '', '3.500.000 đ', 'Trống', 'Studio Nguyên Căn • 22.5 m²', '90%', 'Trống hoàn toàn (0/1)', 'Nam/Nữ tự do', [{bed:'Giường 1', name:'Chưa có cư dân', phone:'', status:'Trống'}])">
+        <div class="col-xl-3 col-md-4 col-sm-6" id="card-p302" data-room="P.302">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm room-inner-card" style="border-left: 5px solid #10B981 !important; cursor: pointer;" onclick="openRoomModal('P.302', '', '', '3.500.000 đ', 'Trống', 'Studio Nguyên Căn • 22.5 m²', '90%', 'Trống hoàn toàn (0/1)', 'Nam/Nữ tự do', [{bed:'Giường 1', name:'Chưa có cư dân', phone:'', status:'Trống'}])">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="fw-bold fs-5 text-slate-900">P.302</span>
-                    <span class="badge badge-status badge-trong">Trống (0/1)</span>
+                    <span class="badge badge-status badge-trong" id="badge-p302">Trống (0/1)</span>
                 </div>
                 <div class="d-flex align-items-center gap-1 mb-2">
                     <span class="badge bg-light text-muted border fs-9">Studio</span>
@@ -92,8 +93,8 @@
         </div>
 
         <!-- P.305 (Phòng Ở Ghép Co-Living) -->
-        <div class="col-xl-3 col-md-4 col-sm-6" id="card-p305">
-            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #7C3AED !important; cursor: pointer; background: #FAF5FF !important;" onclick="openRoomModal('P.305', 'Hồ Ngọc Bảo + 1 bạn', '0901234567', '3.500.000 đ', 'Ở ghép', 'Co-Living 3 giường • 22.5 m²', '92%', 'Ở ghép (2/3 Chỗ - Còn 1 giường)', 'Phòng Nam', [{bed:'Giường A (Trưởng phòng)', name:'Hồ Ngọc Bảo', phone:'0901234567', status:'Đang ở'}, {bed:'Giường B', name:'Nguyễn Dương Bảo', phone:'0902345678', status:'Đang ở'}, {bed:'Giường C', name:'Trống - Sẵn sàng ghép', phone:'', status:'Trống'}], true)">
+        <div class="col-xl-3 col-md-4 col-sm-6" id="card-p305" data-room="P.305">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm room-inner-card" style="border-left: 5px solid #7C3AED !important; cursor: pointer; background: #FAF5FF !important;" onclick="openRoomModal('P.305', 'Hồ Ngọc Bảo + 1 bạn', '0901234567', '3.500.000 đ', 'Ở ghép', 'Co-Living 3 giường • 22.5 m²', '92%', 'Ở ghép (2/3 Chỗ - Còn 1 giường)', 'Phòng Nam', [{bed:'Giường A (Trưởng phòng)', name:'Hồ Ngọc Bảo', phone:'0901234567', status:'Đang ở'}, {bed:'Giường B', name:'Nguyễn Dương Bảo', phone:'0902345678', status:'Đang ở'}, {bed:'Giường C', name:'Trống - Sẵn sàng ghép', phone:'', status:'Trống'}], true)">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="fw-bold fs-5 text-slate-900">P.305 <i class="bi bi-star-fill text-warning fs-8"></i></span>
                     <span class="badge bg-purple text-white px-2 py-1 fs-9 rounded-pill" style="background:#7C3AED;" id="badge-p305">
@@ -130,11 +131,11 @@
         </div>
 
         <!-- P.306 -->
-        <div class="col-xl-3 col-md-4 col-sm-6">
-            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #F59E0B !important; cursor: pointer;" onclick="openRoomModal('P.306', '', '', '3.500.000 đ', 'Bảo trì', 'Studio 1 giường • 22.5 m²', '88%', 'Đang bảo trì', 'Tự do', [])">
+        <div class="col-xl-3 col-md-4 col-sm-6" id="card-p306" data-room="P.306">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm room-inner-card" style="border-left: 5px solid #F59E0B !important; cursor: pointer;" onclick="openRoomModal('P.306', '', '', '3.500.000 đ', 'Bảo trì', 'Studio 1 giường • 22.5 m²', '88%', 'Đang bảo trì', 'Tự do', [])">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="fw-bold fs-5 text-slate-900">P.306</span>
-                    <span class="badge badge-status badge-baotri">Bảo trì</span>
+                    <span class="badge badge-status badge-baotri" id="badge-p306">Bảo trì</span>
                 </div>
                 <div class="d-flex align-items-center gap-1 mb-2">
                     <span class="badge bg-light text-muted border fs-9">Studio</span>
@@ -151,18 +152,18 @@
 </div>
 
 <!-- Ma Trận Phòng Tầng 4 -->
-<div class="card-custom mb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-        <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-layers-fill text-primary me-2"></i>TẦNG 4 (8 Phòng)</h6>
+<div class="card-custom mb-4 room-building-sec" id="sec-tang4" data-building="A">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3 pb-2 border-bottom">
+        <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-layers-fill text-primary me-2"></i>TÒA A - TẦNG 4 (8 Phòng)</h6>
         <span class="fs-8 text-muted">Lấp đầy: 8/8 (100%)</span>
     </div>
-    <div class="row g-3">
+    <div class="row g-3" id="tang4Rooms">
         <!-- P.401 -->
-        <div class="col-xl-3 col-md-4 col-sm-6">
-            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #4F46E5 !important; cursor: pointer;" onclick="openRoomModal('P.401', 'Trần Hoàng Gia Bảo + 1 người', '0903234567', '5.000.000 đ', 'Đang ở', 'Deluxe 2 giường tầng • 30 m²', '95%')">
+        <div class="col-xl-3 col-md-4 col-sm-6" id="card-p401" data-room="P.401">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm room-inner-card" style="border-left: 5px solid #4F46E5 !important; cursor: pointer;" onclick="openRoomModal('P.401', 'Trần Hoàng Gia Bảo + 1 người', '0903234567', '5.000.000 đ', 'Đang ở', 'Deluxe 2 giường tầng • 30 m²', '95%')">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="fw-bold fs-5 text-slate-900">P.401</span>
-                    <span class="badge badge-status badge-dango">Đang ở</span>
+                    <span class="badge badge-status badge-dango" id="badge-p401">Đang ở</span>
                 </div>
                 <p class="text-muted fs-8 mb-2">Deluxe 2 giường tầng • 30 m²</p>
                 <div class="pt-2 border-top">
@@ -173,16 +174,52 @@
         </div>
 
         <!-- P.402 -->
-        <div class="col-xl-3 col-md-4 col-sm-6">
-            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid #8B5CF6 !important; cursor: pointer;" onclick="openRoomModal('P.402', 'Lê Minh Khôi', '0919223344', '5.000.000 đ', 'Đã đặt', 'Deluxe 2 giường tầng • 30 m²', '91%')">
+        <div class="col-xl-3 col-md-4 col-sm-6" id="card-p402" data-room="P.402">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm room-inner-card" style="border-left: 5px solid #8B5CF6 !important; cursor: pointer;" onclick="openRoomModal('P.402', 'Lê Minh Khôi', '0919223344', '5.000.000 đ', 'Đã đặt', 'Deluxe 2 giường tầng • 30 m²', '91%')">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="fw-bold fs-5 text-slate-900">P.402</span>
-                    <span class="badge badge-status badge-dadat">Đã đặt</span>
+                    <span class="badge badge-status badge-dadat" id="badge-p402">Đã đặt</span>
                 </div>
                 <p class="text-muted fs-8 mb-2">Deluxe 2 giường tầng • 30 m²</p>
                 <div class="pt-2 border-top">
                     <div class="fs-8 text-purple fw-bold"><i class="bi bi-calendar-check me-1"></i> Nhận phòng 05/11</div>
                     <div class="fs-8 text-muted fw-bold mt-1">Cọc: 10.000.000 đ</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ma Trận Phòng Tòa nhà B -->
+<div class="card-custom mb-4 room-building-sec" id="sec-toab" data-building="B">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3 pb-2 border-bottom">
+        <h6 class="fw-bold mb-0 text-slate-800"><i class="bi bi-building text-indigo-600 me-2"></i>TÒA B - BOUTIQUE APARTMENTS (14 Phòng)</h6>
+        <span class="fs-8 text-muted">Lấp đầy: 12/14 (85.7%)</span>
+    </div>
+    <div class="row g-3" id="toaBRooms">
+        <div class="col-xl-3 col-md-4 col-sm-6" id="card-p201" data-room="P.201">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm room-inner-card" style="border-left: 5px solid #4F46E5 !important; cursor: pointer;" onclick="openRoomModal('P.201', 'Nguyễn Dương Bảo', '0902234567', '3.800.000 đ', 'Đang ở', 'Boutique Studio • 25 m²', '93%')">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold fs-5 text-slate-900">P.201</span>
+                    <span class="badge badge-status badge-dango" id="badge-p201">Đang ở</span>
+                </div>
+                <p class="text-muted fs-8 mb-2">Boutique Studio • 25 m²</p>
+                <div class="pt-2 border-top">
+                    <div class="fs-8 fw-semibold text-truncate"><i class="bi bi-person-fill text-muted me-1"></i> Nguyễn Dương Bảo</div>
+                    <div class="fs-8 text-primary fw-bold mt-1">3.800.000 đ/tháng</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-4 col-sm-6" id="card-p102" data-room="P.102">
+            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm room-inner-card" style="border-left: 5px solid #10B981 !important; cursor: pointer;" onclick="openRoomModal('P.102', '', '', '3.600.000 đ', 'Trống', 'Boutique Studio • 24 m²', '97%')">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold fs-5 text-slate-900">P.102</span>
+                    <span class="badge badge-status badge-trong" id="badge-p102">Trống (0/1)</span>
+                </div>
+                <p class="text-muted fs-8 mb-2">Boutique Studio • 24 m²</p>
+                <div class="pt-2 border-top">
+                    <div class="fs-8 text-success fw-bold"><i class="bi bi-door-open me-1"></i> Sẵn sàng đón khách</div>
+                    <div class="fs-8 text-muted fw-bold mt-1">3.600.000 đ/tháng</div>
                 </div>
             </div>
         </div>
@@ -256,13 +293,13 @@
                     </div>
                 </div>
             </div>
-            <div class="modal-footer px-4 pb-4 pt-0 border-0 d-flex justify-content-between">
+            <div class="modal-footer px-4 pb-4 pt-0 border-0 d-flex flex-wrap gap-2 justify-content-between">
                 <div>
                     <button type="button" class="btn btn-outline-primary rounded-3 btn-sm" onclick="promptElectricWater()">
                         <i class="bi bi-speedometer2 me-1"></i> Ghi chỉ số điện nước
                     </button>
                 </div>
-                <div class="d-flex gap-2">
+                <div class="d-flex flex-wrap gap-2">
                     <a href="/HoaDon/Index" class="btn btn-outline-secondary rounded-3 btn-sm"><i class="bi bi-receipt me-1"></i> Lập hóa đơn</a>
                     <a href="/SuCo/Kanban" class="btn btn-outline-warning rounded-3 btn-sm"><i class="bi bi-tools me-1"></i> Báo sự cố</a>
                     <button type="button" class="btn btn-danger rounded-3 btn-sm shadow-sm" onclick="performCheckout()">
@@ -441,12 +478,67 @@
         showRoomAlert(`Đã phát lệnh mở khóa qua WiFi IoT tới phòng ${currentSelectedRoom}! Cửa đã được mở.`);
     }
 
+    function filterBuilding(val) {
+        document.querySelectorAll('.room-building-sec').forEach(sec => {
+            if (val === 'all' || sec.getAttribute('data-building') === val) {
+                sec.classList.remove('d-none');
+            } else {
+                sec.classList.add('d-none');
+            }
+        });
+    }
+
+    function applyRoomStatusToDom(roomCode, status) {
+        const slug = roomCode.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const card = document.getElementById('card-' + slug);
+        const badge = document.getElementById('badge-' + slug);
+        if (!card || !badge) return false;
+
+        const inner = card.querySelector('.room-inner-card') || card.querySelector('.card');
+        const st = (status || '').toLowerCase();
+        if (st.includes('trống')) {
+            if (inner) {
+                inner.style.background = '#FFFFFF';
+                inner.style.setProperty('border-left', '5px solid #10B981', 'important');
+            }
+            badge.className = 'badge badge-status badge-trong';
+            badge.innerText = 'Trống';
+        } else if (st.includes('bảo trì')) {
+            if (inner) {
+                inner.style.background = '#FFFFFF';
+                inner.style.setProperty('border-left', '5px solid #F59E0B', 'important');
+            }
+            badge.className = 'badge badge-status badge-baotri';
+            badge.innerText = 'Bảo trì';
+        } else if (st.includes('đặt')) {
+            if (inner) {
+                inner.style.background = '#FFFFFF';
+                inner.style.setProperty('border-left', '5px solid #8B5CF6', 'important');
+            }
+            badge.className = 'badge badge-status badge-dadat';
+            badge.innerText = 'Đã đặt';
+        } else {
+            if (inner) {
+                inner.style.background = '#FFFFFF';
+                inner.style.setProperty('border-left', '5px solid #4F46E5', 'important');
+            }
+            badge.className = 'badge badge-status badge-dango';
+            badge.innerText = 'Đang ở';
+        }
+        return true;
+    }
+
     function promptElectricWater() {
         const dien = prompt(`Nhập chỉ số điện mới cho phòng ${currentSelectedRoom} (kWh):`, "1540");
         if (dien) {
             const nuoc = prompt(`Nhập chỉ số nước mới cho phòng ${currentSelectedRoom} (m³):`, "92");
             if (nuoc) {
-                showRoomAlert(`Đã ghi nhận chỉ số phòng ${currentSelectedRoom}: Điện ${dien} kWh, Nước ${nuoc} m³. Hệ thống đã cập nhật vào kỳ tính phí tháng 10!`);
+                fetch('/api/sync/chi-so-cu-dan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ KyHieuPhong: currentSelectedRoom, CheDo: 'both', DienMoiChup: parseFloat(dien) || 0, NuocMoiChup: parseFloat(nuoc) || 0, NguonCapNhat: 'Ban Quản Lý' })
+                }).catch(() => {});
+                showRoomAlert(`Đã ghi nhận chỉ số phòng ${currentSelectedRoom}: Điện ${dien} kWh, Nước ${nuoc} m³. Hệ thống đã cập nhật vào kỳ tính phí & đồng bộ App!`);
             }
         }
     }
@@ -456,17 +548,12 @@
             const modal = bootstrap.Modal.getInstance(document.getElementById('roomModal'));
             if (modal) modal.hide();
 
-            if (currentSelectedRoom === 'P.305') {
-                const card = document.getElementById('card-p305');
-                if (card) {
-                    card.style.background = '#FFFFFF';
-                    card.style.borderLeft = '5px solid #10B981 !important';
-                    document.getElementById('badge-p305').className = 'badge badge-status badge-trong';
-                    document.getElementById('badge-p305').innerText = 'Trống';
-                }
-            }
-            document.getElementById('countDangO').innerText = '27';
-            document.getElementById('countTrong').innerText = '3';
+            applyRoomStatusToDom(currentSelectedRoom, 'Trống');
+            const curOcc = Math.max(0, parseInt(document.getElementById('countDangO').innerText) - 1);
+            const curEmpty = parseInt(document.getElementById('countTrong').innerText) + 1;
+            document.getElementById('countDangO').innerText = curOcc.toString();
+            document.getElementById('countTrong').innerText = curEmpty.toString();
+
             fetch('/api/sync/cap-nhat-phong', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -478,7 +565,7 @@
 
     function handleAddRoom(e) {
         e.preventDefault();
-        const code = document.getElementById('arCode').value;
+        const code = document.getElementById('arCode').value.trim();
         const model = document.getElementById('arRentalModel').value;
         const capacity = document.getElementById('arCapacity').value;
         const gender = document.getElementById('arGender').value;
@@ -496,12 +583,13 @@
             beds.push({ bed: `Giường ${i}`, name: 'Chưa có người', phone: '', status: 'Trống' });
         }
 
+        const slug = code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
         const newCard = `
-            <div class="col-xl-3 col-md-4 col-sm-6">
-                <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm" style="border-left: 5px solid ${borderCol} !important; cursor: pointer;" onclick='openRoomModal("${code}", "", "", "${price}", "Trống", "${isColiving ? "Co-Living Ở Ghép" : "Studio"} • ${area} m²", "95%", "${badgeLabel}", "${gender}", ${JSON.stringify(beds)}, false)'>
+            <div class="col-xl-3 col-md-4 col-sm-6" id="card-${slug}" data-room="${code}">
+                <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm room-inner-card" style="border-left: 5px solid ${borderCol} !important; cursor: pointer;" onclick='openRoomModal("${code}", "", "", "${price}", "Trống", "${isColiving ? "Co-Living Ở Ghép" : "Studio"} • ${area} m²", "95%", "${badgeLabel}", "${gender}", ${JSON.stringify(beds)}, false)'>
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="fw-bold fs-5 text-slate-900">${code}</span>
-                        <span class="badge ${badgeClass} fs-9" style="${badgeStyle}">${badgeLabel}</span>
+                        <span class="badge ${badgeClass} fs-9" id="badge-${slug}" style="${badgeStyle}">${badgeLabel}</span>
                     </div>
                     <div class="d-flex align-items-center gap-1 mb-2">
                         <span class="badge bg-light text-muted border fs-9">${area} m²</span>
@@ -519,8 +607,50 @@
         document.getElementById('tang3Rooms').insertAdjacentHTML('beforeend', newCard);
         bootstrap.Modal.getInstance(document.getElementById('modalAddRoom')).hide();
         document.getElementById('countTrong').innerText = (parseInt(document.getElementById('countTrong').innerText) + 1).toString();
-        showRoomAlert(`Đã thêm thành công căn hộ mới ${code} (${isColiving ? 'Mô hình Ở Ghép Co-Living' : 'Mô hình Thuê Nguyên Căn'}) vào sơ đồ phòng tầng 3!`);
+
+        const numericPrice = parseFloat(String(price).replace(/[^0-9]/g, '')) || 3500000;
+        fetch('/api/sync/cap-nhat-phong', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ KyHieuPhong: code, TrangThai: 'Trống', GiaThue: numericPrice })
+        }).catch(() => {});
+
+        showRoomAlert(`Đã thêm thành công căn hộ mới ${code} (${isColiving ? 'Mô hình Ở Ghép Co-Living' : 'Mô hình Thuê Nguyên Căn'}) & đồng bộ Realtime sang App!`);
     }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+        try {
+            const res = await fetch('/api/sync/snapshot');
+            if (!res.ok) return;
+            const data = await res.json();
+            const rooms = data.phongs || data.rooms || [];
+            if (!Array.isArray(rooms)) return;
+
+            rooms.forEach(r => {
+                if (!r.kyHieuPhong) return;
+                const applied = applyRoomStatusToDom(r.kyHieuPhong, r.trangThai);
+                if (!applied) {
+                    const priceTxt = ((r.giaThue || 3500000)).toLocaleString('vi-VN') + ' đ';
+                    const slug = r.kyHieuPhong.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+                    const html = `
+                        <div class="col-xl-3 col-md-4 col-sm-6" id="card-${slug}" data-room="${r.kyHieuPhong}">
+                            <div class="card border rounded-4 p-3 bg-white h-100 shadow-sm room-inner-card" style="border-left: 5px solid #4F46E5 !important; cursor: pointer;" onclick="openRoomModal('${r.kyHieuPhong}', 'Đồng bộ App', '', '${priceTxt}', '${r.trangThai}', 'Tầng ${r.soTang || 3} • ${r.dienTich || 24} m²', '95%')">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="fw-bold fs-5 text-slate-900">${r.kyHieuPhong}</span>
+                                    <span class="badge badge-status badge-dango" id="badge-${slug}">${r.trangThai || 'Đang ở'}</span>
+                                </div>
+                                <p class="text-muted fs-8 mb-2">Đồng bộ từ App • ${r.dienTich || 24} m²</p>
+                                <div class="pt-2 border-top">
+                                    <div class="fs-8 text-primary fw-bold">${priceTxt}/tháng</div>
+                                </div>
+                            </div>
+                        </div>`;
+                    document.getElementById('tang3Rooms').insertAdjacentHTML('beforeend', html);
+                    applyRoomStatusToDom(r.kyHieuPhong, r.trangThai);
+                }
+            });
+        } catch (e) { }
+    });
 
     function showRoomAlert(msg) {
         const alertBox = document.getElementById('roomAlert');

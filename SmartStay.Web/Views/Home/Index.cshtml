@@ -11,10 +11,10 @@
                 <span class="badge bg-primary-subtle text-primary p-2 rounded-3"><i class="bi bi-pie-chart-fill fs-5"></i></span>
             </div>
             <div class="d-flex align-items-baseline gap-2">
-                <h3 class="fw-bold mb-0 text-slate-900">87.5%</h3>
+                <h3 class="fw-bold mb-0 text-slate-900" id="kpiOccupancyRate">87.5%</h3>
                 <span class="badge bg-success-subtle text-success fs-8"><i class="bi bi-arrow-up-short"></i> +4.2%</span>
             </div>
-            <p class="text-muted fs-8 mt-2 mb-0">Đang ở: <strong>28</strong> / 32 phòng (Tòa nhà A & B)</p>
+            <p class="text-muted fs-8 mt-2 mb-0" id="kpiOccupancySub">Đang ở: <strong>28</strong> / 32 phòng (Tòa nhà A & B)</p>
         </div>
     </div>
 
@@ -25,9 +25,9 @@
                 <span class="badge bg-success-subtle text-success p-2 rounded-3"><i class="bi bi-wallet2 fs-5"></i></span>
             </div>
             <div class="d-flex align-items-baseline gap-2">
-                <h3 class="fw-bold mb-0 text-slate-900">118.500.000 đ</h3>
+                <h3 class="fw-bold mb-0 text-slate-900" id="kpiRevenueTotal">118.500.000 đ</h3>
             </div>
-            <p class="text-muted fs-8 mt-2 mb-0">Đã thu qua VietQR: <strong>102.080.000 đ</strong> (86%)</p>
+            <p class="text-muted fs-8 mt-2 mb-0" id="kpiRevenueSub">Đã thu qua VietQR: <strong>102.080.000 đ</strong> (86%)</p>
         </div>
     </div>
 
@@ -38,8 +38,8 @@
                 <span class="badge bg-danger-subtle text-danger p-2 rounded-3"><i class="bi bi-clock-history fs-5"></i></span>
             </div>
             <div class="d-flex align-items-baseline gap-2">
-                <h3 class="fw-bold mb-0 text-danger">16.420.000 đ</h3>
-                <span class="badge bg-warning-subtle text-warning fs-8">4 phòng</span>
+                <h3 class="fw-bold mb-0 text-danger" id="kpiDebtTotal">16.420.000 đ</h3>
+                <span class="badge bg-warning-subtle text-warning fs-8" id="kpiDebtBadge">4 phòng</span>
             </div>
             <p class="text-muted fs-8 mt-2 mb-0">Hạn chót thanh toán: <strong>05/11/2026</strong></p>
         </div>
@@ -52,10 +52,10 @@
                 <span class="badge bg-warning-subtle text-warning p-2 rounded-3"><i class="bi bi-tools fs-5"></i></span>
             </div>
             <div class="d-flex align-items-baseline gap-2">
-                <h3 class="fw-bold mb-0 text-slate-900">3 phiếu</h3>
-                <span class="badge bg-danger-subtle text-danger fs-8">1 Khẩn cấp</span>
+                <h3 class="fw-bold mb-0 text-slate-900" id="kpiTicketCount">3 phiếu</h3>
+                <span class="badge bg-danger-subtle text-danger fs-8" id="kpiTicketBadge">1 Khẩn cấp</span>
             </div>
-            <p class="text-muted fs-8 mt-2 mb-0">2 phiếu đang sửa, 1 chờ phân công</p>
+            <p class="text-muted fs-8 mt-2 mb-0" id="kpiTicketSub">2 phiếu đang sửa, 1 chờ phân công</p>
         </div>
     </div>
 </div>
@@ -71,13 +71,13 @@
                     <p class="text-muted fs-8 mb-0">Theo dõi doanh thu phòng, điện nước và dịch vụ</p>
                 </div>
                 <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle rounded-3" type="button" data-bs-toggle="dropdown">
+                    <button id="buildingDropdownBtn" class="btn btn-sm btn-outline-secondary dropdown-toggle rounded-3" type="button" data-bs-toggle="dropdown">
                         Tất cả tòa nhà
                     </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item active" href="#">Tất cả tòa nhà</a></li>
-                        <li><a class="dropdown-item" href="#">Tòa nhà A</a></li>
-                        <li><a class="dropdown-item" href="#">Tòa nhà B</a></li>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item active" href="javascript:void(0)" onclick="filterDashboardBuilding('all', this)">Tất cả tòa nhà</a></li>
+                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="filterDashboardBuilding('A', this)">Tòa nhà A</a></li>
+                        <li><a class="dropdown-item" href="javascript:void(0)" onclick="filterDashboardBuilding('B', this)">Tòa nhà B</a></li>
                     </ul>
                 </div>
             </div>
@@ -91,7 +91,7 @@
     <div class="col-lg-4">
         <div class="card-custom h-100">
             <h6 class="fw-bold mb-1">Tỷ lệ Trạng thái Phòng</h6>
-            <p class="text-muted fs-8 mb-4">Tổng cộng: 32 phòng trong hệ sinh thái</p>
+            <p class="text-muted fs-8 mb-4" id="roomChartTotalText">Tổng cộng: 32 phòng trong hệ sinh thái</p>
             <div style="height: 230px; position: relative;">
                 <canvas id="roomStatusChart"></canvas>
             </div>
@@ -99,22 +99,22 @@
                 <div class="text-center">
                     <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: #4F46E5;"></span>
                     <span class="fs-8 text-muted">Đang ở</span>
-                    <p class="fw-bold mb-0 fs-7">28</p>
+                    <p class="fw-bold mb-0 fs-7" id="statDangO">28</p>
                 </div>
                 <div class="text-center">
                     <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: #10B981;"></span>
                     <span class="fs-8 text-muted">Trống</span>
-                    <p class="fw-bold mb-0 fs-7">2</p>
+                    <p class="fw-bold mb-0 fs-7" id="statTrong">2</p>
                 </div>
                 <div class="text-center">
                     <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: #F59E0B;"></span>
                     <span class="fs-8 text-muted">Bảo trì</span>
-                    <p class="fw-bold mb-0 fs-7">1</p>
+                    <p class="fw-bold mb-0 fs-7" id="statBaoTri">1</p>
                 </div>
                 <div class="text-center">
                     <span class="d-inline-block rounded-circle me-1" style="width: 8px; height: 8px; background: #8B5CF6;"></span>
                     <span class="fs-8 text-muted">Đã đặt</span>
-                    <p class="fw-bold mb-0 fs-7">1</p>
+                    <p class="fw-bold mb-0 fs-7" id="statDaDat">1</p>
                 </div>
             </div>
         </div>
@@ -197,7 +197,7 @@
 <script>
     // 1. Chart Doanh thu
     const ctxRev = document.getElementById('revenueChart').getContext('2d');
-    new Chart(ctxRev, {
+    const revenueChartInstance = new Chart(ctxRev, {
         type: 'bar',
         data: {
             labels: ['Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10'],
@@ -231,7 +231,7 @@
 
     // 2. Chart Trạng thái phòng
     const ctxRoom = document.getElementById('roomStatusChart').getContext('2d');
-    new Chart(ctxRoom, {
+    const roomStatusChartInstance = new Chart(ctxRoom, {
         type: 'doughnut',
         data: {
             labels: ['Đang ở', 'Trống', 'Bảo trì', 'Đã đặt'],
@@ -247,6 +247,116 @@
             maintainAspectRatio: false,
             plugins: { legend: { display: false } }
         }
+    });
+
+    const buildingDashboardData = {
+        all: {
+            label: 'Tất cả tòa nhà',
+            rev: [98, 105, 110, 115, 114, 102],
+            debt: [8, 5, 4, 3, 2, 16.4],
+            occRate: '87.5%',
+            occSub: 'Đang ở: <strong>28</strong> / 32 phòng (Tòa nhà A & B)',
+            revTotal: '118.500.000 đ',
+            revSub: 'Đã thu qua VietQR: <strong>102.080.000 đ</strong> (86%)',
+            debtTotal: '16.420.000 đ',
+            debtBadge: '4 phòng',
+            roomCounts: [28, 2, 1, 1],
+            roomTotalText: 'Tổng cộng: 32 phòng trong hệ sinh thái'
+        },
+        A: {
+            label: 'Tòa nhà A',
+            rev: [62, 65, 68, 70, 69, 64],
+            debt: [5, 3, 2.5, 2, 1.5, 9.8],
+            occRate: '88.9%',
+            occSub: 'Đang ở: <strong>16</strong> / 18 phòng (Tòa nhà A)',
+            revTotal: '73.800.000 đ',
+            revSub: 'Đã thu qua VietQR: <strong>64.000.000 đ</strong> (87%)',
+            debtTotal: '9.800.000 đ',
+            debtBadge: '2 phòng',
+            roomCounts: [16, 1, 1, 0],
+            roomTotalText: 'Tổng cộng: 18 phòng tại Tòa nhà A'
+        },
+        B: {
+            label: 'Tòa nhà B',
+            rev: [36, 40, 42, 45, 45, 38],
+            debt: [3, 2, 1.5, 1, 0.5, 6.6],
+            occRate: '85.7%',
+            occSub: 'Đang ở: <strong>12</strong> / 14 phòng (Tòa nhà B)',
+            revTotal: '44.700.000 đ',
+            revSub: 'Đã thu qua VietQR: <strong>38.080.000 đ</strong> (85%)',
+            debtTotal: '6.620.000 đ',
+            debtBadge: '2 phòng',
+            roomCounts: [12, 1, 0, 1],
+            roomTotalText: 'Tổng cộng: 14 phòng tại Tòa nhà B'
+        }
+    };
+
+    function updateRoomStatsUI(dangO, trong, baoTri, daDat, totalLabel) {
+        document.getElementById('statDangO').innerText = dangO;
+        document.getElementById('statTrong').innerText = trong;
+        document.getElementById('statBaoTri').innerText = baoTri;
+        document.getElementById('statDaDat').innerText = daDat;
+        if (totalLabel) document.getElementById('roomChartTotalText').innerText = totalLabel;
+        roomStatusChartInstance.data.datasets[0].data = [dangO, trong, baoTri, daDat];
+        roomStatusChartInstance.update();
+    }
+
+    function filterDashboardBuilding(key, el) {
+        const cfg = buildingDashboardData[key] || buildingDashboardData.all;
+        document.getElementById('buildingDropdownBtn').innerText = cfg.label;
+        document.querySelectorAll('#buildingDropdownBtn + .dropdown-menu .dropdown-item').forEach(a => a.classList.remove('active'));
+        if (el) el.classList.add('active');
+
+        revenueChartInstance.data.datasets[0].data = cfg.rev;
+        revenueChartInstance.data.datasets[1].data = cfg.debt;
+        revenueChartInstance.update();
+
+        document.getElementById('kpiOccupancyRate').innerText = cfg.occRate;
+        document.getElementById('kpiOccupancySub').innerHTML = cfg.occSub;
+        document.getElementById('kpiRevenueTotal').innerText = cfg.revTotal;
+        document.getElementById('kpiRevenueSub').innerHTML = cfg.revSub;
+        document.getElementById('kpiDebtTotal').innerText = cfg.debtTotal;
+        document.getElementById('kpiDebtBadge').innerText = cfg.debtBadge;
+
+        updateRoomStatsUI(cfg.roomCounts[0], cfg.roomCounts[1], cfg.roomCounts[2], cfg.roomCounts[3], cfg.roomTotalText);
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+        try {
+            const res = await fetch('/api/sync/snapshot');
+            if (!res.ok) return;
+            const data = await res.json();
+            const tickets = data.suCos || data.tickets || [];
+            const rooms = data.phongs || data.rooms || [];
+
+            if (Array.isArray(tickets) && tickets.length > 0) {
+                const pending = tickets.filter(t => (t.trangThai || '').toLowerCase().includes('chờ')).length;
+                const repairing = tickets.filter(t => (t.trangThai || '').toLowerCase().includes('đang')).length;
+                const urgent = tickets.filter(t => (t.uuTien || '').toLowerCase().includes('khẩn')).length;
+                const activeCount = pending + repairing;
+                if (activeCount > 0) {
+                    document.getElementById('kpiTicketCount').innerText = `${activeCount} phiếu`;
+                    document.getElementById('kpiTicketBadge').innerText = `${urgent} Khẩn cấp`;
+                    document.getElementById('kpiTicketSub').innerText = `${repairing} phiếu đang sửa, ${pending} chờ phân công`;
+                }
+            }
+
+            if (Array.isArray(rooms) && rooms.length >= 10) {
+                let dangO = 0, trong = 0, baoTri = 0, daDat = 0;
+                rooms.forEach(r => {
+                    const st = (r.trangThai || '').toLowerCase();
+                    if (st.includes('trống')) trong++;
+                    else if (st.includes('bảo trì')) baoTri++;
+                    else if (st.includes('đặt')) daDat++;
+                    else dangO++;
+                });
+                const total = rooms.length;
+                const rate = ((dangO / total) * 100).toFixed(1) + '%';
+                document.getElementById('kpiOccupancyRate').innerText = rate;
+                document.getElementById('kpiOccupancySub').innerHTML = `Đang ở: <strong>${dangO}</strong> / ${total} phòng (Realtime Sync)`;
+                updateRoomStatsUI(dangO, trong, baoTri, daDat, `Tổng cộng: ${total} phòng đồng bộ Realtime`);
+            }
+        } catch (e) { }
     });
 </script>
 }

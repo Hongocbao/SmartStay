@@ -215,33 +215,47 @@ public class SyncApiController : ControllerBase
         return Ok(new { success = true, kyHieuPhong = code, trangThai = req.TrangThai });
     }
 
-    [AllowAnonymous]
-    [HttpPost("su-co")]
-    public async Task<IActionResult> DongBoPhieuSuCo([FromBody] DongBoSuCoSyncDto req)
+    public static SyncTicketItem UpsertLiveTicket(
+        string? soPhieuSuCo,
+        string? kyHieuPhong,
+        string? tieuDe,
+        string? moTa,
+        string? uuTien,
+        string? trangThai)
     {
-        if (string.IsNullOrWhiteSpace(req.SoPhieuSuCo))
-            req.SoPhieuSuCo = $"SC-2026-{DateTime.UtcNow.Ticks % 900 + 100}";
+        var code = string.IsNullOrWhiteSpace(soPhieuSuCo)
+            ? $"SC-2026-{DateTime.UtcNow.Ticks % 900 + 100}"
+            : soPhieuSuCo.Trim();
 
-        var code = req.SoPhieuSuCo.Trim();
         var item = _liveTickets.GetOrAdd(code, _ => new SyncTicketItem
         {
             MaPhieuSuCo = (int)(DateTime.UtcNow.Ticks % 10000),
             SoPhieuSuCo = code,
-            KyHieuPhong = string.IsNullOrWhiteSpace(req.KyHieuPhong) ? "P.305" : req.KyHieuPhong.Trim(),
-            TieuDe = string.IsNullOrWhiteSpace(req.TieuDe) ? "Sự cố kỹ thuật" : req.TieuDe.Trim(),
-            MoTa = string.IsNullOrWhiteSpace(req.MoTa) ? (req.TieuDe ?? "") : req.MoTa.Trim(),
-            UuTien = string.IsNullOrWhiteSpace(req.UuTien) ? "Cao" : req.UuTien.Trim(),
-            TrangThai = string.IsNullOrWhiteSpace(req.TrangThai) ? "Chờ xử lý" : req.TrangThai.Trim(),
+            KyHieuPhong = string.IsNullOrWhiteSpace(kyHieuPhong) ? "P.305" : kyHieuPhong.Trim(),
+            TieuDe = string.IsNullOrWhiteSpace(tieuDe) ? "Sự cố kỹ thuật" : tieuDe.Trim(),
+            MoTa = string.IsNullOrWhiteSpace(moTa) ? (tieuDe ?? "") : moTa.Trim(),
+            UuTien = string.IsNullOrWhiteSpace(uuTien) ? "Cao" : uuTien.Trim(),
+            TrangThai = string.IsNullOrWhiteSpace(trangThai) ? "Chờ xử lý" : trangThai.Trim(),
             ThoiDiemTao = DateTime.UtcNow
         });
 
-        if (!string.IsNullOrWhiteSpace(req.TrangThai)) item.TrangThai = req.TrangThai.Trim();
-        if (!string.IsNullOrWhiteSpace(req.TieuDe)) item.TieuDe = req.TieuDe.Trim();
-        if (!string.IsNullOrWhiteSpace(req.KyHieuPhong)) item.KyHieuPhong = req.KyHieuPhong.Trim();
+        if (!string.IsNullOrWhiteSpace(trangThai)) item.TrangThai = trangThai.Trim();
+        if (!string.IsNullOrWhiteSpace(tieuDe)) item.TieuDe = tieuDe.Trim();
+        if (!string.IsNullOrWhiteSpace(moTa)) item.MoTa = moTa.Trim();
+        if (!string.IsNullOrWhiteSpace(uuTien)) item.UuTien = uuTien.Trim();
+        if (!string.IsNullOrWhiteSpace(kyHieuPhong)) item.KyHieuPhong = kyHieuPhong.Trim();
+        return item;
+    }
+
+    [AllowAnonymous]
+    [HttpPost("su-co")]
+    public async Task<IActionResult> DongBoPhieuSuCo([FromBody] DongBoSuCoSyncDto req)
+    {
+        var item = UpsertLiveTicket(req.SoPhieuSuCo, req.KyHieuPhong, req.TieuDe, req.MoTa, req.UuTien, req.TrangThai);
 
         try
         {
-            var existing = await _db.PhieuSuCos.FirstOrDefaultAsync(p => p.SoPhieuSuCo == code);
+            var existing = await _db.PhieuSuCos.FirstOrDefaultAsync(p => p.SoPhieuSuCo == item.SoPhieuSuCo);
             if (existing != null && !string.IsNullOrWhiteSpace(req.TrangThai))
             {
                 existing.TrangThai = req.TrangThai.Trim();

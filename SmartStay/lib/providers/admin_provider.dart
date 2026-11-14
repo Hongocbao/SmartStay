@@ -586,6 +586,11 @@ class AdminProvider extends ChangeNotifier {
         ),
       );
       notifyListeners();
+      _supabase.syncRoomStatus(
+        roomCode: _rooms[index].roomCode,
+        status: 'Đang ở',
+        price: _rooms[index].rentPrice,
+      );
     }
   }
 
@@ -606,6 +611,11 @@ class AdminProvider extends ChangeNotifier {
         }
       }
       notifyListeners();
+      _supabase.syncRoomStatus(
+        roomCode: _rooms[index].roomCode,
+        status: 'Trống',
+        price: _rooms[index].rentPrice,
+      );
     }
   }
 
@@ -656,6 +666,11 @@ class AdminProvider extends ChangeNotifier {
     }
 
     notifyListeners();
+    _supabase.syncRoomStatus(
+      roomCode: room.roomCode,
+      status: 'Trống',
+      price: room.rentPrice,
+    );
     return settlement;
   }
 
@@ -779,6 +794,11 @@ class AdminProvider extends ChangeNotifier {
     );
     _contracts.insert(0, created);
     notifyListeners();
+    _supabase.syncRoomStatus(
+      roomCode: room.roomCode,
+      status: 'Đang ở',
+      price: monthlyRent,
+    );
     return created;
   }
 

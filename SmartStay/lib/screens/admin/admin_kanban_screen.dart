@@ -526,7 +526,7 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
                 : ListView.separated(
                     shrinkWrap: true,
                     itemCount: ticket.activityLogs.length,
-                    separatorBuilder: (_, __) => const Divider(height: 12),
+                    separatorBuilder: (_, _) => const Divider(height: 12),
                     itemBuilder: (context, i) {
                       final log = ticket.activityLogs[i];
                       return Row(

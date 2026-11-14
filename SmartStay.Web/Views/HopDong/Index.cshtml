@@ -32,6 +32,21 @@
 </div>
 
 <div class="card-custom">
+    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+        <div class="input-group input-group-sm" style="max-width: 340px;">
+            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+            <input type="text" id="contractSearch" class="form-control border-start-0" placeholder="Tìm mã HĐ, phòng (P.305), tên cư dân..." oninput="filterContracts()">
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="fs-8 fw-bold text-muted">TRẠNG THÁI:</span>
+            <select id="contractStatusFilter" class="form-select form-select-sm rounded-3" style="width: auto;" onchange="filterContracts()">
+                <option value="all">Tất cả trạng thái</option>
+                <option value="Đang hiệu lực">Đang hiệu lực</option>
+                <option value="Sắp hết hạn">Sắp hết hạn</option>
+                <option value="Đã gia hạn">Đã gia hạn</option>
+            </select>
+        </div>
+    </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0" id="contractTable">
             <thead class="table-light fs-8">
@@ -205,7 +220,7 @@
                     </table>
                 </div>
             </div>
-            <div class="modal-footer px-4 pb-4 pt-0 border-0 bg-light rounded-bottom-4">
+            <div class="modal-footer px-4 pb-4 pt-0 border-0 bg-light rounded-bottom-4 d-flex flex-wrap gap-2 justify-content-end">
                 <button type="button" class="btn btn-outline-secondary rounded-3 btn-sm" data-bs-dismiss="modal">Đóng</button>
                 <button type="button" class="btn btn-success rounded-3 btn-sm px-4 fw-semibold shadow-sm" onclick="applyResidentBatch()">
                     <i class="bi bi-person-check-fill me-1"></i> Lưu Cư Dân & Tạo Hợp Đồng Hàng Loạt
@@ -271,7 +286,7 @@
                             <input type="text" id="ncDeposit" class="form-control rounded-3" value="7.000.000 đ" required>
                         </div>
                     </div>
-                    <div class="modal-footer px-0 pb-0 pt-4 border-0">
+                    <div class="modal-footer px-0 pb-0 pt-4 border-0 d-flex flex-wrap gap-2 justify-content-end">
                         <button type="button" class="btn btn-outline-secondary rounded-3" data-bs-dismiss="modal">Hủy</button>
                         <button type="submit" class="btn btn-primary rounded-3 px-4 fw-semibold shadow-sm">
                             <i class="bi bi-check2-circle me-1"></i> Tạo Hợp Đồng & Ký Điện Tử
@@ -351,9 +366,21 @@
         new bootstrap.Modal(document.getElementById('modalViewPdf')).show();
     }
 
+    function filterContracts() {
+        const q = (document.getElementById('contractSearch')?.value || '').trim().toLowerCase();
+        const st = document.getElementById('contractStatusFilter')?.value || 'all';
+        document.querySelectorAll('#contractTbody tr').forEach(tr => {
+            const text = tr.innerText.toLowerCase();
+            const matchQ = !q || text.includes(q);
+            const matchSt = st === 'all' || tr.innerText.includes(st);
+            tr.style.display = (matchQ && matchSt) ? '' : 'none';
+        });
+    }
+
     function renewContract(code, name, room) {
         document.getElementById('status-302').innerHTML = '<span class="badge bg-success text-white"><i class="bi bi-check-circle me-1"></i>Đã gia hạn (Đến 2027)</span>';
         document.getElementById('action-302').innerHTML = '<span class="text-success fs-8 fw-semibold"><i class="bi bi-shield-check"></i> Hiệu lực 12 tháng</span>';
+        filterContracts();
         showContractAlert(`Đã gia hạn hợp đồng ${code} cho cư dân ${name} (${room}) thêm 12 tháng thành công!`);
     }
 

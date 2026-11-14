@@ -179,7 +179,7 @@ class _CreateTicketScreenState extends State<CreateTicketScreen> {
               const Text('Phân loại sự cố *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: _selectedCategory,
+                initialValue: _selectedCategory,
                 items: _categories.map((c) {
                   return DropdownMenuItem(value: c, child: Text(c));
                 }).toList(),

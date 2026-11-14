@@ -1,4 +1,6 @@
 import 'dart:async';
+// Conditional-import web transport intentionally uses dart:html until migrated to package:web.
+// ignore: deprecated_member_use, avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 
 import 'api_response.dart';

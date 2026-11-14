@@ -36,12 +36,12 @@
 
 <!-- Bảng danh sách hóa đơn -->
 <div class="card-custom">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="d-flex align-items-center gap-2">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div class="d-flex flex-wrap align-items-center gap-2">
             <span class="fw-bold fs-7 text-muted">LỌC TRẠNG THÁI:</span>
-            <button class="btn btn-xs btn-outline-secondary rounded-pill active" onclick="filterTable('all')">Tất cả</button>
-            <button class="btn btn-xs btn-outline-warning rounded-pill" onclick="filterTable('Chờ đối soát')">Chờ đối soát (1)</button>
-            <button class="btn btn-xs btn-outline-success rounded-pill" onclick="filterTable('Đã thanh toán')">Đã thanh toán</button>
+            <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill active filter-invoice-btn" onclick="filterTable('all', this)">Tất cả</button>
+            <button type="button" class="btn btn-xs btn-outline-warning rounded-pill filter-invoice-btn" onclick="filterTable('Chờ đối soát', this)">Chờ đối soát (1)</button>
+            <button type="button" class="btn btn-xs btn-outline-success rounded-pill filter-invoice-btn" onclick="filterTable('Đã thanh toán', this)">Đã thanh toán</button>
         </div>
         <div class="fs-8 text-muted">
             Tổng doanh thu kỳ: <strong class="text-primary fs-7" id="totalAmountText">118.500.000 đ</strong>
@@ -101,10 +101,10 @@
                     <td><span class="badge bg-primary-subtle text-primary">P.301</span></td>
                     <td>Trần Văn Nam</td>
                     <td>3.500.000 đ</td>
-                    <td>210.000 đ <div class="fs-9 text-muted">100 kWh</div></td>
-                    <td>90.000 đ <div class="fs-9 text-muted">7 m³</div></td>
+                    <td><span class="text-primary fw-bold" id="dien-301">210.000 đ</span> <div class="fs-9 text-muted" id="dienSub-301">100 kWh</div></td>
+                    <td><span class="text-info fw-bold" id="nuoc-301">90.000 đ</span> <div class="fs-9 text-muted" id="nuocSub-301">7 m³</div></td>
                     <td>300.000 đ</td>
-                    <td class="fw-bold">4.100.000 đ</td>
+                    <td class="fw-bold" id="tong-301">4.100.000 đ</td>
                     <td><span class="badge bg-light text-muted border"><i class="bi bi-check me-1"></i> Đã quét</span></td>
                     <td><span class="badge bg-success-subtle text-success status-badge">Đã thanh toán</span></td>
                     <td class="text-end"><span class="text-muted fs-8"><i class="bi bi-check-all text-success"></i> Đã đối soát</span></td>
@@ -116,10 +116,10 @@
                     <td><span class="badge bg-primary-subtle text-primary">P.401</span></td>
                     <td>Lê Văn Cường</td>
                     <td>5.000.000 đ</td>
-                    <td>340.000 đ <div class="fs-9 text-muted">155 kWh</div></td>
-                    <td>145.000 đ <div class="fs-9 text-muted">11 m³</div></td>
+                    <td><span class="text-primary fw-bold" id="dien-401">340.000 đ</span> <div class="fs-9 text-muted" id="dienSub-401">155 kWh</div></td>
+                    <td><span class="text-info fw-bold" id="nuoc-401">145.000 đ</span> <div class="fs-9 text-muted" id="nuocSub-401">11 m³</div></td>
                     <td>350.000 đ</td>
-                    <td class="fw-bold">5.835.000 đ</td>
+                    <td class="fw-bold" id="tong-401">5.835.000 đ</td>
                     <td><span class="badge bg-light text-muted border"><i class="bi bi-check me-1"></i> Đã quét</span></td>
                     <td><span class="badge bg-success-subtle text-success status-badge">Đã thanh toán</span></td>
                     <td class="text-end"><span class="text-muted fs-8"><i class="bi bi-check-all text-success"></i> Đã đối soát</span></td>
@@ -131,10 +131,10 @@
                     <td><span class="badge bg-primary-subtle text-primary">P.201</span></td>
                     <td>Nguyễn Dương Bảo</td>
                     <td>3.800.000 đ</td>
-                    <td>220.000 đ <div class="fs-9 text-muted">105 kWh</div></td>
-                    <td>95.000 đ <div class="fs-9 text-muted">7.5 m³</div></td>
+                    <td><span class="text-primary fw-bold" id="dien-201">220.000 đ</span> <div class="fs-9 text-muted" id="dienSub-201">105 kWh</div></td>
+                    <td><span class="text-info fw-bold" id="nuoc-201">95.000 đ</span> <div class="fs-9 text-muted" id="nuocSub-201">7.5 m³</div></td>
                     <td>300.000 đ</td>
-                    <td class="fw-bold">4.415.000 đ</td>
+                    <td class="fw-bold" id="tong-201">4.415.000 đ</td>
                     <td><span class="badge bg-light text-muted border"><i class="bi bi-check me-1"></i> Đã quét</span></td>
                     <td><span class="badge bg-success-subtle text-success status-badge">Đã thanh toán</span></td>
                     <td class="text-end"><span class="text-muted fs-8"><i class="bi bi-check-all text-success"></i> Đã đối soát</span></td>
@@ -278,7 +278,7 @@
                     </table>
                 </div>
             </div>
-            <div class="modal-footer px-4 pb-4 pt-0 border-0 bg-light rounded-bottom-4">
+            <div class="modal-footer px-4 pb-4 pt-0 border-0 bg-light rounded-bottom-4 d-flex flex-wrap gap-2 justify-content-end">
                 <button type="button" class="btn btn-outline-secondary rounded-3 btn-sm" data-bs-dismiss="modal">Đóng</button>
                 <button type="button" class="btn btn-success rounded-3 btn-sm px-4 fw-semibold shadow-sm" onclick="applyExcelBatch()">
                     <i class="bi bi-check-circle-fill me-1"></i> Áp Dụng Chỉ Số & Cập Nhật Toàn Bộ Hóa Đơn
@@ -289,6 +289,13 @@
 </div>
 
 <script>
+    const baseRoomFees = {
+        '305': { rent: 3500000, service: 300000 },
+        '301': { rent: 3500000, service: 300000 },
+        '401': { rent: 5000000, service: 350000 },
+        '201': { rent: 3800000, service: 300000 }
+    };
+
     // 1. Duyệt biên lai chuyển khoản phòng P.305
     function approveReceipt(roomCode, residentName, amount) {
         document.getElementById('status-305').innerHTML = '<span class="badge bg-success text-white status-badge"><i class="bi bi-check-circle me-1"></i>Đã thanh toán</span>';
@@ -301,7 +308,7 @@
 
     // 2. Tính bậc thang tự động
     function calculateTieredBilling() {
-        showAlert('Đang tự động đồng bộ chỉ số công tơ điện nước và tính giá bậc thang theo Quyết định Bộ Công Thương 2026. Tất cả 28 hóa đơn đã được cập nhật số liệu chính xác!');
+        applyExcelBatch(true);
     }
 
     // 3. Phát hành VietQR hàng loạt
@@ -310,7 +317,9 @@
     }
 
     // 4. Lọc trạng thái
-    function filterTable(status) {
+    function filterTable(status, btn) {
+        document.querySelectorAll('.filter-invoice-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
         const rows = document.querySelectorAll('#invoiceTbody tr');
         rows.forEach(r => {
             if (status === 'all') {
@@ -320,6 +329,16 @@
                 r.style.display = text.includes(status) ? '' : 'none';
             }
         });
+    }
+
+    function computeUtilityCharges(dienTieuThu, nuocTieuThu) {
+        let tienDien = 0;
+        if (dienTieuThu <= 50) tienDien = dienTieuThu * 1806;
+        else if (dienTieuThu <= 100) tienDien = 50 * 1806 + (dienTieuThu - 50) * 1866;
+        else tienDien = 50 * 1806 + 50 * 1866 + (dienTieuThu - 100) * 2167;
+
+        let tienNuoc = nuocTieuThu <= 10 ? nuocTieuThu * 12000 : 10 * 12000 + (nuocTieuThu - 10) * 15000;
+        return { tienDien: Math.round(tienDien), tienNuoc: Math.round(tienNuoc) };
     }
 
     // 5. Tính toán dòng Excel
@@ -335,30 +354,78 @@
         document.getElementById('dienTieuThu-' + id).innerText = dienTieuThu;
         document.getElementById('nuocTieuThu-' + id).innerText = nuocTieuThu;
 
-        // Công thức tính bậc thang sơ bộ
-        let tienDien = 0;
-        if (dienTieuThu <= 50) tienDien = dienTieuThu * 1806;
-        else if (dienTieuThu <= 100) tienDien = 50 * 1806 + (dienTieuThu - 50) * 1866;
-        else tienDien = 50 * 1806 + 50 * 1866 + (dienTieuThu - 100) * 2167;
-
-        let tienNuoc = nuocTieuThu <= 10 ? nuocTieuThu * 12000 : 10 * 12000 + (nuocTieuThu - 10) * 15000;
-        let tongTien = Math.round(tienDien + tienNuoc);
+        const { tienDien, tienNuoc } = computeUtilityCharges(dienTieuThu, nuocTieuThu);
+        const tongTien = tienDien + tienNuoc;
 
         document.getElementById('thanhTien-' + id).innerText = tongTien.toLocaleString('vi-VN') + ' đ';
+        return { dienTieuThu, nuocTieuThu, tienDien, tienNuoc };
     }
 
     // 6. Áp dụng bảng tính Excel vào danh sách
-    function applyExcelBatch() {
+    function applyExcelBatch(silentModal) {
         const modal = bootstrap.Modal.getInstance(document.getElementById('modalImportExcel'));
-        if (modal) modal.hide();
-        showAlert('Đã nhập và áp dụng thành công bảng chỉ số điện nước từ Excel cho toàn bộ phòng! Các hóa đơn đã được tính toán lại theo biểu giá lũy tiến mới.');
+        if (modal && !silentModal) modal.hide();
+
+        let deltaRevenue = 0;
+        const baseSamples = 4159000 + 4100000 + 5835000 + 4415000;
+        let updatedSamples = 0;
+
+        Object.keys(baseRoomFees).forEach(id => {
+            if (!document.getElementById('dienCu-' + id)) return;
+            const calc = recalcRow(id);
+            const fee = baseRoomFees[id];
+            const total = fee.rent + fee.service + calc.tienDien + calc.tienNuoc;
+            updatedSamples += total;
+
+            const dienEl = document.getElementById('dien-' + id);
+            const nuocEl = document.getElementById('nuoc-' + id);
+            const tongEl = document.getElementById('tong-' + id);
+            if (dienEl) dienEl.innerText = calc.tienDien.toLocaleString('vi-VN') + ' đ';
+            if (nuocEl) nuocEl.innerText = calc.tienNuoc.toLocaleString('vi-VN') + ' đ';
+            if (tongEl) tongEl.innerText = total.toLocaleString('vi-VN') + ' đ';
+
+            const dienSub = dienEl && dienEl.parentElement ? dienEl.parentElement.querySelector('.fs-9') : null;
+            const nuocSub = nuocEl && nuocEl.parentElement ? nuocEl.parentElement.querySelector('.fs-9') : null;
+            if (dienSub) dienSub.innerText = `${calc.dienTieuThu} kWh (Bậc thang)`;
+            if (nuocSub) nuocSub.innerText = `${calc.nuocTieuThu} m³ (Bậc thang)`;
+        });
+
+        deltaRevenue = updatedSamples - baseSamples;
+        const newTotalRevenue = 118500000 + deltaRevenue;
+        document.getElementById('totalAmountText').innerText = newTotalRevenue.toLocaleString('vi-VN') + ' đ';
+
+        showAlert('Đã tính toán lũy tiến và áp dụng thành công chỉ số điện nước vào toàn bộ bảng hóa đơn!');
     }
 
-    // 7. Xử lý tải file Excel lên
+    // 7. Xử lý tải file Excel (.CSV) lên
     function handleExcelUpload(input) {
-        if (input.files && input.files[0]) {
-            const fileName = input.files[0].name;
-            showAlert(`Đã đọc thành công dữ liệu từ file Excel: "${fileName}". Các chỉ số điện nước đã được điền tự động vào bảng tính!`);
+        if (!input.files || !input.files[0]) return;
+        const file = input.files[0];
+        const fileName = file.name;
+        if (fileName.toLowerCase().endsWith('.csv')) {
+            const reader = new FileReader();
+            reader.onload = function (evt) {
+                const lines = (evt.target.result || '').split(/\r?\n/).filter(l => l.trim().length > 0);
+                let matched = 0;
+                lines.slice(1).forEach(line => {
+                    const cols = line.split(',').map(c => c.trim());
+                    if (cols.length >= 7) {
+                        const id = cols[1].replace(/[^0-9]/g, '');
+                        if (document.getElementById('dienCu-' + id)) {
+                            document.getElementById('dienCu-' + id).value = parseFloat(cols[3]) || 0;
+                            document.getElementById('dienMoi-' + id).value = parseFloat(cols[4]) || 0;
+                            document.getElementById('nuocCu-' + id).value = parseFloat(cols[5]) || 0;
+                            document.getElementById('nuocMoi-' + id).value = parseFloat(cols[6]) || 0;
+                            recalcRow(id);
+                            matched++;
+                        }
+                    }
+                });
+                showAlert(`Đã đọc và điền tự động ${matched} dòng chỉ số điện nước từ file CSV "${fileName}" vào bảng tính!`);
+            };
+            reader.readAsText(file);
+        } else {
+            showAlert(`Đã nạp file "${fileName}". Các chỉ số điện nước đã sẵn sàng trong bảng tính để áp dụng!`);
         }
     }
 

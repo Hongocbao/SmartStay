@@ -106,9 +106,30 @@
 
         .role-btn-group {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 8px;
             margin-bottom: 24px;
+        }
+
+        @@media (max-width: 575.98px) {
+            body {
+                padding: 16px 10px;
+            }
+            .login-card {
+                padding: 24px 18px;
+                border-radius: 20px;
+            }
+            .brand-title {
+                font-size: 20px;
+            }
+            .role-btn-group {
+                grid-template-columns: 1fr;
+            }
+            .role-btn {
+                flex-direction: row;
+                justify-content: center;
+                padding: 10px 12px;
+            }
         }
 
         .role-btn {
@@ -264,9 +285,13 @@
             </div>
 
             <div class="role-btn-group">
-                <div class="role-btn role-badge-admin active" onclick="selectRole('Admin', 'admin', '123456', 'Toàn quyền Ban Quản Lý & Kỹ Thuật: Dashboard KPI, sơ đồ phòng, đối soát VietQR, hợp đồng cư dân, xử lý Kanban bảo trì & khóa IoT.')">
+                <div class="role-btn role-badge-admin active" onclick="selectRole('Admin', 'admin', '123456', 'Toàn quyền Ban Quản Lý: Dashboard KPI, sơ đồ phòng, đối soát VietQR, hợp đồng cư dân, Kanban & khóa IoT.')">
                     <i class="bi bi-shield-lock-fill text-purple"></i>
-                    <span>Ban Quản Lý & Kỹ Thuật</span>
+                    <span>Ban Quản Lý</span>
+                </div>
+                <div class="role-btn role-badge-tech" onclick="selectRole('KyThuat', 'kythuat', '123456', 'Không gian Kỹ Thuật Viên: Điều phối xử lý sự cố Kanban, bảo trì vật tư & khóa IoT.')">
+                    <i class="bi bi-tools text-success"></i>
+                    <span>Kỹ Thuật Viên</span>
                 </div>
                 <div class="role-btn role-badge-resident" onclick="selectRole('CuDan', '2380600133', '123456', 'Cổng Cư Dân: Tra cứu tiền điện nước bậc thang, mã VietQR, báo sự cố phòng P.305.')">
                     <i class="bi bi-person-workspace text-primary"></i>
@@ -361,10 +386,12 @@
             const buttons = document.querySelectorAll('.role-btn');
             buttons.forEach(b => b.classList.remove('active'));
 
-            if (role === 'Admin' || role === 'KyThuat') {
+            if (role === 'Admin') {
                 buttons[0].classList.add('active');
-            } else {
+            } else if (role === 'KyThuat') {
                 buttons[1].classList.add('active');
+            } else {
+                buttons[2].classList.add('active');
             }
         }
 
