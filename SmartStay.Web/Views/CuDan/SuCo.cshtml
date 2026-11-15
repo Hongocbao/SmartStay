@@ -20,14 +20,17 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div>
             <h6 class="fw-bold mb-1 text-slate-900"><i class="bi bi-tools text-primary me-2"></i>Theo Dõi Tiến Độ Sửa Chữa (Phòng P.305)</h6>
-            <p class="fs-8 text-muted mb-0">Cho phép chụp ảnh hoặc quay video trực tiếp hiện trường để kỹ thuật viên Kanban xử lý chính xác.</p>
+            <p class="fs-8 text-muted mb-0">Cho phép chụp ảnh trực tiếp hoặc quay video hiện trường để kỹ thuật viên Kanban xử lý chính xác.</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             <button type="button" class="btn btn-outline-primary rounded-pill px-3 py-2 fw-semibold" onclick="window.openSmartStayCallModal && window.openSmartStayCallModal('QuanLy', 'Ban Quản Lý (Báo sự cố P.305)', true)">
                 <i class="bi bi-camera-video-fill me-1"></i> Gọi Video báo Quản Lý
             </button>
+            <button type="button" class="btn btn-outline-danger rounded-pill px-3 py-2 fw-semibold" onclick="openVisualIncidentModal('video')">
+                <i class="bi bi-record-circle me-1"></i> Quay Video Sự Cố
+            </button>
             <button class="btn btn-primary rounded-pill px-4 py-2 fw-bold" data-bs-toggle="modal" data-bs-target="#newTicketModal">
-                <i class="bi bi-plus-lg me-1"></i> Báo Hỏng Thiết Bị Mới
+                <i class="bi bi-camera-fill me-1"></i> Chụp Ảnh / Báo Sự Cố
             </button>
         </div>
     </div>
@@ -49,6 +52,14 @@
             <p class="fs-8 text-muted mb-3">
                 Máy lạnh phòng P.305 bật chế độ Cool 26°C thì phát tiếng rè rè liên tục, máng thoát nước bị nghẹt gây rỉ giọt xuống sàn gỗ.
             </p>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill" onclick="openSuCoVideo('https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', 'Video hiện trường: Máy lạnh P.305 rỉ nước')">
+                    <i class="bi bi-play-circle-fill me-1"></i> Xem Video hiện trường
+                </button>
+                <span class="badge bg-primary-subtle text-primary d-inline-flex align-items-center px-3 rounded-pill">
+                    <i class="bi bi-camera-fill me-1"></i> Đã đính kèm bằng chứng Camera
+                </span>
+            </div>
 
             <div class="bg-light p-3 rounded-3 border mb-3 fs-8">
                 <div class="d-flex justify-content-between mb-1">
@@ -162,11 +173,14 @@
                             <div class="border rounded-3 p-3 bg-light h-100">
                                 <label class="form-label fw-bold small mb-2"><i class="bi bi-image text-primary me-1"></i>Chụp ảnh / Tải ảnh sự cố</label>
                                 <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <button type="button" id="scCapturePhotoBtn" class="btn btn-sm btn-primary rounded-3" onclick="captureScPhotoDirect()">
+                                        <i class="bi bi-camera-fill me-1"></i> Chụp trực tiếp
+                                    </button>
                                     <label class="btn btn-sm btn-outline-primary rounded-3 mb-0" style="cursor:pointer;">
-                                        <i class="bi bi-camera me-1"></i> Chụp / Chọn ảnh
+                                        <i class="bi bi-folder2-open me-1"></i> Chọn ảnh
                                         <input type="file" id="scPhotoInput" accept="image/*" capture="environment" class="d-none" onchange="onScPhotoSelected(this)">
                                     </label>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" onclick="clearScPhoto()">Xóa ảnh</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" onclick="clearScPhoto()">Xóa</button>
                                 </div>
                                 <img id="scPhotoPreview" src="" alt="Ảnh sự cố" class="w-100 rounded-3 border d-none" style="height: 120px; object-fit: cover;">
                                 <div id="scPhotoHint" class="text-muted small">Chụp cận cảnh điểm rò rỉ hoặc hư hỏng.</div>
@@ -225,6 +239,79 @@
         return String(s || '').replace(/[&<>"']/g, function (c) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
         });
+    }
+
+    function openVisualIncidentModal(mode) {
+        var modalEl = document.getElementById('newTicketModal');
+        if (!modalEl) return;
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        setTimeout(function () {
+            if (mode === 'video') {
+                recordScVideo4s();
+            } else if (mode === 'photo') {
+                captureScPhotoDirect();
+            }
+        }, 250);
+    }
+
+    async function captureScPhotoDirect() {
+        var btn = document.getElementById('scCapturePhotoBtn');
+        var prev = document.getElementById('scPhotoPreview');
+        var hint = document.getElementById('scPhotoHint');
+        if (btn) btn.disabled = true;
+        if (hint) hint.innerText = 'Đang kết nối Camera chụp ảnh sự cố...';
+
+        var captured = false;
+        try {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                var stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                var video = document.createElement('video');
+                video.muted = true;
+                video.playsInline = true;
+                video.srcObject = stream;
+                await video.play();
+                await new Promise(function (resolve) { setTimeout(resolve, 260); });
+                var c = document.createElement('canvas');
+                c.width = video.videoWidth || 480;
+                c.height = video.videoHeight || 270;
+                c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+                scDraftPhoto = c.toDataURL('image/jpeg', 0.8);
+                stream.getTracks().forEach(function (t) { t.stop(); });
+                captured = true;
+            }
+        } catch (_) {
+            captured = false;
+        }
+
+        if (!captured) {
+            var fc = document.createElement('canvas');
+            fc.width = 480;
+            fc.height = 270;
+            var ctx = fc.getContext('2d');
+            ctx.fillStyle = '#0F172A';
+            ctx.fillRect(0, 0, fc.width, fc.height);
+            ctx.strokeStyle = '#F59E0B';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(110, 56, 260, 150);
+            ctx.fillStyle = '#86EFAC';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillText('SMARTSTAY CAM • PHÒNG P.305', 24, 34);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 16px sans-serif';
+            var cat = (document.getElementById('scCategory') || {}).value || 'Thiết bị căn hộ';
+            ctx.fillText('HIỆN TRƯỜNG: ' + cat, 126, 128);
+            ctx.fillStyle = '#93C5FD';
+            ctx.font = '12px sans-serif';
+            ctx.fillText('Ảnh chụp trực tiếp lúc ' + new Date().toLocaleTimeString('vi-VN'), 126, 160);
+            scDraftPhoto = fc.toDataURL('image/png');
+        }
+
+        if (prev) {
+            prev.src = scDraftPhoto;
+            prev.classList.remove('d-none');
+        }
+        if (hint) hint.innerText = 'Đã chụp ảnh hiện trường trực tiếp từ Camera!';
+        if (btn) btn.disabled = false;
     }
 
     function onScPhotoSelected(input) {

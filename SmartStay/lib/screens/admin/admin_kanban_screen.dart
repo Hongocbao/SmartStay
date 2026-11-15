@@ -3,7 +3,9 @@ import '../../utils/provider_scope.dart';
 import '../../providers/ticket_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/ticket_model.dart';
+import '../../services/api_transport.dart';
 import '../../utils/formatters.dart';
+import '../ticket/ticket_detail_screen.dart';
 import 'admin_iot_screen.dart';
 
 class AdminKanbanScreen extends StatefulWidget {
@@ -668,6 +670,73 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
             style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.3),
           ),
 
+          if (ticket.images.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => TicketDetailScreen(ticket: ticket)),
+                );
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (ticket.images.any((m) => m.imageType != 'VideoSuCo'))
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.photo_camera_rounded, size: 12, color: Color(0xFF2563EB)),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Ảnh hiện trường (${ticket.images.where((m) => m.imageType != 'VideoSuCo').length})',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1D4ED8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (ticket.images.any((m) => m.imageType == 'VideoSuCo'))
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.videocam_rounded, size: 12, color: Color(0xFFDC2626)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Video sự cố',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFDC2626),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+
           // Cảnh báo SLA
           if (ticket.status != 'Hoàn thành') ...[
             const SizedBox(height: 8),
@@ -1050,6 +1119,10 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
     String selectedRoom = occupiedRooms.isNotEmpty ? occupiedRooms.first.roomCode : 'P.305';
     String selectedCategory = 'Thiết bị điện (Máy lạnh, đèn, ổ cắm)';
     String selectedPriority = 'Cao';
+    String? pickedImageDataUrl;
+    String? pickedImageName;
+    String? pickedVideoUrl;
+    String? pickedVideoName;
 
     showDialog(
       context: context,
@@ -1144,6 +1217,79 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
                         prefixIcon: Icon(Icons.description_outlined),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final picked = await pickMediaFile(
+                              acceptVideo: false,
+                              useCamera: true,
+                            );
+                            if (picked == null || !dialogCtx.mounted) return;
+                            setDialogState(() {
+                              pickedImageDataUrl = picked.dataUrl;
+                              pickedImageName = picked.fileName;
+                            });
+                          },
+                          style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
+                          icon: Icon(
+                            pickedImageDataUrl != null
+                                ? Icons.check_circle_rounded
+                                : Icons.camera_alt_rounded,
+                            size: 16,
+                            color: pickedImageDataUrl != null
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFF2563EB),
+                          ),
+                          label: Text(
+                            pickedImageName ?? 'Chụp / Tải Ảnh',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final picked = await pickMediaFile(
+                              acceptVideo: true,
+                              useCamera: true,
+                            );
+                            if (picked == null || !dialogCtx.mounted) return;
+                            setDialogState(() {
+                              pickedVideoUrl = picked.dataUrl;
+                              pickedVideoName = picked.fileName;
+                            });
+                          },
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 44),
+                            side: const BorderSide(color: Color(0xFFDC2626)),
+                          ),
+                          icon: Icon(
+                            pickedVideoUrl != null
+                                ? Icons.check_circle_rounded
+                                : Icons.videocam_rounded,
+                            size: 16,
+                            color: pickedVideoUrl != null
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFFDC2626),
+                          ),
+                          label: Text(
+                            pickedVideoName ?? 'Quay / Tải Video',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: pickedVideoUrl != null
+                                  ? const Color(0xFF16A34A)
+                                  : const Color(0xFFDC2626),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -1164,6 +1310,8 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
                       priority: selectedPriority,
                       roomCode: selectedRoom,
                       authorName: 'Ban Quản lý & Kỹ thuật',
+                      imageUrl: pickedImageDataUrl,
+                      videoUrl: pickedVideoUrl,
                     );
                     if (dialogCtx.mounted) Navigator.pop(dialogCtx);
                     if (context.mounted) {
