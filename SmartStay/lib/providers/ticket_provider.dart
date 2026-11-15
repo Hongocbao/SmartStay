@@ -100,6 +100,7 @@ class TicketProvider extends ChangeNotifier {
     String? roomCode,
     String? authorName,
     String? imageUrl,
+    String? videoUrl,
   }) async {
     _isLoading = true;
     notifyListeners();
@@ -110,6 +111,20 @@ class TicketProvider extends ChangeNotifier {
     final effectiveAuthor = (authorName != null && authorName.isNotEmpty) ? authorName : 'Cư dân';
     final newTicketId = DateTime.now().millisecondsSinceEpoch % 10000;
     final now = DateTime.now();
+    final mediaList = <TicketImageModel>[
+      if (imageUrl != null && imageUrl.isNotEmpty)
+        TicketImageModel(
+          imageId: DateTime.now().millisecondsSinceEpoch % 1000,
+          mediaUrl: imageUrl,
+          imageType: 'TruocSuaChua',
+        ),
+      if (videoUrl != null && videoUrl.isNotEmpty)
+        TicketImageModel(
+          imageId: (DateTime.now().millisecondsSinceEpoch % 1000) + 1,
+          mediaUrl: videoUrl,
+          imageType: 'VideoSuCo',
+        ),
+    ];
 
     final newTicket = TicketModel(
       ticketId: newTicketId,
@@ -122,15 +137,7 @@ class TicketProvider extends ChangeNotifier {
       priority: priority,
       status: 'Chờ xử lý',
       createdAt: now,
-      images: (imageUrl != null && imageUrl.isNotEmpty)
-          ? [
-              TicketImageModel(
-                imageId: DateTime.now().millisecondsSinceEpoch % 1000,
-                mediaUrl: imageUrl,
-                imageType: 'TruocSuaChua',
-              )
-            ]
-          : [],
+      images: mediaList,
       comments: [
         TicketCommentModel(
           commentId: 1,
@@ -161,6 +168,8 @@ class TicketProvider extends ChangeNotifier {
       description: description,
       priority: priority,
       status: 'Chờ xử lý',
+      imageUrl: imageUrl,
+      videoUrl: videoUrl,
     );
     return true;
   }

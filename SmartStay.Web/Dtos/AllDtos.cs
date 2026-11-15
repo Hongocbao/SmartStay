@@ -106,4 +106,6 @@ public class TroLyChatRequestDto
 {
     public string TinNhan { get; set; } = string.Empty;
     public int? MaPhong { get; set; }
+    public string? VaiTro { get; set; }
+    public string? SoPhong { get; set; }
 }

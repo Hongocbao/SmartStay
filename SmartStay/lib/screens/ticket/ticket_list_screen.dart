@@ -21,7 +21,23 @@ class TicketListScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF0F172A),
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Báo sự cố mới',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CreateTicketScreen()),
+              );
+            },
+            icon: const Icon(
+              Icons.add_circle_outline_rounded,
+              color: Color(0xFF2563EB),
+            ),
+          ),
+        ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(

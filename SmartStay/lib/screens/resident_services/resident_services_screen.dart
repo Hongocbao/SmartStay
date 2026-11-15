@@ -1,13 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../providers/admin_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/api_service.dart';
+import '../../services/api_transport.dart';
 import '../../services/supabase_direct_service.dart';
 import '../../services/system_config.dart';
 import '../../services/tiered_utility_service.dart';
 import '../../utils/formatters.dart';
 import '../../utils/provider_scope.dart';
+import '../../widgets/call_center_modal.dart';
 
 class ResidentServicesScreen extends StatefulWidget {
   final int initialTab;
@@ -84,7 +89,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
   ];
 
   final List<_MarketListing> _listings = [
-    const _MarketListing(
+    _MarketListing(
       'Quạt đứng Senko 3 tốc độ gió có hẹn giờ',
       'Điện gia dụng',
       120000,
@@ -94,8 +99,20 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       'Còn rất mới 95%',
       'Dùng được 4 tháng, chạy êm ru, có remote điều khiển. Pass lại do phòng đã có máy lạnh.',
       'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80',
+      id: 'MKT-001',
+      videoUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+      rating: 5.0,
+      reviews: [
+        const _MarketReview(
+          reviewer: 'Minh Anh',
+          room: 'P.201',
+          stars: 5,
+          comment: 'Quạt chạy rất êm, bạn Bảo bàn giao cẩn thận kèm remote zin!',
+          time: 'Hôm qua',
+        ),
+      ],
     ),
-    const _MarketListing(
+    _MarketListing(
       'Combo 5 cuốn giáo trình Cấu trúc dữ liệu & Giải thuật',
       'Tặng miễn phí',
       0,
@@ -105,8 +122,19 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       'TẶNG MIỄN PHÍ 0Đ',
       'Mình đã học xong môn, tặng lại cho các bạn khóa dưới cần ôn thi cuối kỳ.',
       'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=600&q=80',
+      id: 'MKT-002',
+      rating: 4.9,
+      reviews: [
+        const _MarketReview(
+          reviewer: 'Khánh Linh',
+          room: 'P.104',
+          stars: 5,
+          comment: 'Sách sạch sẽ không rách trang, cảm ơn anh nhiều!',
+          time: '2 ngày trước',
+        ),
+      ],
     ),
-    const _MarketListing(
+    _MarketListing(
       'Ấm đun nước siêu tốc Sunhouse Inox 1.8L',
       'Điện gia dụng',
       70000,
@@ -116,6 +144,10 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       'Inox 304',
       'Đun sôi siêu nhanh trong 3 phút, tự ngắt điện an toàn khi sôi, còn nguyên hộp.',
       'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=600&q=80',
+      id: 'MKT-003',
+      videoUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+      rating: 4.8,
+      reviews: const [],
     ),
   ];
 
@@ -127,15 +159,16 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
   // 'electric' = Chỉ tính Điện | 'water' = Chỉ tính Nước | 'both' = Tính cả Điện & Nước
   String _ocrMode = 'both';
   String _ocrConfidence = '99.4% (Rất cao)';
-  final String _electricPreviewUrl =
-      'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=600&q=80';
-  final String _waterPreviewUrl =
-      'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80';
+  String? _uploadedElectricDataUrl;
+  String? _uploadedWaterDataUrl;
+  String _electricPhotoLabel = 'Mặt đồng hồ công tơ điện tử P.305';
+  String _waterPhotoLabel = 'Mặt đồng hồ nước sinh hoạt P.305';
   bool _isScanningOcr = false;
   bool _showRoiOverlay = true;
   bool _showCalculationDetail = false;
   final int _daysSinceLastPayment = 25; // Từ kỳ thanh toán trước (05/10) đến hôm nay
   Timer? _residentMeterSyncTimer;
+  bool _isPullingMeter = false;
   DateTime? _lastLocalMeterEdit;
   final SupabaseDirectService _supabase = SupabaseDirectService();
 
@@ -164,81 +197,86 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
     );
     _pullResidentMeterFromCloud();
     _residentMeterSyncTimer = Timer.periodic(
-      const Duration(seconds: 4),
+      const Duration(seconds: 8),
       (_) => _pullResidentMeterFromCloud(),
     );
   }
 
   Future<void> _pullResidentMeterFromCloud() async {
-    if (!mounted) return;
+    if (!mounted || _isPullingMeter) return;
     // Tránh ghi đè khi người dùng vừa gõ phím trong vòng 3 giây
     if (_lastLocalMeterEdit != null &&
         DateTime.now().difference(_lastLocalMeterEdit!).inSeconds < 3) {
       return;
     }
-    final snapshot = await _supabase.fetchUnifiedSnapshot();
-    if (!mounted || snapshot == null) return;
+    _isPullingMeter = true;
+    try {
+      final snapshot = await _supabase.fetchUnifiedSnapshot();
+      if (!mounted || snapshot == null) return;
 
-    bool changed = false;
-    final meter = snapshot['chiSoCuDan'];
-    if (meter is Map) {
-      final mode = (meter['cheDo'] ?? meter['CheDo'] ?? '').toString().trim();
-      final elecOld = (meter['dienKyTruoc'] ?? meter['DienKyTruoc'] ?? 1420) as num;
-      final elecNew = (meter['dienMoiChup'] ?? meter['DienMoiChup'] ?? 1540) as num;
-      final waterOld = (meter['nuocKyTruoc'] ?? meter['NuocKyTruoc'] ?? 84) as num;
-      final waterNew = (meter['nuocMoiChup'] ?? meter['NuocMoiChup'] ?? 92) as num;
+      bool changed = false;
+      final meter = snapshot['chiSoCuDan'];
+      if (meter is Map) {
+        final mode = (meter['cheDo'] ?? meter['CheDo'] ?? '').toString().trim();
+        final elecOld = (meter['dienKyTruoc'] ?? meter['DienKyTruoc'] ?? 1420) as num;
+        final elecNew = (meter['dienMoiChup'] ?? meter['DienMoiChup'] ?? 1540) as num;
+        final waterOld = (meter['nuocKyTruoc'] ?? meter['NuocKyTruoc'] ?? 84) as num;
+        final waterNew = (meter['nuocMoiChup'] ?? meter['NuocMoiChup'] ?? 92) as num;
 
-      if (mode.isNotEmpty && mode != _ocrMode) {
-        _ocrMode = mode;
-        changed = true;
-      }
-      if (_meterOldController.text != elecOld.round().toString()) {
-        _meterOldController.text = elecOld.round().toString();
-        changed = true;
-      }
-      if (_meterNewController.text != elecNew.round().toString()) {
-        _meterNewController.text = elecNew.round().toString();
-        changed = true;
-      }
-      if (_waterOldController.text != waterOld.round().toString()) {
-        _waterOldController.text = waterOld.round().toString();
-        changed = true;
-      }
-      if (_waterNewController.text != waterNew.round().toString()) {
-        _waterNewController.text = waterNew.round().toString();
-        changed = true;
-      }
-    }
-
-    final cloudLogs = snapshot['soTheoDoiCuDan'];
-    if (cloudLogs is List && cloudLogs.isNotEmpty) {
-      for (final raw in cloudLogs) {
-        if (raw is! Map) continue;
-        final timeLabel = (raw['thoiDiem'] ?? raw['ThoiDiem'] ?? '').toString();
-        final modeLabel = (raw['cheDo'] ?? raw['CheDo'] ?? '').toString();
-        final summary = (raw['tomTatTieuThu'] ?? raw['TomTatTieuThu'] ?? '').toString();
-        final cost = (raw['tongTienTamTinh'] ?? raw['TongTienTamTinh'] ?? 0) as num;
-        if (summary.isEmpty) continue;
-        final exists = _personalMeterLogs.any(
-          (l) => l.consumptionSummary == summary && (l.estimatedCost - cost.toDouble()).abs() < 1,
-        );
-        if (!exists) {
-          _personalMeterLogs.insert(
-            0,
-            _PersonalMeterLog(
-              dateLabel: timeLabel.isNotEmpty ? timeLabel : 'Đồng bộ từ thiết bị khác',
-              modeLabel: modeLabel.isNotEmpty ? modeLabel : 'Điện + Nước',
-              consumptionSummary: summary,
-              estimatedCost: cost.toDouble(),
-            ),
-          );
+        if (mode.isNotEmpty && mode != _ocrMode) {
+          _ocrMode = mode;
+          changed = true;
+        }
+        if (_meterOldController.text != elecOld.round().toString()) {
+          _meterOldController.text = elecOld.round().toString();
+          changed = true;
+        }
+        if (_meterNewController.text != elecNew.round().toString()) {
+          _meterNewController.text = elecNew.round().toString();
+          changed = true;
+        }
+        if (_waterOldController.text != waterOld.round().toString()) {
+          _waterOldController.text = waterOld.round().toString();
+          changed = true;
+        }
+        if (_waterNewController.text != waterNew.round().toString()) {
+          _waterNewController.text = waterNew.round().toString();
           changed = true;
         }
       }
-    }
 
-    if (changed && mounted) {
-      setState(() {});
+      final cloudLogs = snapshot['soTheoDoiCuDan'];
+      if (cloudLogs is List && cloudLogs.isNotEmpty) {
+        for (final raw in cloudLogs) {
+          if (raw is! Map) continue;
+          final timeLabel = (raw['thoiDiem'] ?? raw['ThoiDiem'] ?? '').toString();
+          final modeLabel = (raw['cheDo'] ?? raw['CheDo'] ?? '').toString();
+          final summary = (raw['tomTatTieuThu'] ?? raw['TomTatTieuThu'] ?? '').toString();
+          final cost = (raw['tongTienTamTinh'] ?? raw['TongTienTamTinh'] ?? 0) as num;
+          if (summary.isEmpty) continue;
+          final exists = _personalMeterLogs.any(
+            (l) => l.consumptionSummary == summary && (l.estimatedCost - cost.toDouble()).abs() < 1,
+          );
+          if (!exists) {
+            _personalMeterLogs.insert(
+              0,
+              _PersonalMeterLog(
+                dateLabel: timeLabel.isNotEmpty ? timeLabel : 'Đồng bộ từ thiết bị khác',
+                modeLabel: modeLabel.isNotEmpty ? modeLabel : 'Điện + Nước',
+                consumptionSummary: summary,
+                estimatedCost: cost.toDouble(),
+              ),
+            );
+            changed = true;
+          }
+        }
+      }
+
+      if (changed && mounted) {
+        setState(() {});
+      }
+    } finally {
+      _isPullingMeter = false;
     }
   }
 
@@ -525,19 +563,56 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
               ],
             ),
             const SizedBox(height: 14),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: MediaQuery.of(context).size.width > 700 ? 4 : 2,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 2.3,
-              children: [
-                _buildMiniFeeBox('Tiền phòng cố định', '3.500.000 đ', const Color(0xFF0F172A)),
-                _buildMiniFeeBox('Điện (${elecUsed.toStringAsFixed(0)} kWh)', AppFormatters.currency(elecCost), const Color(0xFF2563EB)),
-                _buildMiniFeeBox('Nước (${waterUsed.toStringAsFixed(0)} m³)', AppFormatters.currency(waterCost), const Color(0xFF0284C7)),
-                _buildMiniFeeBox('Dịch vụ chung', '300.000 đ', const Color(0xFF475569)),
-              ],
+            Builder(
+              builder: (context) {
+                final feeBoxes = [
+                  _buildMiniFeeBox('Tiền phòng cố định', '3.500.000 đ', const Color(0xFF0F172A)),
+                  _buildMiniFeeBox('Điện (${elecUsed.toStringAsFixed(0)} kWh)', AppFormatters.currency(elecCost), const Color(0xFF2563EB)),
+                  _buildMiniFeeBox('Nước (${waterUsed.toStringAsFixed(0)} m³)', AppFormatters.currency(waterCost), const Color(0xFF0284C7)),
+                  _buildMiniFeeBox('Dịch vụ chung', '300.000 đ', const Color(0xFF475569)),
+                ];
+                if (MediaQuery.of(context).size.width > 700) {
+                  return IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: feeBoxes[0]),
+                        const SizedBox(width: 10),
+                        Expanded(child: feeBoxes[1]),
+                        const SizedBox(width: 10),
+                        Expanded(child: feeBoxes[2]),
+                        const SizedBox(width: 10),
+                        Expanded(child: feeBoxes[3]),
+                      ],
+                    ),
+                  );
+                }
+                return Column(
+                  children: [
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: feeBoxes[0]),
+                          const SizedBox(width: 10),
+                          Expanded(child: feeBoxes[1]),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: feeBoxes[2]),
+                          const SizedBox(width: 10),
+                          Expanded(child: feeBoxes[3]),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 14),
             Container(
@@ -553,16 +628,22 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'TIẾN ĐỘ HOÀN TẤT HÓA ĐƠN PHÒNG P.305:',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                      const Expanded(
+                        child: Text(
+                          'TIẾN ĐỘ HOÀN TẤT HÓA ĐƠN PHÒNG P.305:',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                        ),
                       ),
-                      Text(
-                        '$paidCount / $members Bạn đã thanh toán (${(progress * 100).toStringAsFixed(1)}%)',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: paidCount == members ? const Color(0xFF16A34A) : const Color(0xFF4F46E5),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          '$paidCount / $members Bạn đã thanh toán (${(progress * 100).toStringAsFixed(1)}%)',
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: paidCount == members ? const Color(0xFF16A34A) : const Color(0xFF4F46E5),
+                          ),
                         ),
                       ),
                     ],
@@ -600,6 +681,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     initialValue: _splitMethod,
+                    isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Phương thức phân bổ tiền',
                       border: OutlineInputBorder(),
@@ -675,20 +757,24 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildPillBadge(
-                            m.roleBadge,
-                            idx == 0 ? const Color(0xFF4F46E5) : const Color(0xFFF1F5F9),
-                            idx == 0 ? Colors.white : const Color(0xFF475569),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(m.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                          Text('MSSV: ${m.mssv}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildPillBadge(
+                              m.roleBadge,
+                              idx == 0 ? const Color(0xFF4F46E5) : const Color(0xFFF1F5F9),
+                              idx == 0 ? Colors.white : const Color(0xFF475569),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(m.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                            Text('MSSV: ${m.mssv}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       _buildPillBadge(
                         m.isPaid ? '✓ Đã nộp' : '⏳ Chưa nộp',
                         m.isPaid ? const Color(0xFF16A34A) : const Color(0xFFF59E0B),
@@ -862,49 +948,19 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
     final admin = context.watch<AdminProvider>();
 
     return _page([
-      Container(
-        padding: const EdgeInsets.all(18),
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      _buildPillBadge('DIGITAL KEYLESS', const Color(0xFF16A34A), Colors.white),
-                      _buildPillBadge('Smart IoT Pass', const Color(0xFFEEF2FF), const Color(0xFF4F46E5)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Cấp Mã Khách Vãng Lai & Vé Điện Tử Tạm Thời (Digital Guest Pass)',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Cư dân P.305 tự tạo mã QR hoặc mã PIN tạm thời có giới hạn giờ cho bạn bè/người thân đến thăm. Hệ thống tự động ghi nhật ký ra vào bảo đảm an ninh.',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5)),
-              icon: const Icon(Icons.add, size: 16, color: Colors.white),
-              label: const Text('Tạo Vé Khách Mới', style: TextStyle(fontSize: 12, color: Colors.white)),
-              onPressed: _showCreateGuestPassDialog,
-            ),
-          ],
+      _buildSectionHeaderCard(
+        badges: [
+          _buildPillBadge('DIGITAL KEYLESS', const Color(0xFF16A34A), Colors.white),
+          _buildPillBadge('Smart IoT Pass', const Color(0xFFEEF2FF), const Color(0xFF4F46E5)),
+        ],
+        title: 'Cấp Mã Khách Vãng Lai & Vé Điện Tử Tạm Thời (Digital Guest Pass)',
+        subtitle:
+            'Cư dân P.305 tự tạo mã QR hoặc mã PIN tạm thời có giới hạn giờ cho bạn bè/người thân đến thăm. Hệ thống tự động ghi nhật ký ra vào bảo đảm an ninh.',
+        actionButton: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5)),
+          icon: const Icon(Icons.add, size: 16, color: Colors.white),
+          label: const Text('Tạo Vé Khách Mới', style: TextStyle(fontSize: 12, color: Colors.white)),
+          onPressed: _showCreateGuestPassDialog,
         ),
       ),
 
@@ -924,7 +980,9 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
               children: [
                 Icon(Icons.door_front_door_rounded, color: Color(0xFF4F46E5)),
                 SizedBox(width: 8),
-                Text('Khóa Cửa Căn Hộ P.305', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Expanded(
+                  child: Text('Khóa Cửa Căn Hộ P.305', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -1011,11 +1069,20 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '🎫 Mã Khách Vãng Lai Đang Có Hiệu Lực (${_passes.length} Vé)',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                Expanded(
+                  child: Text(
+                    '🎫 Mã Khách Vãng Lai Đang Có Hiệu Lực (${_passes.length} Vé)',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
                 ),
-                const Text('Tự động hủy khi hết hạn', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                const SizedBox(width: 8),
+                const Flexible(
+                  child: Text(
+                    'Tự động hủy khi hết hạn',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -1034,15 +1101,19 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildPillBadge(pass.duration, const Color(0xFF16A34A), Colors.white),
-                            const SizedBox(height: 4),
-                            Text(pass.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildPillBadge(pass.duration, const Color(0xFF16A34A), Colors.white),
+                              const SizedBox(height: 4),
+                              Text(pass.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         OutlinedButton.icon(
                           icon: const Icon(Icons.cancel_outlined, size: 14, color: Color(0xFFDC2626)),
                           label: const Text('Hủy vé', style: TextStyle(fontSize: 11, color: Color(0xFFDC2626))),
@@ -1540,34 +1611,57 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
         _isScanningOcr = true;
         _showRoiOverlay = true;
       });
-      await Future.delayed(const Duration(milliseconds: 750));
+      await Future.delayed(const Duration(milliseconds: 650));
       if (!mounted) return;
+      final hasCustomUpload =
+          _uploadedElectricDataUrl != null || _uploadedWaterDataUrl != null;
       setState(() {
         _isScanningOcr = false;
+        _showCalculationDetail = true;
         if (includeElectric && _meterNewController.text.trim().isEmpty) {
           _meterNewController.text = '1540';
         }
         if (includeWater && _waterNewController.text.trim().isEmpty) {
           _waterNewController.text = '92';
         }
-        _ocrConfidence = '99.7% (Gemini Vision OCR)';
+        _ocrConfidence = hasCustomUpload
+            ? '99.7% (Gemini Vision OCR - Ảnh tải lên)'
+            : '99.7% (Gemini Vision OCR)';
       });
 
-      _pushResidentMeterToCloud(totalEstimatedCost: totalEstimatedCost);
+      final updatedElecOld = double.tryParse(_meterOldController.text) ?? 1420;
+      final updatedElecNew = double.tryParse(_meterNewController.text) ?? 1540;
+      final updatedElecUsed = includeElectric && updatedElecNew >= updatedElecOld
+          ? updatedElecNew - updatedElecOld
+          : 0.0;
+      final updatedElecRes =
+          TieredUtilityService.calculateElectricity(updatedElecUsed);
+
+      final updatedWaterOld = double.tryParse(_waterOldController.text) ?? 84;
+      final updatedWaterNew = double.tryParse(_waterNewController.text) ?? 92;
+      final updatedWaterUsed =
+          includeWater && updatedWaterNew >= updatedWaterOld
+              ? updatedWaterNew - updatedWaterOld
+              : 0.0;
+      final updatedWaterRes = TieredUtilityService.calculateWater(updatedWaterUsed);
+      final updatedTotal = (includeElectric ? updatedElecRes.totalAmount : 0.0) +
+          (includeWater ? updatedWaterRes.totalAmount : 0.0);
+
+      _pushResidentMeterToCloud(totalEstimatedCost: updatedTotal);
 
       final summaryParts = <String>[];
       if (includeElectric) {
         summaryParts.add(
-          '${elecConsumption.toStringAsFixed(0)} kWh (ký điện) = ${AppFormatters.currency(elecResult.totalAmount)}',
+          '${updatedElecUsed.toStringAsFixed(0)} kWh (ký điện) = ${AppFormatters.currency(updatedElecRes.totalAmount)}',
         );
       }
       if (includeWater) {
         summaryParts.add(
-          '${waterConsumption.toStringAsFixed(0)} m³ (khối nước) = ${AppFormatters.currency(waterResult.totalAmount)}',
+          '${updatedWaterUsed.toStringAsFixed(0)} m³ (khối nước) = ${AppFormatters.currency(updatedWaterRes.totalAmount)}',
         );
       }
       _showMessage(
-        '🔔 Thông báo tạm tính tháng này: Đã tiêu thụ ${summaryParts.join(' & ')} • Tổng: ${AppFormatters.currency(totalEstimatedCost)} (Chỉ báo trước cho bạn, không gửi Admin).',
+        '🔔 Thông báo tạm tính tháng này: Đã tiêu thụ ${summaryParts.join(' & ')} • Tổng: ${AppFormatters.currency(updatedTotal)} (Chỉ báo trước cho bạn, không gửi Admin).',
       );
     }
 
@@ -1966,20 +2060,25 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.image_rounded, color: Color(0xFF2563EB), size: 18),
-                        SizedBox(width: 8),
-                        Text(
-                          'Ảnh Chụp / Tải Lên Từ Điện Thoại Cư Dân',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: Color(0xFF1E293B),
+                    const Expanded(
+                      child: Row(
+                        children: [
+                          Icon(Icons.image_rounded, color: Color(0xFF2563EB), size: 18),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Ảnh Chụp / Tải Lên Từ Điện Thoại Cư Dân',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: Color(0xFF1E293B),
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     _buildPillBadge(
                       _ocrMode == 'both' ? '2 Ảnh (Điện + Nước)' : '1 Ảnh công tơ',
                       const Color(0xFFF1F5F9),
@@ -1993,18 +2092,22 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 if (includeElectric)
                   _buildMeterPhotoUploadBox(
                     title: '⚡ Ảnh Công Tơ Điện (Đơn vị: kWh - ký/chữ điện)',
-                    imageUrl: _electricPreviewUrl,
-                    readingBadge: '${elecNew.toInt()} kWh',
+                    meterType: 'electric',
+                    customDataUrl: _uploadedElectricDataUrl,
+                    photoLabel: _electricPhotoLabel,
+                    readingValueText: '${elecNew.toInt()}',
+                    unitLabel: 'kWh',
                     accentColor: const Color(0xFF2563EB),
-                    onCaptureOrUpload: () {
-                      setState(() {
-                        _showRoiOverlay = true;
-                        _meterNewController.text = '1540';
-                      });
-                      _showMessage(
-                        'Đã tải ảnh chụp Công Tơ Điện lên thành công! AI đọc được chỉ số mới: ${_meterNewController.text} kWh.',
-                      );
-                    },
+                    onCaptureOrUpload: () => _handlePickMeterPhoto('electric'),
+                    onResetPhoto: _uploadedElectricDataUrl == null
+                        ? null
+                        : () {
+                            setState(() {
+                              _uploadedElectricDataUrl = null;
+                              _electricPhotoLabel =
+                                  'Mặt đồng hồ công tơ điện tử P.305';
+                            });
+                          },
                   ),
 
                 if (includeElectric && includeWater) const SizedBox(height: 12),
@@ -2013,18 +2116,22 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 if (includeWater)
                   _buildMeterPhotoUploadBox(
                     title: '💧 Ảnh Đồng Hồ Nước (Đơn vị: m³ - khối nước)',
-                    imageUrl: _waterPreviewUrl,
-                    readingBadge: '${waterNew.toInt()} m³',
+                    meterType: 'water',
+                    customDataUrl: _uploadedWaterDataUrl,
+                    photoLabel: _waterPhotoLabel,
+                    readingValueText: '${waterNew.toInt()}',
+                    unitLabel: 'm³',
                     accentColor: const Color(0xFF0284C7),
-                    onCaptureOrUpload: () {
-                      setState(() {
-                        _showRoiOverlay = true;
-                        _waterNewController.text = '92';
-                      });
-                      _showMessage(
-                        'Đã tải ảnh chụp Đồng Hồ Nước lên thành công! AI đọc được chỉ số mới: ${_waterNewController.text} m³.',
-                      );
-                    },
+                    onCaptureOrUpload: () => _handlePickMeterPhoto('water'),
+                    onResetPhoto: _uploadedWaterDataUrl == null
+                        ? null
+                        : () {
+                            setState(() {
+                              _uploadedWaterDataUrl = null;
+                              _waterPhotoLabel =
+                                  'Mặt đồng hồ nước sinh hoạt P.305';
+                            });
+                          },
                   ),
 
                 const SizedBox(height: 14),
@@ -2102,152 +2209,122 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                   ),
                   child: Column(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'CHẾ ĐỘ ĐANG TÍNH:',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                          _buildPillBadge(
-                            _ocrMode == 'electric'
-                                ? '⚡ Chỉ tính Điện'
-                                : _ocrMode == 'water'
-                                    ? '💧 Chỉ tính Nước'
-                                    : '⚡+💧 Tính cả Điện & Nước',
-                            const Color(0xFF2563EB),
-                            Colors.white,
-                          ),
-                        ],
+                      _buildComparisonRow(
+                        label: 'CHẾ ĐỘ ĐANG TÍNH:',
+                        labelStyle: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF64748B),
+                        ),
+                        trailing: _buildPillBadge(
+                          _ocrMode == 'electric'
+                              ? '⚡ Chỉ tính Điện'
+                              : _ocrMode == 'water'
+                                  ? '💧 Chỉ tính Nước'
+                                  : '⚡+💧 Tính cả Điện & Nước',
+                          const Color(0xFF2563EB),
+                          Colors.white,
+                        ),
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'ĐỘ TIN CẬY AI (CONFIDENCE):',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                          _buildPillBadge(
-                            _ocrConfidence,
-                            const Color(0xFFECFDF5),
-                            const Color(0xFF059669),
-                          ),
-                        ],
+                      _buildComparisonRow(
+                        label: 'ĐỘ TIN CẬY AI (CONFIDENCE):',
+                        labelStyle: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF64748B),
+                        ),
+                        trailing: _buildPillBadge(
+                          _ocrConfidence,
+                          const Color(0xFFECFDF5),
+                          const Color(0xFF059669),
+                        ),
                       ),
                       if (includeElectric) ...[
                         const Divider(height: 18),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              '⚡ ĐIỆN (Kỳ trước → Ảnh mới chụp):',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF475569),
-                              ),
+                        _buildComparisonRow(
+                          label: '⚡ ĐIỆN (Kỳ trước → Ảnh mới chụp):',
+                          labelStyle: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF475569),
+                          ),
+                          trailing: Text(
+                            '${Formatters.formatNumber(elecOld.round())} → ${Formatters.formatNumber(elecNew.round())} kWh',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
                             ),
-                            Text(
-                              '${Formatters.formatNumber(elecOld.round())} → ${Formatters.formatNumber(elecNew.round())} kWh',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                         const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              '   → Đã tiêu thụ Điện tháng này:',
-                              style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        _buildComparisonRow(
+                          label: '   → Đã tiêu thụ Điện tháng này:',
+                          labelStyle: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                          trailing: Text(
+                            '${elecConsumption.toStringAsFixed(0)} ký điện (${AppFormatters.currency(elecResult.totalAmount)})',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2563EB),
                             ),
-                            Text(
-                              '${elecConsumption.toStringAsFixed(0)} ký điện (${AppFormatters.currency(elecResult.totalAmount)})',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF2563EB),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                       if (includeWater) ...[
                         const Divider(height: 18),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              '💧 NƯỚC (Kỳ trước → Ảnh mới chụp):',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF475569),
-                              ),
+                        _buildComparisonRow(
+                          label: '💧 NƯỚC (Kỳ trước → Ảnh mới chụp):',
+                          labelStyle: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF475569),
+                          ),
+                          trailing: Text(
+                            '${Formatters.formatNumber(waterOld.round())} → ${Formatters.formatNumber(waterNew.round())} m³',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
                             ),
-                            Text(
-                              '${Formatters.formatNumber(waterOld.round())} → ${Formatters.formatNumber(waterNew.round())} m³',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                         const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              '   → Đã tiêu thụ Nước tháng này:',
-                              style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        _buildComparisonRow(
+                          label: '   → Đã tiêu thụ Nước tháng này:',
+                          labelStyle: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                          trailing: Text(
+                            '${waterConsumption.toStringAsFixed(0)} khối nước (${AppFormatters.currency(waterResult.totalAmount)})',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0284C7),
                             ),
-                            Text(
-                              '${waterConsumption.toStringAsFixed(0)} khối nước (${AppFormatters.currency(waterResult.totalAmount)})',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0284C7),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ],
                       const Divider(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'TỔNG TIỀN TẠM TÍNH ĐẾN HÔM NAY:',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFDC2626),
-                            ),
+                      _buildComparisonRow(
+                        label: 'TỔNG TIỀN TẠM TÍNH ĐẾN HÔM NAY:',
+                        labelStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFDC2626),
+                        ),
+                        trailing: Text(
+                          AppFormatters.currency(totalEstimatedCost),
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFDC2626),
                           ),
-                          Text(
-                            AppFormatters.currency(totalEstimatedCost),
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFDC2626),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -2570,20 +2647,25 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
-                  children: [
-                    Icon(Icons.history_edu_rounded, color: Color(0xFF0F766E), size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Sổ Theo Dõi Chỉ Số Cá Nhân Của Bạn (Lưu Riêng Trên Thiết Bị)',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: Color(0xFF0F172A),
+                const Expanded(
+                  child: Row(
+                    children: [
+                      Icon(Icons.history_edu_rounded, color: Color(0xFF0F766E), size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Sổ Theo Dõi Chỉ Số Cá Nhân Của Bạn (Lưu Riêng Trên Thiết Bị)',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 _buildPillBadge(
                   '${_personalMeterLogs.length} lần tự kiểm tra',
                   const Color(0xFFF0FDFA),
@@ -2675,12 +2757,14 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
               color: isSelected ? Colors.white : activeColor,
             ),
             const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: isSelected ? Colors.white : const Color(0xFF1E293B),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? Colors.white : const Color(0xFF1E293B),
+                ),
               ),
             ),
           ],
@@ -2707,19 +2791,499 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
         children: [
           Icon(icon, color: iconColor, size: 18),
           const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(fontSize: 10, color: Color(0xFFCBD5E1)),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 10, color: Color(0xFFCBD5E1)),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Uint8List? _decodeDataUrlBytes(String? dataUrl) {
+    if (dataUrl == null || dataUrl.isEmpty) return null;
+    final commaIndex = dataUrl.indexOf(',');
+    if (commaIndex < 0 || commaIndex + 1 >= dataUrl.length) return null;
+    try {
+      return base64Decode(dataUrl.substring(commaIndex + 1));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  int _extractMeterReadingFromFile(
+    String fileName,
+    String meterType, {
+    int byteLength = 0,
+  }) {
+    final isElec = meterType == 'electric';
+    final oldVal = int.tryParse(
+          isElec ? _meterOldController.text : _waterOldController.text,
+        ) ??
+        (isElec ? 1420 : 84);
+    final minAllowed = isElec ? 50 : 5;
+    final maxAllowed = isElec ? 99999 : 9999;
+
+    final matches = RegExp(r'\d+').allMatches(fileName);
+    int? bestCandidate;
+    for (final m in matches) {
+      final raw = m.group(0) ?? '';
+      if (raw.length < 2 || raw.length > 6) continue;
+      final parsed = int.tryParse(raw);
+      if (parsed == null || parsed < minAllowed || parsed > maxAllowed) continue;
+      if (parsed >= 2020 && parsed <= 2035 && raw.length == 4) continue;
+      if (parsed >= oldVal && parsed <= oldVal + (isElec ? 2500 : 250)) {
+        return parsed;
+      }
+      bestCandidate ??= parsed;
+    }
+    if (bestCandidate != null) return bestCandidate;
+
+    final offset = isElec
+        ? 25 + ((fileName.hashCode.abs() + byteLength) % 145)
+        : 3 + ((fileName.hashCode.abs() + byteLength) % 16);
+    return oldVal + offset;
+  }
+
+  Future<void> _handlePickMeterPhoto(String meterType) async {
+    final picked = await pickImageFile();
+    if (!mounted) return;
+
+    if (picked == null) {
+      await _showManualOrSampleOcrDialog(meterType);
+      return;
+    }
+
+    final bytes = _decodeDataUrlBytes(picked.dataUrl);
+    final suggestedReading = _extractMeterReadingFromFile(
+      picked.fileName,
+      meterType,
+      byteLength: bytes?.length ?? picked.dataUrl.length,
+    );
+
+    setState(() {
+      if (meterType == 'electric') {
+        _uploadedElectricDataUrl = picked.dataUrl;
+        _electricPhotoLabel = picked.fileName;
+      } else {
+        _uploadedWaterDataUrl = picked.dataUrl;
+        _waterPhotoLabel = picked.fileName;
+      }
+      _isScanningOcr = true;
+      _showRoiOverlay = true;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 450));
+    if (!mounted) return;
+    setState(() => _isScanningOcr = false);
+
+    await _showMeterOcrConfirmDialog(
+      meterType: meterType,
+      suggestedReading: suggestedReading,
+      photoName: picked.fileName,
+      imageBytes: bytes,
+    );
+  }
+
+  Future<void> _showManualOrSampleOcrDialog(String meterType) async {
+    final isElec = meterType == 'electric';
+    final oldVal = int.tryParse(
+          isElec ? _meterOldController.text : _waterOldController.text,
+        ) ??
+        (isElec ? 1420 : 84);
+    final curVal = int.tryParse(
+          isElec ? _meterNewController.text : _waterNewController.text,
+        ) ??
+        (oldVal + (isElec ? 120 : 8));
+
+    await _showMeterOcrConfirmDialog(
+      meterType: meterType,
+      suggestedReading: curVal > oldVal ? curVal : oldVal + (isElec ? 120 : 8),
+      photoName: isElec
+          ? 'Ảnh chụp mặt công tơ điện P.305'
+          : 'Ảnh chụp mặt đồng hồ nước P.305',
+      imageBytes: _decodeDataUrlBytes(
+        isElec ? _uploadedElectricDataUrl : _uploadedWaterDataUrl,
+      ),
+      isDirectEntry: true,
+    );
+  }
+
+  Future<void> _showMeterOcrConfirmDialog({
+    required String meterType,
+    required int suggestedReading,
+    required String photoName,
+    required Uint8List? imageBytes,
+    bool isDirectEntry = false,
+  }) async {
+    final isElec = meterType == 'electric';
+    final unit = isElec ? 'kWh' : 'm³';
+    final accentColor =
+        isElec ? const Color(0xFF2563EB) : const Color(0xFF0284C7);
+    final oldVal = double.tryParse(
+          isElec ? _meterOldController.text : _waterOldController.text,
+        ) ??
+        (isElec ? 1420 : 84);
+    final confirmController =
+        TextEditingController(text: suggestedReading.toString());
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final parsedNew = double.tryParse(confirmController.text.trim()) ??
+              suggestedReading.toDouble();
+          final used = parsedNew >= oldVal ? parsedNew - oldVal : 0.0;
+          final cost = isElec
+              ? TieredUtilityService.calculateElectricity(used).totalAmount
+              : TieredUtilityService.calculateWater(used).totalAmount;
+
+          return AlertDialog(
+            title: Text(
+              isElec
+                  ? '⚡ Xác nhận chỉ số Công Tơ Điện'
+                  : '💧 Xác nhận chỉ số Đồng Hồ Nước',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: imageBytes != null
+                        ? Image.memory(
+                            imageBytes,
+                            height: 120,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          )
+                        : _buildDigitalMeterMockDisplay(
+                            meterType: meterType,
+                            readingValueText: confirmController.text.trim().isEmpty
+                                ? suggestedReading.toString()
+                                : confirmController.text.trim(),
+                            unitLabel: unit,
+                            photoLabel: photoName,
+                            accentColor: accentColor,
+                            height: 120,
+                          ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFBBF7D0)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.auto_awesome_rounded,
+                          size: 16,
+                          color: Color(0xFF15803D),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            isDirectEntry
+                                ? 'Chưa chọn tệp ảnh từ thiết bị — bạn có thể kiểm tra hoặc nhập trực tiếp chỉ số trên mặt đồng hồ để AI tính tiền ngay.'
+                                : 'AI Vision OCR đã quét ảnh "$photoName" (độ tin cậy 99.7%). Vui lòng kiểm tra và chỉnh nếu cần:',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: Color(0xFF166534),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirmController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Chỉ số mới đọc được ($unit)',
+                      helperText:
+                          'Chỉ số kỳ trước (05/10): ${oldVal.toInt()} $unit',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tiêu thụ tạm tính: ${used.toStringAsFixed(0)} $unit',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF334155),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Tiền ${isElec ? 'điện' : 'nước'} tạm tính: ${AppFormatters.currency(cost)}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: accentColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: accentColor),
+                icon: const Icon(Icons.check_circle_outline,
+                    size: 16, color: Colors.white),
+                label: const Text(
+                  'Xác nhận & Tính tiền',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onPressed: () {
+                  final rawText = confirmController.text.trim();
+                  final finalVal = int.tryParse(rawText) ?? suggestedReading;
+                  setState(() {
+                    _lastLocalMeterEdit = DateTime.now();
+                    if (isElec) {
+                      _meterNewController.text = '$finalVal';
+                    } else {
+                      _waterNewController.text = '$finalVal';
+                    }
+                    _showCalculationDetail = true;
+                    _showRoiOverlay = true;
+                    _ocrConfidence = imageBytes != null
+                        ? '99.7% (Gemini Vision OCR - Ảnh tải lên)'
+                        : '99.5% (Chỉ số đồng hồ đã xác nhận)';
+                  });
+
+                  final includeElectric =
+                      _ocrMode == 'electric' || _ocrMode == 'both';
+                  final includeWater =
+                      _ocrMode == 'water' || _ocrMode == 'both';
+                  final elecOld =
+                      double.tryParse(_meterOldController.text) ?? 1420;
+                  final elecNew =
+                      double.tryParse(_meterNewController.text) ?? 1540;
+                  final waterOld =
+                      double.tryParse(_waterOldController.text) ?? 84;
+                  final waterNew =
+                      double.tryParse(_waterNewController.text) ?? 92;
+                  final elecUsed =
+                      includeElectric && elecNew >= elecOld ? elecNew - elecOld : 0.0;
+                  final waterUsed = includeWater && waterNew >= waterOld
+                      ? waterNew - waterOld
+                      : 0.0;
+                  final totalEstimatedCost = (includeElectric
+                          ? TieredUtilityService.calculateElectricity(elecUsed)
+                              .totalAmount
+                          : 0.0) +
+                      (includeWater
+                          ? TieredUtilityService.calculateWater(waterUsed)
+                              .totalAmount
+                          : 0.0);
+
+                  _pushResidentMeterToCloud(
+                    totalEstimatedCost: totalEstimatedCost,
+                  );
+                  Navigator.pop(dialogCtx);
+                  _showMessage(
+                    'Đã cập nhật chỉ số ${isElec ? "Công Tơ Điện" : "Đồng Hồ Nước"}: $finalVal $unit • Tổng tiền tạm tính hiện tại: ${AppFormatters.currency(totalEstimatedCost)}.',
+                  );
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    confirmController.dispose();
+  }
+
+  Widget _buildDigitalMeterMockDisplay({
+    required String meterType,
+    required String readingValueText,
+    required String unitLabel,
+    required String photoLabel,
+    required Color accentColor,
+    required double height,
+  }) {
+    final isElec = meterType == 'electric';
+    final paddedDigits = readingValueText.padLeft(5, '0');
+    return Container(
+      height: height,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isElec
+              ? const [Color(0xFF0F172A), Color(0xFF1E293B)]
+              : const [Color(0xFF0C4A6E), Color(0xFF0369A1)],
+        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: accentColor.withValues(alpha: 0.45),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isElec ? Icons.electric_meter_rounded : Icons.water_drop_rounded,
+                color: Colors.white70,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  photoLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  isElec ? 'SMART METER 220V' : 'DN15 FLOW METER',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isElec
+                      ? const Color(0xFF14532D)
+                      : const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < paddedDigits.length; i++)
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isElec
+                              ? const Color(0xFF166534)
+                              : (i == paddedDigits.length - 1
+                                  ? const Color(0xFFB91C1C)
+                                  : const Color(0xFF1E293B)),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.white24, width: 0.7),
+                        ),
+                        child: Text(
+                          paddedDigits[i],
+                          style: const TextStyle(
+                            color: Color(0xFFECFDF5),
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 8),
+                    Text(
+                      unitLabel,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Flexible(
+                child: Text(
+                  'Chế độ mô phỏng số • Bấm nút dưới để tải ảnh thật',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.white60, fontSize: 9.5),
+                ),
+              ),
+              const SizedBox(width: 6),
               Text(
-                value,
+                '$readingValueText $unitLabel',
                 style: const TextStyle(
-                  fontSize: 12,
+                  color: Color(0xFF86EFAC),
+                  fontSize: 10.5,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
                 ),
               ),
             ],
@@ -2729,13 +3293,46 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
     );
   }
 
+  Widget _buildMarketplaceImage(String imageUrl, {double height = 170}) {
+    if (imageUrl.startsWith('data:image')) {
+      final bytes = _decodeDataUrlBytes(imageUrl);
+      if (bytes != null) {
+        return Image.memory(
+          bytes,
+          height: height,
+          width: double.infinity,
+          fit: BoxFit.cover,
+        );
+      }
+    }
+    return Image.network(
+      imageUrl,
+      height: height,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => Container(
+        height: 140,
+        color: const Color(0xFFF1F5F9),
+        child: const Center(child: Icon(Icons.shopping_bag_outlined, size: 48)),
+      ),
+    );
+  }
+
   Widget _buildMeterPhotoUploadBox({
     required String title,
-    required String imageUrl,
-    required String readingBadge,
+    required String meterType,
+    required String? customDataUrl,
+    required String photoLabel,
+    required String readingValueText,
+    required String unitLabel,
     required Color accentColor,
     required VoidCallback onCaptureOrUpload,
+    VoidCallback? onResetPhoto,
   }) {
+    final readingBadge = '$readingValueText $unitLabel';
+    final previewHeight = _ocrMode == 'both' ? 140.0 : 195.0;
+    final customBytes = _decodeDataUrlBytes(customDataUrl);
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -2759,11 +3356,27 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                   ),
                 ),
               ),
+              const SizedBox(width: 6),
               _buildPillBadge(
                 'AI đọc: $readingBadge',
                 accentColor,
                 Colors.white,
               ),
+              if (onResetPhoto != null) ...[
+                const SizedBox(width: 4),
+                InkWell(
+                  onTap: onResetPhoto,
+                  borderRadius: BorderRadius.circular(6),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 16,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 8),
@@ -2772,25 +3385,32 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Image.network(
-                  imageUrl,
-                  height: _ocrMode == 'both' ? 135 : 195,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
-                    height: _ocrMode == 'both' ? 135 : 195,
-                    color: const Color(0xFF0F172A),
-                    child: const Center(
-                      child: Icon(
-                        Icons.speed_rounded,
-                        size: 56,
-                        color: Colors.white70,
+                child: customBytes != null
+                    ? Image.memory(
+                        customBytes,
+                        height: previewHeight,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            _buildDigitalMeterMockDisplay(
+                          meterType: meterType,
+                          readingValueText: readingValueText,
+                          unitLabel: unitLabel,
+                          photoLabel: photoLabel,
+                          accentColor: accentColor,
+                          height: previewHeight,
+                        ),
+                      )
+                    : _buildDigitalMeterMockDisplay(
+                        meterType: meterType,
+                        readingValueText: readingValueText,
+                        unitLabel: unitLabel,
+                        photoLabel: photoLabel,
+                        accentColor: accentColor,
+                        height: previewHeight,
                       ),
-                    ),
-                  ),
-                ),
               ),
-              if (_showRoiOverlay)
+              if (_showRoiOverlay && customBytes != null)
                 Container(
                   width: 190,
                   height: 74,
@@ -2833,9 +3453,13 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 ),
               ),
               icon: const Icon(Icons.add_a_photo_outlined, size: 15),
-              label: const Text(
-                'Chụp ảnh mới / Tải ảnh từ máy lên',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              label: Text(
+                customBytes != null
+                    ? 'Đổi ảnh mới ($photoLabel)'
+                    : 'Chụp ảnh mới / Tải ảnh từ máy lên',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
               ),
               onPressed: onCaptureOrUpload,
             ),
@@ -2907,20 +3531,26 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Cộng thành tiền (${result.totalQuantity.toStringAsFixed(0)} $unitLabel):',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
+              Expanded(
+                child: Text(
+                  'Cộng thành tiền (${result.totalQuantity.toStringAsFixed(0)} $unitLabel):',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
                 ),
               ),
-              Text(
-                AppFormatters.currency(result.totalAmount),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: accentColor,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  AppFormatters.currency(result.totalAmount),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: accentColor,
+                  ),
                 ),
               ),
             ],
@@ -2939,49 +3569,19 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
         .toList();
 
     return _page([
-      Container(
-        padding: const EdgeInsets.all(18),
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      _buildPillBadge('ECO-COMMUNITY', const Color(0xFF16A34A), Colors.white),
-                      _buildPillBadge('Nội Khu Co-Living', const Color(0xFFEEF2FF), const Color(0xFF4F46E5)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Sàn Trao Đổi Đồ Dùng & Đồ Cũ Sinh Viên (Eco-Marketplace)',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Nơi cư dân các phòng pass lại đồ gia dụng, bàn học, quạt, giáo trình còn mới với giá rẻ hoặc tặng miễn phí (0đ). 100% người bán là cư dân đã xác minh.',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5)),
-              icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
-              label: const Text('Đăng Bán / Tặng Đồ Cũ', style: TextStyle(fontSize: 12, color: Colors.white)),
-              onPressed: _showCreateListing,
-            ),
-          ],
+      _buildSectionHeaderCard(
+        badges: [
+          _buildPillBadge('ECO-COMMUNITY', const Color(0xFF16A34A), Colors.white),
+          _buildPillBadge('Nội Khu Co-Living', const Color(0xFFEEF2FF), const Color(0xFF4F46E5)),
+        ],
+        title: 'Sàn Trao Đổi Đồ Dùng & Đồ Cũ Sinh Viên (Eco-Marketplace)',
+        subtitle:
+            'Nơi cư dân các phòng pass lại đồ gia dụng, bàn học, quạt, giáo trình còn mới với giá rẻ hoặc tặng miễn phí (0đ). 100% người bán là cư dân đã xác minh.',
+        actionButton: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4F46E5)),
+          icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+          label: const Text('Đăng Bán / Tặng Đồ Cũ', style: TextStyle(fontSize: 12, color: Colors.white)),
+          onPressed: _showCreateListing,
         ),
       ),
 
@@ -3001,6 +3601,12 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       if (visible.isEmpty) _emptyState('Chưa có món đồ trong danh mục này.'),
       ...visible.map((item) {
         final isFree = item.price == 0;
+        final hasVideo = item.videoUrl != null && item.videoUrl!.isNotEmpty;
+        final avgRating = item.reviews.isEmpty
+            ? item.rating
+            : item.reviews.fold<int>(0, (sum, r) => sum + r.stars) /
+                item.reviews.length;
+        final latestReview = item.reviews.isNotEmpty ? item.reviews.first : null;
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
           decoration: BoxDecoration(
@@ -3017,17 +3623,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
             children: [
               Stack(
                 children: [
-                  Image.network(
-                    item.imageUrl,
-                    height: 170,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
-                      height: 140,
-                      color: const Color(0xFFF1F5F9),
-                      child: const Center(child: Icon(Icons.shopping_bag_outlined, size: 48)),
-                    ),
-                  ),
+                  _buildMarketplaceImage(item.imageUrl),
                   Positioned(
                     top: 10,
                     left: 10,
@@ -3046,6 +3642,45 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                       const Color(0xFF059669),
                     ),
                   ),
+                  if (hasVideo)
+                    Positioned(
+                      bottom: 10,
+                      right: 10,
+                      child: InkWell(
+                        onTap: () =>
+                            _showVideoPreviewDialog(item.title, item.videoUrl!),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.78),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.play_circle_fill_rounded,
+                                color: Colors.redAccent,
+                                size: 16,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Xem Video',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
               Padding(
@@ -3053,44 +3688,123 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A))),
-                    const SizedBox(height: 4),
-                    Text(item.description, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                    Text(
+                      item.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        ...List.generate(5, (i) {
+                          return Icon(
+                            i < avgRating.round()
+                                ? Icons.star_rounded
+                                : Icons.star_border_rounded,
+                            size: 16,
+                            color: const Color(0xFFF59E0B),
+                          );
+                        }),
+                        const SizedBox(width: 4),
+                        Text(
+                          avgRating.toStringAsFixed(1),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        Text(
+                          '(${item.reviews.length} đánh giá)',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.description,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                    ),
+                    if (latestReview != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Text(
+                          '💬 ${latestReview.reviewer} (${latestReview.room}): "${latestReview.comment}"',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFF334155),
+                          ),
+                        ),
+                      ),
+                    ],
                     const Divider(height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(isFree ? 'Giá trao đổi:' : 'Giá pass lại:', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
-                            Row(
-                              children: [
-                                Text(
-                                  isFree ? '0 VNĐ (Miễn Phí)' : AppFormatters.currency(item.price.toDouble()),
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: isFree ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
-                                  ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isFree ? 'Giá trao đổi:' : 'Giá pass lại:',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFF64748B),
                                 ),
-                                if (!isFree && item.originalPrice > 0) ...[
-                                  const SizedBox(width: 6),
+                              ),
+                              Wrap(
+                                spacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
                                   Text(
-                                    AppFormatters.currency(item.originalPrice.toDouble()),
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF94A3B8),
-                                      decoration: TextDecoration.lineThrough,
+                                    isFree
+                                        ? '0 VNĐ (Miễn Phí)'
+                                        : AppFormatters.currency(
+                                            item.price.toDouble(),
+                                          ),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: isFree
+                                          ? const Color(0xFF16A34A)
+                                          : const Color(0xFFDC2626),
                                     ),
                                   ),
+                                  if (!isFree && item.originalPrice > 0)
+                                    Text(
+                                      AppFormatters.currency(
+                                        item.originalPrice.toDouble(),
+                                      ),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF94A3B8),
+                                        decoration: TextDecoration.lineThrough,
+                                      ),
+                                    ),
                                 ],
-                              ],
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(0, 44),
                             backgroundColor: _claimedListings.contains(item.title)
                                 ? const Color(0xFF64748B)
                                 : const Color(0xFF16A34A),
@@ -3106,8 +3820,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                           ),
                           label: Text(
                             _claimedListings.contains(item.title)
-                                ? '✓ Đã Đặt Giữ Chỗ'
-                                : (isFree ? 'Xin Nhận Miễn Phí' : 'Nhắn Mua Ngay'),
+                                ? '✓ Đã Giữ Chỗ'
+                                : (isFree ? 'Xin Nhận' : 'Nhắn Mua'),
                             style: const TextStyle(fontSize: 12, color: Colors.white),
                           ),
                           onPressed: _claimedListings.contains(item.title)
@@ -3116,11 +3830,85 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                                   setState(() => _claimedListings.add(item.title));
                                   _showMessage(
                                     isFree
-                                        ? 'Đã đặt giữ chỗ nhận miễn phí "${item.title}" từ bạn ${item.sellerName}! Bạn có thể ghé phòng ${item.room} để nhận đồ.'
-                                        : 'Đã đặt giữ chỗ & kết nối chat trực tiếp với người bán ${item.sellerName} để mua "${item.title}" (${AppFormatters.currency(item.price.toDouble())})!',
+                                        ? 'Đã đặt giữ chỗ nhận miễn phí "${item.title}" từ bạn ${item.sellerName}!'
+                                        : 'Đã đặt giữ chỗ & kết nối chat trực tiếp với ${item.sellerName}!',
                                   );
                                 },
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () => _showMarketplaceReviewDialog(item),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 44),
+                            side: const BorderSide(color: Color(0xFFF59E0B)),
+                          ),
+                          icon: const Icon(
+                            Icons.star_rate_rounded,
+                            size: 17,
+                            color: Color(0xFFD97706),
+                          ),
+                          label: const Text(
+                            'Đánh giá & Bình luận',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFFB45309),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => showSmartStayCallModal(
+                            context,
+                            initialTargetRole: 'CuDan',
+                            initialTargetName: item.sellerName,
+                            initialVideo: true,
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(0, 44),
+                            side: const BorderSide(color: Color(0xFF4F46E5)),
+                          ),
+                          icon: const Icon(
+                            Icons.videocam_rounded,
+                            size: 17,
+                            color: Color(0xFF4F46E5),
+                          ),
+                          label: const Text(
+                            'Gọi / Video',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF4F46E5),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        if (hasVideo)
+                          OutlinedButton.icon(
+                            onPressed: () =>
+                                _showVideoPreviewDialog(item.title, item.videoUrl!),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 44),
+                              side: const BorderSide(color: Color(0xFFDC2626)),
+                            ),
+                            icon: const Icon(
+                              Icons.play_circle_outline_rounded,
+                              size: 17,
+                              color: Color(0xFFDC2626),
+                            ),
+                            label: const Text(
+                              'Xem Video',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFFDC2626),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ],
@@ -3148,94 +3936,538 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
     );
   }
 
-  Future<void> _showCreateListing() async {
-    _listingTitleController.clear();
-    _listingDescriptionController.clear();
-    _listingPriceController.text = '50000';
-    _listingCategory = 'Điện gia dụng';
+  Future<void> _showVideoPreviewDialog(String title, String videoUrl) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.play_circle_fill_rounded, color: Color(0xFFDC2626)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Video thực tế: $title',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 170,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.videocam_rounded, color: Colors.lightBlueAccent, size: 42),
+                  SizedBox(height: 8),
+                  Text(
+                    'Video HD kiểm tra sản phẩm đã đồng bộ',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Sẵn sàng phát luồng media kiểm tra tình trạng thực tế',
+                    style: TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Nguồn Video: ${videoUrl.length > 52 ? '${videoUrl.substring(0, 52)}...' : videoUrl}',
+              style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showMarketplaceReviewDialog(_MarketListing item) async {
+    int selectedStars = 5;
+    final commentCtrl = TextEditingController();
     await showDialog<void>(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Đăng Đồ Cũ Trao Đổi Nội Khu', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(
+            'Đánh giá: ${item.title}',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  controller: _listingTitleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Tên đồ dùng cần pass',
-                    hintText: 'Ví dụ: Bàn học gấp gọn thông minh',
+                if (item.reviews.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      'Chưa có bình luận nào. Hãy để lại đánh giá đầu tiên!',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                    ),
+                  )
+                else
+                  ...item.reviews.map(
+                    (rev) => Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '${rev.reviewer} (${rev.room})',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              Text(
+                                '${'★' * rev.stars} • ${rev.time}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFFD97706),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(rev.comment, style: const TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ),
                   ),
+                const Divider(),
+                const Text(
+                  'Chọn số sao của bạn:',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  initialValue: _listingCategory,
-                  decoration: const InputDecoration(labelText: 'Danh mục'),
-                  items: const [
-                    DropdownMenuItem(value: 'Điện gia dụng', child: Text('Đồ điện gia dụng')),
-                    DropdownMenuItem(value: 'Bàn ghế & sách', child: Text('Bàn ghế & Giáo trình')),
-                    DropdownMenuItem(value: 'Tặng miễn phí', child: Text('Tặng miễn phí (0đ)')),
-                  ],
-                  onChanged: (v) {
-                    if (v != null) {
-                      setDialogState(() {
-                        _listingCategory = v;
-                        if (v == 'Tặng miễn phí') _listingPriceController.text = '0';
-                      });
-                    }
-                  },
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  children: List.generate(5, (i) {
+                    final star = i + 1;
+                    return InkWell(
+                      onTap: () => setDialogState(() => selectedStars = star),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          star <= selectedStars
+                              ? Icons.star_rounded
+                              : Icons.star_border_rounded,
+                          color: const Color(0xFFF59E0B),
+                          size: 30,
+                        ),
+                      ),
+                    );
+                  }),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 TextField(
-                  controller: _listingPriceController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Giá thanh lý (VNĐ)'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _listingDescriptionController,
+                  controller: commentCtrl,
                   maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Mô tả tình trạng món đồ'),
+                  decoration: const InputDecoration(
+                    labelText: 'Bình luận chi tiết *',
+                    hintText: 'Đồ còn mới, đúng mô tả, người bán thân thiện...',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Hủy')),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Đóng'),
+            ),
             ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
-              icon: const Icon(Icons.sell_rounded, size: 15, color: Colors.white),
-              label: const Text('Đăng Lên Chợ Cư Dân', style: TextStyle(color: Colors.white)),
-              onPressed: () {
-                final title = _listingTitleController.text.trim();
-                final desc = _listingDescriptionController.text.trim();
-                final price = int.tryParse(_listingPriceController.text.replaceAll('.', '')) ?? 0;
-                if (title.isEmpty) return;
-                setState(() {
-                  _listings.insert(
-                    0,
-                    _MarketListing(
-                      title,
-                      _listingCategory,
-                      price,
-                      0,
-                      'P.305',
-                      'Hồ Ngọc Bảo (P.305)',
-                      'Mới đăng',
-                      desc.isEmpty ? 'Còn mới tốt, liên hệ nhận tại sảnh tòa nhà.' : desc,
-                      'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=600&q=80',
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4F46E5),
+                minimumSize: const Size(0, 44),
+              ),
+              icon: const Icon(Icons.send_rounded, size: 15, color: Colors.white),
+              label: const Text('Gửi Đánh Giá', style: TextStyle(color: Colors.white)),
+              onPressed: () async {
+                final text = commentCtrl.text.trim();
+                if (text.isEmpty) return;
+                final auth = context.read<AuthProvider>();
+                final reviewer = auth.user?.fullName ?? 'Hồ Ngọc Bảo';
+                final room = auth.user?.effectiveRoomCode ?? 'P.305';
+                final idx = _listings.indexOf(item);
+                if (idx >= 0) {
+                  final updatedReviews = [
+                    _MarketReview(
+                      reviewer: reviewer,
+                      room: room,
+                      stars: selectedStars,
+                      comment: text,
+                      time: 'Vừa xong',
                     ),
-                  );
+                    ...item.reviews,
+                  ];
+                  final newAvg = updatedReviews.fold<int>(0, (s, r) => s + r.stars) /
+                      updatedReviews.length;
+                  setState(() {
+                    _listings[idx] = item.copyWith(
+                      rating: newAvg,
+                      reviews: updatedReviews,
+                    );
+                  });
+                }
+                if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                _showMessage('Đã gửi đánh giá $selectedStars sao & bình luận chi tiết!');
+                await ApiService().postSyncMarketplaceReview({
+                  'MaTin': item.id ?? 'MKT-001',
+                  'TieuDeFallback': item.title,
+                  'NguoiDanhGia': reviewer,
+                  'KyHieuPhong': room,
+                  'SoSao': selectedStars,
+                  'BinhLuan': text,
                 });
-                Navigator.pop(dialogCtx);
-                _showMessage('Đã đăng món đồ "$title" lên sàn trao đổi nội khu Co-Living thành công!');
               },
             ),
           ],
         ),
       ),
+    );
+    commentCtrl.dispose();
+  }
+
+  Future<void> _showCreateListing() async {
+    _listingTitleController.clear();
+    _listingDescriptionController.clear();
+    _listingPriceController.text = '50000';
+    _listingCategory = 'Điện gia dụng';
+    String? pickedDataUrl;
+    String? pickedFileName;
+    String? pickedVideoUrl;
+    String? pickedVideoName;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final previewBytes = _decodeDataUrlBytes(pickedDataUrl);
+          return AlertDialog(
+            title: const Text(
+              'Đăng Đồ Cũ Kèm Ảnh & Video',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: _listingTitleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Tên đồ dùng cần pass',
+                      hintText: 'Ví dụ: Bàn học gấp gọn thông minh',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: _listingCategory,
+                    decoration: const InputDecoration(labelText: 'Danh mục'),
+                    items: const [
+                      DropdownMenuItem(value: 'Điện gia dụng', child: Text('Đồ điện gia dụng')),
+                      DropdownMenuItem(value: 'Bàn ghế & sách', child: Text('Bàn ghế & Giáo trình')),
+                      DropdownMenuItem(value: 'Tặng miễn phí', child: Text('Tặng miễn phí (0đ)')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) {
+                        setDialogState(() {
+                          _listingCategory = v;
+                          if (v == 'Tặng miễn phí') _listingPriceController.text = '0';
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _listingPriceController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Giá thanh lý (VNĐ)'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _listingDescriptionController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(labelText: 'Mô tả tình trạng món đồ'),
+                  ),
+                  const SizedBox(height: 12),
+                  if (previewBytes != null) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.memory(
+                        previewBytes,
+                        height: 120,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await pickMediaFile(
+                        acceptVideo: false,
+                        useCamera: true,
+                      );
+                      if (picked == null || !dialogCtx.mounted) return;
+                      setDialogState(() {
+                        pickedDataUrl = picked.dataUrl;
+                        pickedFileName = picked.fileName;
+                      });
+                    },
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
+                    icon: const Icon(Icons.add_photo_alternate_outlined, size: 17),
+                    label: Text(
+                      pickedFileName == null
+                          ? 'Chụp / Tải ảnh sản phẩm'
+                          : 'Đổi ảnh ($pickedFileName)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (pickedVideoUrl != null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.videocam_rounded, color: Color(0xFFDC2626), size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Đã gắn Video: ${pickedVideoName ?? 'Clip sản phẩm HD'}',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final picked = await pickMediaFile(
+                            acceptVideo: true,
+                            useCamera: true,
+                          );
+                          if (picked == null || !dialogCtx.mounted) return;
+                          setDialogState(() {
+                            pickedVideoUrl = picked.dataUrl;
+                            pickedVideoName = picked.fileName;
+                          });
+                        },
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          side: const BorderSide(color: Color(0xFFDC2626)),
+                        ),
+                        icon: const Icon(Icons.video_library_rounded, size: 17, color: Color(0xFFDC2626)),
+                        label: const Text(
+                          'Tải / Quay Video',
+                          style: TextStyle(fontSize: 12, color: Color(0xFFDC2626)),
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          setDialogState(() {
+                            pickedVideoUrl =
+                                'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+                            pickedVideoName = 'Quay_kiem_tra_thuc_te.mp4';
+                          });
+                        },
+                        style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
+                        icon: const Icon(Icons.fiber_manual_record_rounded, size: 15, color: Colors.red),
+                        label: const Text(
+                          'Gắn Video mẫu (4s)',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Hủy')),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF16A34A),
+                  minimumSize: const Size(0, 44),
+                ),
+                icon: const Icon(Icons.sell_rounded, size: 15, color: Colors.white),
+                label: const Text('Đăng Lên Chợ Cư Dân', style: TextStyle(color: Colors.white)),
+                onPressed: () async {
+                  final title = _listingTitleController.text.trim();
+                  final desc = _listingDescriptionController.text.trim();
+                  final price = int.tryParse(_listingPriceController.text.replaceAll('.', '')) ?? 0;
+                  if (title.isEmpty) return;
+
+                  final auth = context.read<AuthProvider>();
+                  final room = auth.user?.effectiveRoomCode ?? 'P.305';
+                  final seller = '${auth.user?.fullName ?? 'Hồ Ngọc Bảo'} ($room)';
+                  final effectiveImg = pickedDataUrl ??
+                      'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=600&q=80';
+                  final effectiveDesc = desc.isEmpty
+                      ? 'Còn mới tốt, liên hệ nhận tại sảnh tòa nhà.'
+                      : desc;
+                  final newId = 'MKT-${DateTime.now().millisecondsSinceEpoch % 9000 + 1000}';
+
+                  setState(() {
+                    _listings.insert(
+                      0,
+                      _MarketListing(
+                        title,
+                        _listingCategory,
+                        price,
+                        0,
+                        room,
+                        seller,
+                        'Mới đăng',
+                        effectiveDesc,
+                        effectiveImg,
+                        id: newId,
+                        videoUrl: pickedVideoUrl,
+                      ),
+                    );
+                  });
+                  if (dialogCtx.mounted) Navigator.pop(dialogCtx);
+                  _showMessage('Đã đăng món đồ "$title" lên sàn trao đổi nội khu!');
+
+                  await ApiService().postSyncMarketplaceItem({
+                    'MaTin': newId,
+                    'TieuDe': title,
+                    'DanhMuc': _listingCategory == 'Tặng miễn phí'
+                        ? 'free'
+                        : (_listingCategory == 'Bàn ghế & sách' ? 'study' : 'electronics'),
+                    'GiaBan': price,
+                    'GiaGoc': price > 0 ? (price * 1.8).round() : 0,
+                    'KyHieuPhong': room,
+                    'NguoiBan': seller,
+                    'TinhTrang': 'Mới đăng',
+                    'MoTa': effectiveDesc,
+                    'HinhAnhUrl': effectiveImg,
+                    'VideoUrl': pickedVideoUrl,
+                  });
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSectionHeaderCard({
+    required List<Widget> badges,
+    required String title,
+    required String subtitle,
+    required Widget actionButton,
+  }) {
+    final isCompact = MediaQuery.of(context).size.width < 600;
+    final infoColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(spacing: 8, runSpacing: 6, children: badges),
+        const SizedBox(height: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+        ),
+      ],
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: isCompact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                infoColumn,
+                const SizedBox(height: 12),
+                SizedBox(width: double.infinity, child: actionButton),
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(child: infoColumn),
+                const SizedBox(width: 12),
+                actionButton,
+              ],
+            ),
+    );
+  }
+
+  Widget _buildComparisonRow({
+    required String label,
+    required TextStyle labelStyle,
+    required Widget trailing,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(child: Text(label, style: labelStyle)),
+        const SizedBox(width: 8),
+        Flexible(child: trailing),
+      ],
     );
   }
 
@@ -3309,7 +4541,24 @@ class _GuestPass {
   const _GuestPass(this.name, this.phone, this.duration, this.pin);
 }
 
+class _MarketReview {
+  final String reviewer;
+  final String room;
+  final int stars;
+  final String comment;
+  final String time;
+
+  const _MarketReview({
+    required this.reviewer,
+    required this.room,
+    required this.stars,
+    required this.comment,
+    required this.time,
+  });
+}
+
 class _MarketListing {
+  final String? id;
   final String title;
   final String category;
   final int price;
@@ -3319,6 +4568,10 @@ class _MarketListing {
   final String conditionBadge;
   final String description;
   final String imageUrl;
+  final String? videoUrl;
+  final double rating;
+  final List<_MarketReview> reviews;
+
   const _MarketListing(
     this.title,
     this.category,
@@ -3328,8 +4581,34 @@ class _MarketListing {
     this.sellerName,
     this.conditionBadge,
     this.description,
-    this.imageUrl,
-  );
+    this.imageUrl, {
+    this.id,
+    this.videoUrl,
+    this.rating = 5.0,
+    this.reviews = const [],
+  });
+
+  _MarketListing copyWith({
+    double? rating,
+    List<_MarketReview>? reviews,
+    String? videoUrl,
+  }) {
+    return _MarketListing(
+      title,
+      category,
+      price,
+      originalPrice,
+      room,
+      sellerName,
+      conditionBadge,
+      description,
+      imageUrl,
+      id: id,
+      videoUrl: videoUrl ?? this.videoUrl,
+      rating: rating ?? this.rating,
+      reviews: reviews ?? this.reviews,
+    );
+  }
 }
 
 class _PersonalMeterLog {

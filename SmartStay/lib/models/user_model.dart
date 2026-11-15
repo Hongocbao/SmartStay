@@ -7,6 +7,7 @@ class UserModel {
   final String role;
   final String? roomCode;
   final bool mustChangePassword;
+  final String? avatarUrl;
   final ResidentProfile? residentProfile;
 
   UserModel({
@@ -18,6 +19,7 @@ class UserModel {
     required this.role,
     this.roomCode,
     this.mustChangePassword = false,
+    this.avatarUrl,
     this.residentProfile,
   });
 
@@ -32,6 +34,8 @@ class UserModel {
     String? role,
     String? roomCode,
     bool? mustChangePassword,
+    String? avatarUrl,
+    bool clearAvatar = false,
     ResidentProfile? residentProfile,
   }) {
     return UserModel(
@@ -43,6 +47,7 @@ class UserModel {
       role: role ?? this.role,
       roomCode: roomCode ?? this.roomCode,
       mustChangePassword: mustChangePassword ?? this.mustChangePassword,
+      avatarUrl: clearAvatar ? null : (avatarUrl ?? this.avatarUrl),
       residentProfile: residentProfile ?? this.residentProfile,
     );
   }
@@ -57,6 +62,7 @@ class UserModel {
       role: json['role'] ?? 'Cư dân',
       roomCode: json['roomCode'],
       mustChangePassword: json['mustChangePassword'] ?? false,
+      avatarUrl: json['avatarUrl'],
       residentProfile: json['residentProfile'] != null
           ? ResidentProfile.fromJson(json['residentProfile'])
           : null,
@@ -73,6 +79,7 @@ class UserModel {
       'role': role,
       'roomCode': roomCode,
       'mustChangePassword': mustChangePassword,
+      'avatarUrl': avatarUrl,
       'residentProfile': residentProfile?.toJson(),
     };
   }

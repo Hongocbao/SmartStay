@@ -107,18 +107,26 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
                 ? const Center(
                     child: Text('Không tìm thấy phòng phù hợp bộ lọc.', style: TextStyle(color: Color(0xFF64748B))),
                   )
-                : GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.95,
-                    ),
-                    itemCount: filteredRooms.length,
-                    itemBuilder: (context, index) {
-                      final room = filteredRooms[index];
-                      return _buildRoomCard(room, admin);
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth;
+                      final crossAxisCount = width >= 1050
+                          ? 5
+                          : (width >= 740 ? 4 : (width >= 520 ? 3 : 2));
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          mainAxisExtent: 152,
+                        ),
+                        itemCount: filteredRooms.length,
+                        itemBuilder: (context, index) {
+                          final room = filteredRooms[index];
+                          return _buildRoomCard(room, admin);
+                        },
+                      );
                     },
                   ),
           ),
@@ -202,7 +210,7 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
         onTap: () => _showRoomDetailsModal(context, room, admin),
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
@@ -237,7 +245,7 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const Divider(height: 12, color: Color(0xFFF1F5F9)),
+              const Divider(height: 10, color: Color(0xFFF1F5F9)),
               if (room.status == 'Đang ở' && room.residentName != null) ...[
                 Row(
                   children: [
@@ -256,29 +264,41 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
                 Text(
                   '${Formatters.formatCurrency(room.rentPrice)}/tháng',
                   style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ] else if (room.status == 'Trống') ...[
                 const Text(
                   'Sẵn sàng đón khách mới',
                   style: TextStyle(fontSize: 11, color: Color(0xFF10B981), fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   'Giá: ${Formatters.formatCurrency(room.rentPrice)}',
                   style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ] else if (room.status == 'Đã đặt') ...[
                 Text(
                   'Đã cọc: ${room.residentName ?? "Khách hẹn"}',
                   style: const TextStyle(fontSize: 11, color: Color(0xFFF59E0B), fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   Formatters.formatCurrency(room.depositAmount),
                   style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ] else ...[
                 const Text(
                   'Đang xử lý kỹ thuật',
                   style: TextStyle(fontSize: 11, color: Color(0xFFEF4444), fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const Text('Bảo trì định kỳ', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
               ],

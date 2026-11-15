@@ -10,15 +10,26 @@
     </div>
 }
 
+<div id="suCoDynamicAlert" class="alert alert-success alert-dismissible fade d-none rounded-3 mb-4" role="alert">
+    <i class="bi bi-check-circle-fill me-2"></i>
+    <span id="suCoDynamicAlertText">Đã gửi phiếu báo cáo sự cố trực quan!</span>
+    <button type="button" class="btn-close" onclick="document.getElementById('suCoDynamicAlert').classList.add('d-none')"></button>
+</div>
+
 <div class="card-custom mb-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div>
             <h6 class="fw-bold mb-1 text-slate-900"><i class="bi bi-tools text-primary me-2"></i>Theo Dõi Tiến Độ Sửa Chữa (Phòng P.305)</h6>
-            <p class="fs-8 text-muted mb-0">Các yêu cầu hỏng hóc thiết bị, điện nước, khóa từ được xử lý theo quy trình Kanban.</p>
+            <p class="fs-8 text-muted mb-0">Cho phép chụp ảnh hoặc quay video trực tiếp hiện trường để kỹ thuật viên Kanban xử lý chính xác.</p>
         </div>
-        <button class="btn btn-primary rounded-pill px-4 py-2 fw-bold" data-bs-toggle="modal" data-bs-target="#newTicketModal">
-            <i class="bi bi-plus-lg me-1"></i> Báo Hỏng Thiết Bị Mới
-        </button>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-primary rounded-pill px-3 py-2 fw-semibold" onclick="window.openSmartStayCallModal && window.openSmartStayCallModal('QuanLy', 'Ban Quản Lý (Báo sự cố P.305)', true)">
+                <i class="bi bi-camera-video-fill me-1"></i> Gọi Video báo Quản Lý
+            </button>
+            <button class="btn btn-primary rounded-pill px-4 py-2 fw-bold" data-bs-toggle="modal" data-bs-target="#newTicketModal">
+                <i class="bi bi-plus-lg me-1"></i> Báo Hỏng Thiết Bị Mới
+            </button>
+        </div>
     </div>
 </div>
 
@@ -106,105 +117,366 @@
     </div>
 </div>
 
-<!-- Modal Báo Sự Cố Mới -->
+<!-- Modal Báo Sự Cố Mới (Hỗ trợ Chụp ảnh & Quay Video hiện trường) -->
 <div class="modal fade" id="newTicketModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content rounded-4 border-0 shadow">
-            <form action="/CuDan/GuiYeuCauSuCo" method="post">
+            <form id="newTicketForm" onsubmit="submitVisualTicket(event)">
                 <div class="modal-header border-bottom">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-tools text-warning me-2"></i>Báo Cáo Hỏng Hóc / Sự Cố</h5>
+                    <h5 class="modal-title fw-bold"><i class="bi bi-camera-fill text-warning me-2"></i>Báo Cáo Sự Cố Trực Quan (Ảnh &amp; Video)</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold fs-7">Danh mục thiết bị: *</label>
-                        <select class="form-select" name="danhMuc" required>
-                            <option value="Máy lạnh">Máy lạnh / Điều hòa</option>
-                            <option value="Điện">Điện & Đèn chiếu sáng</option>
-                            <option value="Nước">Đường ống nước & Vòi sen</option>
-                            <option value="Khóa từ">Khóa thông minh IoT / Thẻ từ</option>
-                            <option value="Nội thất">Giường, Tủ, Bàn ghế</option>
-                            <option value="Khác">Vấn đề khác</option>
-                        </select>
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold fs-7">Danh mục thiết bị: *</label>
+                            <select class="form-select" id="scCategory" name="danhMuc" required>
+                                <option value="Máy lạnh / Điều hòa">Máy lạnh / Điều hòa</option>
+                                <option value="Điện & Đèn chiếu sáng">Điện &amp; Đèn chiếu sáng</option>
+                                <option value="Đường ống nước & Vòi sen">Đường ống nước &amp; Vòi sen</option>
+                                <option value="Khóa thông minh IoT">Khóa thông minh IoT / Thẻ từ</option>
+                                <option value="Giường, Tủ, Bàn ghế">Giường, Tủ, Bàn ghế</option>
+                                <option value="Vấn đề khác">Vấn đề khác</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold fs-7">Mức độ khẩn cấp: *</label>
+                            <select class="form-select" id="scPriority" name="mucDoUuTien" required>
+                                <option value="Cao">Cao (Xử lý trong 24h)</option>
+                                <option value="Khẩn cấp">Khẩn cấp (Chập điện, vỡ ống nước - Xử lý ngay)</option>
+                                <option value="Trung bình">Trung bình (Trong 48h)</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold fs-7">Mức độ khẩn cấp: *</label>
-                        <select class="form-select" name="mucDoUuTien" required>
-                            <option value="Trung bình">Trung bình (Xử lý trong 24h)</option>
-                            <option value="Khẩn cấp">Khẩn cấp (Chập điện, vỡ ống nước - Xử lý ngay)</option>
-                            <option value="Thấp">Thấp (Trong 48h)</option>
-                        </select>
+                        <label class="form-label fw-semibold fs-7">Tiêu đề sự cố *</label>
+                        <input type="text" class="form-control" id="scTitle" placeholder="VD: Vòi sen phòng tắm rỉ nước liên tục" required />
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold fs-7">Mô tả hiện tượng hư hỏng: *</label>
-                        <textarea class="form-control" name="moTa" rows="3" placeholder="Nhập chi tiết hiện tượng hư hỏng để KTV chuẩn bị linh kiện thay thế..." required></textarea>
+                        <textarea class="form-control" id="scDesc" name="moTa" rows="2" placeholder="Nhập chi tiết hiện tượng hư hỏng để KTV chuẩn bị linh kiện thay thế..." required></textarea>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <div class="border rounded-3 p-3 bg-light h-100">
+                                <label class="form-label fw-bold small mb-2"><i class="bi bi-image text-primary me-1"></i>Chụp ảnh / Tải ảnh sự cố</label>
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <label class="btn btn-sm btn-outline-primary rounded-3 mb-0" style="cursor:pointer;">
+                                        <i class="bi bi-camera me-1"></i> Chụp / Chọn ảnh
+                                        <input type="file" id="scPhotoInput" accept="image/*" capture="environment" class="d-none" onchange="onScPhotoSelected(this)">
+                                    </label>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-3" onclick="clearScPhoto()">Xóa ảnh</button>
+                                </div>
+                                <img id="scPhotoPreview" src="" alt="Ảnh sự cố" class="w-100 rounded-3 border d-none" style="height: 120px; object-fit: cover;">
+                                <div id="scPhotoHint" class="text-muted small">Chụp cận cảnh điểm rò rỉ hoặc hư hỏng.</div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="border rounded-3 p-3 bg-light h-100">
+                                <label class="form-label fw-bold small mb-2"><i class="bi bi-camera-video text-danger me-1"></i>Quay Video trực tiếp / Đính kèm</label>
+                                <div class="d-flex flex-wrap gap-2 mb-2">
+                                    <label class="btn btn-sm btn-outline-danger rounded-3 mb-0" style="cursor:pointer;">
+                                        <i class="bi bi-film me-1"></i> Tải Video
+                                        <input type="file" id="scVideoInput" accept="video/*" capture="environment" class="d-none" onchange="onScVideoSelected(this)">
+                                    </label>
+                                    <button type="button" id="scRecordVideoBtn" class="btn btn-sm btn-danger rounded-3" onclick="recordScVideo4s()">
+                                        <i class="bi bi-record-circle me-1"></i> Quay trực tiếp
+                                    </button>
+                                </div>
+                                <video id="scVideoPreview" class="w-100 rounded-3 border d-none" style="height: 120px; background:#000;" controls muted playsinline></video>
+                                <div id="scVideoStatus" class="text-muted small">Quay clip ngắn tiếng ồn máy lạnh hoặc nước rò rỉ.</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-top d-flex flex-wrap gap-2">
                     <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold">Gửi yêu cầu sửa chữa</button>
+                    <button type="submit" id="scSubmitBtn" class="btn btn-warning rounded-pill px-4 fw-bold">
+                        <i class="bi bi-send-check-fill me-1"></i> Gửi yêu cầu sửa chữa
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
+<!-- Modal xem video đính kèm sự cố -->
+<div class="modal fade" id="scVideoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 bg-dark text-white overflow-hidden">
+            <div class="modal-header border-secondary px-4 py-2">
+                <h6 class="modal-title fw-bold mb-0" id="scVideoModalTitle">Video hiện trường sự cố</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 bg-black text-center">
+                <video id="scVideoModalPlayer" class="w-100" style="max-height: 440px;" controls autoplay playsinline></video>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
 <script>
+    var scDraftPhoto = '';
+    var scDraftVideo = '';
+
     function escapeSuCoHtml(s) {
-        return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        return String(s || '').replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function onScPhotoSelected(input) {
+        var file = input && input.files && input.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function (ev) {
+            var img = new Image();
+            img.onload = function () {
+                var maxW = 720;
+                var scale = img.width > maxW ? (maxW / img.width) : 1;
+                var c = document.createElement('canvas');
+                c.width = Math.round(img.width * scale);
+                c.height = Math.round(img.height * scale);
+                c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                scDraftPhoto = c.toDataURL('image/jpeg', 0.72);
+                var prev = document.getElementById('scPhotoPreview');
+                prev.src = scDraftPhoto;
+                prev.classList.remove('d-none');
+                document.getElementById('scPhotoHint').innerText = 'Đã đính kèm ảnh hiện trường (' + file.name + ').';
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function clearScPhoto() {
+        scDraftPhoto = '';
+        var inp = document.getElementById('scPhotoInput');
+        if (inp) inp.value = '';
+        var prev = document.getElementById('scPhotoPreview');
+        if (prev) { prev.src = ''; prev.classList.add('d-none'); }
+        document.getElementById('scPhotoHint').innerText = 'Chụp cận cảnh điểm rò rỉ hoặc hư hỏng.';
+    }
+
+    function onScVideoSelected(input) {
+        var file = input && input.files && input.files[0];
+        if (!file) return;
+        var status = document.getElementById('scVideoStatus');
+        var prev = document.getElementById('scVideoPreview');
+        if (file.size > 4.5 * 1024 * 1024) {
+            scDraftVideo = URL.createObjectURL(file);
+            prev.src = scDraftVideo;
+            prev.classList.remove('d-none');
+            status.innerText = 'Đã gắn video "' + file.name + '".';
+            return;
+        }
+        var r = new FileReader();
+        r.onload = function (ev) {
+            scDraftVideo = ev.target.result;
+            prev.src = scDraftVideo;
+            prev.classList.remove('d-none');
+            status.innerText = 'Đã tải video sự cố "' + file.name + '"!';
+        };
+        r.readAsDataURL(file);
+    }
+
+    async function recordScVideo4s() {
+        var btn = document.getElementById('scRecordVideoBtn');
+        var status = document.getElementById('scVideoStatus');
+        var prev = document.getElementById('scVideoPreview');
+        btn.disabled = true;
+        status.innerText = 'Đang quay video hiện trường sự cố...';
+
+        try {
+            var stream = null;
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                } catch (_) {
+                    stream = null;
+                }
+            }
+            if (!stream && window.MediaRecorder) {
+                var c = document.createElement('canvas');
+                c.width = 360;
+                c.height = 200;
+                var ctx = c.getContext('2d');
+                var f = 0;
+                var dt = setInterval(function () {
+                    f += 1;
+                    ctx.fillStyle = '#1E293B';
+                    ctx.fillRect(0, 0, c.width, c.height);
+                    ctx.fillStyle = '#F59E0B';
+                    ctx.font = 'bold 16px sans-serif';
+                    ctx.fillText('SMARTSTAY INCIDENT CAM P.305', 42, 85);
+                    ctx.fillStyle = '#F8FAFC';
+                    ctx.font = '13px sans-serif';
+                    ctx.fillText('Đang ghi hình kiểm tra sự cố (' + f + ')', 68, 120);
+                }, 200);
+                stream = c.captureStream ? c.captureStream(10) : null;
+                setTimeout(function () { clearInterval(dt); }, 2500);
+            }
+            if (stream && window.MediaRecorder) {
+                var chunks = [];
+                var rec = new MediaRecorder(stream);
+                rec.ondataavailable = function (e) { if (e.data && e.data.size > 0) chunks.push(e.data); };
+                rec.onstop = function () {
+                    stream.getTracks().forEach(function (t) { t.stop(); });
+                    var blob = new Blob(chunks, { type: 'video/webm' });
+                    var fr = new FileReader();
+                    fr.onload = function (ev) {
+                        scDraftVideo = ev.target.result;
+                        prev.src = scDraftVideo;
+                        prev.classList.remove('d-none');
+                        status.innerText = 'Đã quay xong video hiện trường sự cố!';
+                        btn.disabled = false;
+                    };
+                    fr.readAsDataURL(blob);
+                };
+                rec.start();
+                setTimeout(function () { if (rec.state !== 'inactive') rec.stop(); }, 2200);
+                return;
+            }
+        } catch (_) { }
+
+        scDraftVideo = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+        prev.src = scDraftVideo;
+        prev.classList.remove('d-none');
+        status.innerText = 'Đã đính kèm video sự cố mẫu.';
+        btn.disabled = false;
+    }
+
+    function openSuCoVideo(videoUrl, title) {
+        if (!videoUrl) return;
+        document.getElementById('scVideoModalTitle').innerText = title || 'Video hiện trường sự cố';
+        document.getElementById('scVideoModalPlayer').src = videoUrl;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('scVideoModal')).show();
+    }
+
+    var scModalEl = document.getElementById('scVideoModal');
+    if (scModalEl) {
+        scModalEl.addEventListener('hidden.bs.modal', function () {
+            var p = document.getElementById('scVideoModalPlayer');
+            if (p) { p.pause(); p.removeAttribute('src'); }
+        });
+    }
+
+    function buildTicketCardHtml(t) {
+        var code = t.soPhieuSuCo || ('SC-2026-' + Math.floor(100 + Math.random() * 899));
+        var st = (t.trangThai || 'Chờ xử lý').toLowerCase();
+        var borderCls = 'border-danger';
+        var badgeHtml = '<span class="badge bg-danger-subtle text-danger fw-bold fs-8"><i class="bi bi-hourglass-split me-1"></i> CHỜ XỬ LÝ</span>';
+        if (st.includes('hoàn') || st.includes('xong')) {
+            borderCls = 'border-success';
+            badgeHtml = '<span class="badge bg-success-subtle text-success fw-bold fs-8"><i class="bi bi-check-circle-fill me-1"></i> ĐÃ HOÀN THÀNH</span>';
+        } else if (st.includes('đang')) {
+            borderCls = 'border-warning';
+            badgeHtml = '<span class="badge bg-warning-subtle text-warning fw-bold fs-8"><i class="bi bi-gear-wide-connected me-1"></i> ĐANG SỬA CHỮA</span>';
+        }
+
+        var mediaBlock = '';
+        if (t.hinhAnhUrl) {
+            mediaBlock += '<div class="mb-2"><img src="' + escapeSuCoHtml(t.hinhAnhUrl) + '" alt="Ảnh sự cố" class="w-100 rounded-3 border" style="height: 150px; object-fit: cover;"></div>';
+        }
+        if (t.videoUrl) {
+            mediaBlock += '<div class="mb-2"><button type="button" class="btn btn-sm btn-outline-danger rounded-pill" onclick="openSuCoVideo(\'' + escapeSuCoHtml(t.videoUrl) + '\', \'' + escapeSuCoHtml(t.tieuDe) + '\')"><i class="bi bi-play-circle-fill me-1"></i> Xem Video hiện trường đính kèm</button></div>';
+        }
+
+        return '<div class="col-lg-6">' +
+            '<div class="card-custom h-100 border-start border-4 ' + borderCls + '">' +
+                '<div class="d-flex justify-content-between align-items-center mb-2">' +
+                    badgeHtml +
+                    '<span class="fs-9 text-muted">Mã phiếu: <strong>' + escapeSuCoHtml(code) + '</strong></span>' +
+                '</div>' +
+                '<h5 class="fw-bold text-slate-900 mb-2">' + escapeSuCoHtml(t.tieuDe) + '</h5>' +
+                '<p class="fs-8 text-muted mb-3">' + escapeSuCoHtml(t.moTa || 'Đã ghi nhận yêu cầu sửa chữa và đồng bộ với kỹ thuật viên.') + '</p>' +
+                mediaBlock +
+                '<div class="bg-light p-3 rounded-3 border mb-2 fs-8">' +
+                    '<div class="d-flex justify-content-between mb-1"><span class="text-muted">Phòng:</span><strong class="text-primary">' + escapeSuCoHtml(t.kyHieuPhong || 'P.305') + '</strong></div>' +
+                    '<div class="d-flex justify-content-between"><span class="text-muted">Mức độ ưu tiên:</span><span class="badge bg-warning-subtle text-dark">' + escapeSuCoHtml(t.uuTien || 'Cao') + '</span></div>' +
+                '</div>' +
+                '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2">' +
+                    '<div class="text-primary fs-8 fw-semibold"><i class="bi bi-broadcast me-1"></i> Đồng bộ Realtime Kanban</div>' +
+                    '<button type="button" class="btn btn-sm btn-outline-primary rounded-pill" onclick="window.openSmartStayCallModal && window.openSmartStayCallModal(\'QuanLy\', \'Ban Quản Lý (Sự cố ' + escapeSuCoHtml(code) + ')\', true)"><i class="bi bi-camera-video me-1"></i> Gọi Video KTV</button>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    }
+
+    async function submitVisualTicket(e) {
+        e.preventDefault();
+        var cat = document.getElementById('scCategory').value;
+        var priority = document.getElementById('scPriority').value;
+        var title = document.getElementById('scTitle').value.trim() || cat;
+        var desc = document.getElementById('scDesc').value.trim();
+        var submitBtn = document.getElementById('scSubmitBtn');
+        submitBtn.disabled = true;
+
+        var ticketCode = 'SC-2026-' + Math.floor(100 + Math.random() * 899);
+        var payload = {
+            SoPhieuSuCo: ticketCode,
+            KyHieuPhong: 'P.305',
+            TieuDe: '[' + cat + '] ' + title,
+            MoTa: desc,
+            UuTien: priority,
+            TrangThai: 'Chờ xử lý',
+            HinhAnhUrl: scDraftPhoto || null,
+            VideoUrl: scDraftVideo || null
+        };
+
+        try {
+            var res = await fetch('/api/sync/su-co', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) {
+                var data = await res.json();
+                var item = (data && data.ticket) ? data.ticket : {
+                    soPhieuSuCo: ticketCode,
+                    kyHieuPhong: 'P.305',
+                    tieuDe: payload.TieuDe,
+                    moTa: desc,
+                    uuTien: priority,
+                    trangThai: 'Chờ xử lý',
+                    hinhAnhUrl: payload.HinhAnhUrl,
+                    videoUrl: payload.VideoUrl
+                };
+                document.getElementById('residentTicketList').insertAdjacentHTML('afterbegin', buildTicketCardHtml(item));
+            }
+        } catch (_) { }
+
+        submitBtn.disabled = false;
+        document.getElementById('newTicketForm').reset();
+        clearScPhoto();
+        scDraftVideo = '';
+        var pv = document.getElementById('scVideoPreview');
+        if (pv) { pv.removeAttribute('src'); pv.classList.add('d-none'); }
+        document.getElementById('scVideoStatus').innerText = 'Quay clip ngắn tiếng ồn máy lạnh hoặc nước rò rỉ.';
+
+        var m = bootstrap.Modal.getInstance(document.getElementById('newTicketModal'));
+        if (m) m.hide();
+        var al = document.getElementById('suCoDynamicAlert');
+        document.getElementById('suCoDynamicAlertText').innerText = 'Đã gửi phiếu báo sự cố ' + ticketCode + ' kèm ảnh/video lên bảng điều phối Kanban!';
+        al.classList.remove('d-none');
+        al.classList.add('show');
     }
 
     document.addEventListener('DOMContentLoaded', async function () {
         try {
-            const res = await fetch('/api/sync/snapshot');
+            var res = await fetch('/api/sync/snapshot');
             if (!res.ok) return;
-            const data = await res.json();
-            const tickets = data.suCos || data.tickets || [];
+            var data = await res.json();
+            var tickets = data.suCos || data.tickets || [];
             if (!Array.isArray(tickets)) return;
 
-            const container = document.getElementById('residentTicketList');
-            tickets.forEach(t => {
-                const code = t.soPhieuSuCo;
+            var container = document.getElementById('residentTicketList');
+            tickets.forEach(function (t) {
+                var code = t.soPhieuSuCo;
                 if (!code || container.innerText.includes(code)) return;
-
-                const st = (t.trangThai || 'Chờ xử lý').toLowerCase();
-                let borderCls = 'border-danger';
-                let badgeHtml = '<span class="badge bg-danger-subtle text-danger fw-bold fs-8"><i class="bi bi-hourglass-split me-1"></i> CHỜ XỬ LÝ</span>';
-                if (st.includes('hoàn') || st.includes('xong')) {
-                    borderCls = 'border-success';
-                    badgeHtml = '<span class="badge bg-success-subtle text-success fw-bold fs-8"><i class="bi bi-check-circle-fill me-1"></i> ĐÃ HOÀN THÀNH</span>';
-                } else if (st.includes('đang')) {
-                    borderCls = 'border-warning';
-                    badgeHtml = '<span class="badge bg-warning-subtle text-warning fw-bold fs-8"><i class="bi bi-gear-wide-connected me-1"></i> ĐANG SỬA CHỮA</span>';
-                }
-
-                const card = `
-                    <div class="col-lg-6">
-                        <div class="card-custom h-100 border-start border-4 ${borderCls}">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                ${badgeHtml}
-                                <span class="fs-9 text-muted">Mã phiếu: <strong>${escapeSuCoHtml(code)}</strong></span>
-                            </div>
-                            <h5 class="fw-bold text-slate-900 mb-2">${escapeSuCoHtml(t.tieuDe)}</h5>
-                            <p class="fs-8 text-muted mb-3">${escapeSuCoHtml(t.moTa || 'Đã ghi nhận yêu cầu sửa chữa và đồng bộ với kỹ thuật viên.')}</p>
-                            <div class="bg-light p-3 rounded-3 border mb-2 fs-8">
-                                <div class="d-flex justify-content-between mb-1">
-                                    <span class="text-muted">Phòng:</span>
-                                    <strong class="text-primary">${escapeSuCoHtml(t.kyHieuPhong || 'P.305')}</strong>
-                                </div>
-                                <div class="d-flex justify-content-between">
-                                    <span class="text-muted">Mức độ ưu tiên:</span>
-                                    <span class="badge bg-warning-subtle text-dark">${escapeSuCoHtml(t.uuTien || 'Cao')}</span>
-                                </div>
-                            </div>
-                            <div class="text-primary fs-8 fw-semibold">
-                                <i class="bi bi-broadcast me-1"></i> Trạng thái đồng bộ Realtime từ hệ thống Kanban
-                            </div>
-                        </div>
-                    </div>
-                `;
-                container.insertAdjacentHTML('afterbegin', card);
+                container.insertAdjacentHTML('afterbegin', buildTicketCardHtml(t));
             });
         } catch (e) { }
     });

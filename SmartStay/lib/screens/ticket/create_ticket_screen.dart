@@ -1,7 +1,12 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import '../../providers/ticket_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/api_transport.dart';
 import '../../utils/provider_scope.dart';
+import '../../widgets/call_center_modal.dart';
 
 class CreateTicketScreen extends StatefulWidget {
   const CreateTicketScreen({super.key});
@@ -16,8 +21,22 @@ class _CreateTicketScreenState extends State<CreateTicketScreen> {
   String _selectedPriority = 'Trung bình';
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
-  bool _hasAttachedImage = false;
+  String? _pickedImageDataUrl;
+  String? _pickedImageName;
+  String? _pickedVideoUrl;
+  String? _pickedVideoName;
   String? _aiTriageSuggestion;
+
+  Uint8List? _decodeDataUrlBytes(String? dataUrl) {
+    if (dataUrl == null || !dataUrl.startsWith('data:image')) return null;
+    final comma = dataUrl.indexOf(',');
+    if (comma <= 0 || comma + 1 >= dataUrl.length) return null;
+    try {
+      return base64Decode(dataUrl.substring(comma + 1));
+    } catch (_) {
+      return null;
+    }
+  }
 
   final List<String> _categories = [
     'Máy lạnh',
@@ -89,9 +108,8 @@ class _CreateTicketScreenState extends State<CreateTicketScreen> {
       priority: _selectedPriority,
       roomCode: userRoom,
       authorName: userName,
-      imageUrl: _hasAttachedImage
-          ? 'https://img.vietqr.io/image/970422-0987654321-compact2.png'
-          : null,
+      imageUrl: _pickedImageDataUrl,
+      videoUrl: _pickedVideoUrl,
     );
 
     if (!mounted) return;
@@ -250,58 +268,159 @@ class _CreateTicketScreenState extends State<CreateTicketScreen> {
               ),
               const SizedBox(height: 18),
 
-              // Đính kèm hình ảnh
-              const Text('Hình ảnh hiện trường (Khuyến nghị)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              // Đính kèm hình ảnh & video hiện trường trực quan
+              const Text(
+                'Hình ảnh & Video hiện trường trực quan',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
               const SizedBox(height: 8),
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    _hasAttachedImage = !_hasAttachedImage;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(_hasAttachedImage ? 'Đã đính kèm ảnh chụp hiện trường' : 'Đã bỏ đính kèm ảnh'),
-                    ),
-                  );
-                },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: double.infinity,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _hasAttachedImage ? const Color(0xFF2563EB) : const Color(0xFFCBD5E1),
-                      width: _hasAttachedImage ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          _hasAttachedImage ? Icons.check_circle : Icons.camera_alt_outlined,
-                          color: _hasAttachedImage ? const Color(0xFF16A34A) : const Color(0xFF64748B),
-                          size: 28,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _hasAttachedImage
-                              ? 'Đã đính kèm 1 ảnh chụp thiết bị hỏng (Chạm để đổi)'
-                              : 'Chạm để chụp hoặc chọn ảnh từ thư viện',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: _hasAttachedImage ? FontWeight.bold : FontWeight.normal,
-                            color: _hasAttachedImage ? const Color(0xFF16A34A) : const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
+              if (_decodeDataUrlBytes(_pickedImageDataUrl) != null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.memory(
+                    _decodeDataUrlBytes(_pickedImageDataUrl)!,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
                   ),
                 ),
+                const SizedBox(height: 8),
+              ],
+              if (_pickedVideoUrl != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.videocam_rounded, color: Color(0xFFDC2626), size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Video sự cố: ${_pickedVideoName ?? 'Clip hiện trường HD'}',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => setState(() {
+                          _pickedVideoUrl = null;
+                          _pickedVideoName = null;
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await pickMediaFile(
+                        acceptVideo: false,
+                        useCamera: true,
+                      );
+                      if (picked == null || !mounted) return;
+                      setState(() {
+                        _pickedImageDataUrl = picked.dataUrl;
+                        _pickedImageName = picked.fileName;
+                      });
+                    },
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 46),
+                      side: BorderSide(
+                        color: _pickedImageDataUrl != null
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFF2563EB),
+                      ),
+                    ),
+                    icon: Icon(
+                      _pickedImageDataUrl != null
+                          ? Icons.check_circle_rounded
+                          : Icons.camera_alt_rounded,
+                      size: 18,
+                      color: _pickedImageDataUrl != null
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFF2563EB),
+                    ),
+                    label: Text(
+                      _pickedImageName == null
+                          ? 'Chụp / Chọn ảnh'
+                          : 'Đổi ảnh (${_pickedImageName!})',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await pickMediaFile(
+                        acceptVideo: true,
+                        useCamera: true,
+                      );
+                      if (picked == null || !mounted) return;
+                      setState(() {
+                        _pickedVideoUrl = picked.dataUrl;
+                        _pickedVideoName = picked.fileName;
+                      });
+                    },
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 46),
+                      side: const BorderSide(color: Color(0xFFDC2626)),
+                    ),
+                    icon: const Icon(
+                      Icons.videocam_rounded,
+                      size: 18,
+                      color: Color(0xFFDC2626),
+                    ),
+                    label: const Text(
+                      'Quay / Tải Video',
+                      style: TextStyle(fontSize: 12.5, color: Color(0xFFDC2626)),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _pickedVideoUrl =
+                            'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+                        _pickedVideoName = 'Su_co_hien_truong.mp4';
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Đã đính kèm video hiện trường mẫu vào phiếu sự cố!'),
+                        ),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 46)),
+                    icon: const Icon(Icons.fiber_manual_record_rounded, size: 15, color: Colors.red),
+                    label: const Text('Quay nhanh (4s)', style: TextStyle(fontSize: 12.5)),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () => showSmartStayCallModal(
+                      context,
+                      initialTargetRole: 'QuanLy',
+                      initialTargetName: 'Ban Quản Lý (Báo sự cố trực tiếp)',
+                      initialVideo: true,
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4F46E5),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 46),
+                    ),
+                    icon: const Icon(Icons.video_call_rounded, size: 18),
+                    label: const Text('Gọi Video báo Quản Lý', style: TextStyle(fontSize: 12.5)),
+                  ),
+                ],
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // Nút Gửi
               SizedBox(

@@ -311,6 +311,226 @@
             .modal-footer > * { flex: 1 1 auto; }
             canvas { max-width: 100% !important; }
         }
+
+        /* ===== Floating AI Chat Bubble (Admin / Quản lý / Cư dân) ===== */
+        .ss-ai-bubble-launcher {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            z-index: 1080;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 48px;
+            padding: 10px 18px;
+            border: 0;
+            border-radius: 999px;
+            color: #fff;
+            font-weight: 700;
+            font-size: 13.5px;
+            background: linear-gradient(135deg, #6D28D9, #2563EB);
+            box-shadow: 0 12px 28px rgba(79, 70, 229, 0.38);
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .ss-ai-bubble-launcher:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 16px 32px rgba(79, 70, 229, 0.45);
+        }
+        .ss-ai-bubble-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #34D399;
+            box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+            animation: ssAiPulse 2s infinite;
+        }
+        @@keyframes ssAiPulse {
+            0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.75); }
+            70% { box-shadow: 0 0 0 9px rgba(52, 211, 153, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+        }
+        .ss-ai-chat-popup {
+            position: fixed;
+            right: 20px;
+            bottom: 80px;
+            z-index: 1085;
+            width: 385px;
+            max-width: calc(100vw - 24px);
+            height: 520px;
+            max-height: calc(100vh - 104px);
+            background: #fff;
+            border: 1px solid #CBD5E1;
+            border-radius: 18px;
+            box-shadow: 0 22px 48px rgba(15, 23, 42, 0.22);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .ss-ai-chat-popup.d-none { display: none !important; }
+        .ss-ai-popup-header {
+            padding: 12px 14px;
+            color: #fff;
+            background: linear-gradient(135deg, #4F46E5, #2563EB);
+        }
+        .ss-ai-mode-pills {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+        .ss-ai-mode-btn {
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            background: rgba(255, 255, 255, 0.14);
+            color: #fff;
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .ss-ai-mode-btn.active {
+            background: #fff;
+            color: #4338CA;
+            border-color: #fff;
+        }
+        .ss-ai-popup-messages {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            padding: 12px;
+            background: #F8FAFC;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .ss-ai-msg-row { display: flex; }
+        .ss-ai-msg-row.user { justify-content: flex-end; }
+        .ss-ai-msg-row.bot { justify-content: flex-start; }
+        .ss-ai-msg-bubble {
+            max-width: 86%;
+            padding: 9px 12px;
+            border-radius: 14px;
+            font-size: 12.5px;
+            line-height: 1.45;
+            white-space: pre-line;
+            word-break: break-word;
+        }
+        .ss-ai-msg-row.user .ss-ai-msg-bubble {
+            background: linear-gradient(135deg, #4F46E5, #3B82F6);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+        .ss-ai-msg-row.bot .ss-ai-msg-bubble {
+            background: #fff;
+            color: #1E293B;
+            border: 1px solid #E2E8F0;
+            border-bottom-left-radius: 4px;
+        }
+        .ss-ai-chips-bar {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding: 8px 10px 6px 10px;
+            border-top: 1px solid #E2E8F0;
+            background: #fff;
+        }
+        .ss-ai-chip {
+            flex: 0 0 auto;
+            border: 1px solid #CBD5E1;
+            background: #F8FAFC;
+            color: #334155;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .ss-ai-chip:hover {
+            background: #EEF2FF;
+            border-color: #6366F1;
+            color: #4338CA;
+        }
+        .ss-ai-input-bar {
+            display: flex;
+            gap: 6px;
+            padding: 8px 10px 10px 10px;
+            background: #fff;
+            border-top: 1px solid #F1F5F9;
+        }
+        @@media (max-width: 575.98px) {
+            .ss-ai-bubble-launcher {
+                right: 12px;
+                bottom: 12px;
+                padding: 10px 14px;
+                font-size: 12.5px;
+            }
+            .ss-ai-chat-popup {
+                right: 12px;
+                bottom: 68px;
+                height: 460px;
+                max-height: calc(100vh - 88px);
+            }
+        }
+        /* Video & Voice Call Center Modal */
+        .ss-call-stage {
+            position: relative;
+            background: radial-gradient(circle at top right, #1E293B, #0F172A 65%, #020617);
+            border-radius: 16px;
+            min-height: 260px;
+            overflow: hidden;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .ss-call-video-el {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.92;
+        }
+        .ss-call-pip {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            width: 96px;
+            height: 68px;
+            border-radius: 10px;
+            border: 2px solid rgba(255,255,255,0.65);
+            background: linear-gradient(135deg, #334155, #1E293B);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            z-index: 3;
+            overflow: hidden;
+        }
+        .ss-call-avatar-ring {
+            width: 78px;
+            height: 78px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4F46E5, #2563EB);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 800;
+            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.55);
+            z-index: 2;
+        }
+        .ss-call-avatar-ring.calling {
+            animation: ssCallRing 1.7s infinite;
+        }
+        @@keyframes ssCallRing {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.65); }
+            70% { box-shadow: 0 0 0 22px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
     </style>
 </head>
 <body>
@@ -420,6 +640,11 @@
                     <i class="bi bi-database-check me-1"></i> SQL Server: SmartStayDB
                 </span>
 
+                <button type="button" id="ssTopbarCallBtn" class="btn btn-sm btn-primary rounded-pill px-2 px-sm-3 py-1 d-inline-flex align-items-center gap-1" style="min-height: 36px;" onclick="window.openSmartStayCallModal && window.openSmartStayCallModal()" title="Gọi Thoại & Video Call trực tiếp giữa Người dùng, Quản lý & Admin">
+                    <i class="bi bi-camera-video-fill"></i>
+                    <span class="d-none d-sm-inline fw-semibold">Gọi / Video</span>
+                </button>
+
                 <div class="user-pill">
                     <div class="user-avatar" style="@(role == "Admin" ? "background: #8B5CF6;" : (role == "KyThuat" ? "background: #10B981;" : "background: #2563EB;"))">
                         @userInitial
@@ -467,6 +692,632 @@
                     w.appendChild(t);
                 }
             });
+        })();
+    </script>
+
+    <!-- Bong bóng Chat AI Hỗ trợ Admin / Ban Quản lý / Người dùng -->
+    <div id="ssAiBubbleRoot" data-role="@role" data-fullname="@fullName" data-room="@(roomCode ?? "P.305")">
+        <button type="button" id="ssAiLauncherBtn" class="ss-ai-bubble-launcher" aria-label="Mở Trợ lý AI SmartStay">
+            <span class="ss-ai-bubble-dot"></span>
+            <i class="bi bi-robot fs-5"></i>
+            <span class="ss-ai-label">AI Hỗ Trợ @(role == "Admin" ? "Admin" : ((role == "QuanLy" || role == "KyThuat") ? "Quản Lý" : "Cư Dân"))</span>
+        </button>
+
+        <section id="ssAiChatPopup" class="ss-ai-chat-popup d-none" aria-label="Hộp thoại Trợ lý AI SmartStay">
+            <div class="ss-ai-popup-header">
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                    <div class="d-flex align-items-center gap-2 min-width-0">
+                        <div class="rounded-circle bg-white bg-opacity-25 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 34px; height: 34px;">
+                            <i class="bi bi-stars fs-6"></i>
+                        </div>
+                        <div class="min-width-0">
+                            <div class="fw-bold text-truncate" id="ssAiHeaderTitle" style="font-size: 13.5px; line-height: 1.2;">SmartStay AI Copilot</div>
+                            <div class="text-truncate" id="ssAiHeaderSub" style="font-size: 11px; opacity: 0.9;">Hỗ trợ Admin, Quản lý & Cư dân 24/7</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                        <button type="button" id="ssAiCallBtn" class="btn btn-sm text-white p-1" title="Gọi Thoại / Video trực tiếp">
+                            <i class="bi bi-camera-video-fill"></i>
+                        </button>
+                        <button type="button" id="ssAiClearBtn" class="btn btn-sm text-white p-1" title="Làm mới hội thoại">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                        <button type="button" id="ssAiCloseBtn" class="btn btn-sm text-white p-1" title="Thu gọn">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="ss-ai-mode-pills">
+                    <button type="button" class="ss-ai-mode-btn" data-mode="resident">Người dùng</button>
+                    <button type="button" class="ss-ai-mode-btn" data-mode="manager">Ban Quản lý</button>
+                    <button type="button" class="ss-ai-mode-btn" data-mode="admin">Admin</button>
+                    <a href="/CuDan/AiConcierge" class="ss-ai-mode-btn text-decoration-none ms-auto" title="Mở AI toàn màn hình"><i class="bi bi-box-arrow-up-right"></i></a>
+                </div>
+            </div>
+
+            <div id="ssAiMessages" class="ss-ai-popup-messages"></div>
+            <div id="ssAiChipsBar" class="ss-ai-chips-bar"></div>
+
+            <div class="ss-ai-input-bar">
+                <input type="text" id="ssAiInput" class="form-control form-control-sm rounded-3" placeholder="Hỏi AI về vận hành, doanh thu, hóa đơn, sự cố..." />
+                <button type="button" id="ssAiSendBtn" class="btn btn-primary btn-sm px-3 rounded-3">
+                    <i class="bi bi-send-fill"></i>
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal Trung tâm Gọi Thoại & Video Call nội bộ -->
+    <div class="modal fade" id="ssCallCenterModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border-0 rounded-4 shadow-lg overflow-hidden">
+                <div class="modal-header bg-dark text-white border-0 py-3">
+                    <div>
+                        <h6 class="modal-title fw-bold mb-0"><i class="bi bi-telephone-outbound-fill text-info me-2"></i>Tổng Đài Thoại &amp; Video Call SmartStay</h6>
+                        <small class="text-white-50">Kết nối trực tiếp Người dùng • Ban Quản lý • Admin • Kỹ thuật viên</small>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body p-3 p-md-4 bg-light">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-7">
+                            <div class="ss-call-stage p-3 mb-3">
+                                <video id="ssCallRemoteVideo" class="ss-call-video-el d-none" autoplay muted playsinline></video>
+                                <div id="ssCallAvatarRing" class="ss-call-avatar-ring mb-2">
+                                    <i class="bi bi-headset"></i>
+                                </div>
+                                <div id="ssCallPartnerLabel" class="fw-bold fs-6 text-center" style="z-index: 2;">Ban Quản Lý Trực Ca</div>
+                                <div id="ssCallStatusBadge" class="badge bg-primary bg-opacity-75 rounded-pill px-3 py-1 mt-1" style="z-index: 2;">Sẵn sàng kết nối • 00:00</div>
+                                <div id="ssCallTimerText" class="small text-info fw-semibold mt-1" style="z-index: 2;">Kênh bảo mật SmartStay RTC</div>
+                                <div class="ss-call-pip" id="ssCallPipBox">
+                                    <video id="ssCallLocalVideo" class="w-100 h-100 object-fit-cover d-none" autoplay muted playsinline></video>
+                                    <div id="ssCallPipPlaceholder" class="text-center text-white-50 p-1">
+                                        <i class="bi bi-person-video d-block fs-6 text-white"></i>
+                                        <span>Cam của bạn</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex flex-wrap justify-content-center gap-2 mb-3">
+                                <button type="button" id="ssCallStartAudioBtn" class="btn btn-success rounded-pill px-3 fw-semibold">
+                                    <i class="bi bi-telephone-fill me-1"></i> Gọi Thoại
+                                </button>
+                                <button type="button" id="ssCallStartVideoBtn" class="btn btn-primary rounded-pill px-3 fw-semibold">
+                                    <i class="bi bi-camera-video-fill me-1"></i> Gọi Video HD
+                                </button>
+                                <button type="button" id="ssCallMicBtn" class="btn btn-outline-secondary rounded-pill px-3" disabled>
+                                    <i class="bi bi-mic-fill"></i> Mic Bật
+                                </button>
+                                <button type="button" id="ssCallCamBtn" class="btn btn-outline-secondary rounded-pill px-3" disabled>
+                                    <i class="bi bi-camera-video"></i> Cam Bật
+                                </button>
+                                <button type="button" id="ssCallEndBtn" class="btn btn-danger rounded-pill px-3 fw-semibold" disabled>
+                                    <i class="bi bi-telephone-x-fill me-1"></i> Kết thúc &amp; Lưu
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-5 d-flex flex-column gap-2">
+                            <div class="bg-white rounded-3 border p-3">
+                                <label class="form-label small fw-bold mb-1">Chọn đối tượng liên hệ nhanh</label>
+                                <div class="d-grid gap-2 mb-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary text-start ss-call-preset" data-target-role="QuanLy" data-target-name="Ban Quản Lý (Trực ca 24/7)">
+                                        <i class="bi bi-building-gear me-1"></i> Ban Quản Lý (Trực ca 24/7)
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-dark text-start ss-call-preset" data-target-role="Admin" data-target-name="Admin Hệ Thống SmartStay">
+                                        <i class="bi bi-shield-lock me-1"></i> Admin Hệ Thống
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-success text-start ss-call-preset" data-target-role="KyThuat" data-target-name="Nguyễn Văn Bình (Kỹ thuật viên)">
+                                        <i class="bi bi-tools me-1"></i> Kỹ thuật viên (Nguyễn Văn Bình)
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-info text-start ss-call-preset" data-target-role="CuDan" data-target-name="Hồ Ngọc Bảo (Cư dân P.305)">
+                                        <i class="bi bi-person-badge me-1"></i> Cư dân P.305 (Hồ Ngọc Bảo)
+                                    </button>
+                                </div>
+                                <label class="form-label small fw-bold mb-1">Tên người nhận / Phòng</label>
+                                <input type="text" id="ssCallCustomTarget" class="form-control form-control-sm mb-2" value="Ban Quản Lý (Trực ca 24/7)" />
+                                <label class="form-label small fw-bold mb-1">Ghi chú tình hình / Báo cáo nhanh</label>
+                                <textarea id="ssCallNoteInput" class="form-control form-control-sm" rows="2" placeholder="VD: Trao đổi kiểm tra rò rỉ nước phòng P.305 hoặc gia hạn thanh toán..."></textarea>
+                            </div>
+
+                            <div class="bg-white rounded-3 border p-3 flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="small fw-bold text-dark"><i class="bi bi-clock-history text-primary me-1"></i>Nhật ký cuộc gọi gần đây</span>
+                                    <span class="badge bg-light text-dark border" id="ssCallCountBadge">0</span>
+                                </div>
+                                <div id="ssCallHistoryList" class="d-flex flex-column gap-2" style="max-height: 150px; overflow-y: auto; font-size: 12px;">
+                                    <div class="text-muted small">Đang đồng bộ nhật ký cuộc gọi...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var root = document.getElementById('ssAiBubbleRoot');
+            if (!root) return;
+
+            var launcherBtn = document.getElementById('ssAiLauncherBtn');
+            var popup = document.getElementById('ssAiChatPopup');
+            var closeBtn = document.getElementById('ssAiCloseBtn');
+            var clearBtn = document.getElementById('ssAiClearBtn');
+            var callBtnHeader = document.getElementById('ssAiCallBtn');
+            var messagesEl = document.getElementById('ssAiMessages');
+            var chipsBar = document.getElementById('ssAiChipsBar');
+            var inputEl = document.getElementById('ssAiInput');
+            var sendBtn = document.getElementById('ssAiSendBtn');
+            var headerTitle = document.getElementById('ssAiHeaderTitle');
+            var headerSub = document.getElementById('ssAiHeaderSub');
+            var modeButtons = root.querySelectorAll('.ss-ai-mode-btn[data-mode]');
+
+            var serverRole = (root.getAttribute('data-role') || 'Admin');
+            var fullName = root.getAttribute('data-fullname') || 'Quản Trị Viên';
+            var roomCode = root.getAttribute('data-room') || 'P.305';
+            var activeMode = serverRole === 'Admin' ? 'admin' : ((serverRole === 'QuanLy' || serverRole === 'KyThuat') ? 'manager' : 'resident');
+
+            var adminChips = [
+                'Báo cáo doanh thu & công nợ tháng này',
+                'Kiểm tra cấu hình ngân hàng VietQR & hệ thống',
+                'Thống kê phòng trống & tỷ lệ lấp đầy',
+                'Phát thông báo nhắc đóng phí toàn tòa nhà',
+                'Tổng hợp nhật ký cuộc gọi & bảo trì Kanban'
+            ];
+
+            var managerChips = [
+                'Kiểm tra sự cố Kanban khẩn cấp',
+                'Điều phối kỹ thuật viên xử lý phòng P.305',
+                'Cảnh báo khóa IoT & chỉ số điện nước bất thường',
+                'Phát thông báo kiểm tra PCCC định kỳ',
+                'Báo cáo tỷ lệ phòng sắp hết hạn hợp đồng'
+            ];
+
+            var residentChips = [
+                'Tại sao tháng này tiền điện phòng tôi cao vậy?',
+                'Bảng giá điện nước bậc thang hiện tại',
+                'Phòng tôi bị rỉ nước vòi sen, gọi thợ sửa gấp!',
+                'Hướng dẫn thanh toán hóa đơn VietQR',
+                'Cách đăng bán đồ cũ kèm video & đánh giá 5 sao'
+            ];
+
+            function renderHeaderAndChips() {
+                modeButtons.forEach(function (btn) {
+                    btn.classList.toggle('active', btn.getAttribute('data-mode') === activeMode);
+                });
+                var chips = residentChips;
+                if (activeMode === 'admin') {
+                    headerTitle.innerText = 'AI Copilot Admin Hệ Thống';
+                    headerSub.innerText = fullName + ' • Quyền Admin';
+                    chips = adminChips;
+                } else if (activeMode === 'manager') {
+                    headerTitle.innerText = 'AI Điều Hành Ban Quản Lý';
+                    headerSub.innerText = fullName + ' • Ban Quản lý & Kỹ thuật';
+                    chips = managerChips;
+                } else {
+                    headerTitle.innerText = 'SmartStay AI Concierge';
+                    headerSub.innerText = fullName + ' (' + roomCode + ') • Hỗ trợ Người dùng';
+                    chips = residentChips;
+                }
+
+                chipsBar.innerHTML = '';
+                chips.forEach(function (label) {
+                    var b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'ss-ai-chip';
+                    b.innerText = label;
+                    b.addEventListener('click', function () {
+                        sendMessage(label);
+                    });
+                    chipsBar.appendChild(b);
+                });
+            }
+
+            function appendBubble(sender, text) {
+                var row = document.createElement('div');
+                row.className = 'ss-ai-msg-row ' + (sender === 'user' ? 'user' : 'bot');
+                var bubble = document.createElement('div');
+                bubble.className = 'ss-ai-msg-bubble';
+                bubble.innerText = text;
+                row.appendChild(bubble);
+                messagesEl.appendChild(row);
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+                return bubble;
+            }
+
+            function resetMessages() {
+                messagesEl.innerHTML = '';
+                if (activeMode === 'admin') {
+                    appendBubble(
+                        'bot',
+                        'Xin chào ' + fullName + '! Tôi là AI Copilot cho Admin.\nTôi có thể tổng hợp doanh thu & công nợ toàn hệ thống, rà soát cấu hình VietQR/tài khoản, kiểm tra tỷ lệ lấp đầy hoặc phát thông báo toàn tòa nhà.'
+                    );
+                } else if (activeMode === 'manager') {
+                    appendBubble(
+                        'bot',
+                        'Xin chào Ban Quản Lý (' + fullName + ')! Tôi hỗ trợ điều phối vận hành trực tiếp.\nTôi có thể kiểm tra ticket Kanban khẩn cấp, cảnh báo khóa IoT, giám sát công tơ điện nước hoặc mở cuộc gọi trao đổi nhanh với cư dân/kỹ thuật.'
+                    );
+                } else {
+                    appendBubble(
+                        'bot',
+                        'Xin chào ' + fullName + ' (' + roomCode + ')! Tôi là SmartStay AI Concierge cho Người dùng.\nTôi có thể giải thích hóa đơn điện nước bậc thang, tạo ngay phiếu sự cố Kanban có ảnh/video, hoặc hỗ trợ đăng bán & đánh giá tại Chợ Đồ Cũ.'
+                    );
+                }
+            }
+
+            async function executeAgenticSideEffects(query) {
+                var q = query.toLowerCase();
+                var extras = [];
+
+                if ((activeMode === 'admin' || activeMode === 'manager') && (q.includes('phát thông báo') || q.includes('gửi thông báo')) && (q.includes('nhắc') || q.includes('phí') || q.includes('tiền') || q.includes('pccc'))) {
+                    try {
+                        var resNotice = await fetch('/api/sync/thong-bao', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                TieuDe: q.includes('pccc') ? 'Kiểm tra hệ thống PCCC & an toàn căn hộ' : 'Nhắc lịch thanh toán hóa đơn dịch vụ tháng 10',
+                                NoiDung: 'Ban Quản Lý kính đề nghị Quý cư dân kiểm tra chỉ số điện nước và hoàn tất thanh toán qua mã VietQR trong ứng dụng trước ngày 05.',
+                                PhamViNhan: 'Toàn tòa nhà',
+                                LaKhanCap: true
+                            })
+                        });
+                        if (resNotice.ok) {
+                            extras.push('✅ Đã tự động đăng thông báo lên Bảng tin cư dân & Realtime Sync!');
+                        }
+                    } catch (_) { }
+                } else if ((activeMode === 'admin' || activeMode === 'manager') && (q.includes('doanh thu') || q.includes('phòng trống') || q.includes('sự cố') || q.includes('kanban') || q.includes('cuộc gọi') || q.includes('tổng hợp'))) {
+                    try {
+                        var snapRes = await fetch('/api/sync/snapshot');
+                        if (snapRes.ok) {
+                            var snap = await snapRes.json();
+                            var roomCount = Array.isArray(snap.phongs) ? snap.phongs.length : 0;
+                            var ticketCount = Array.isArray(snap.suCos) ? snap.suCos.length : 0;
+                            var callCount = Array.isArray(snap.cuocGois) ? snap.cuocGois.length : 0;
+                            if (roomCount > 0 || ticketCount > 0 || callCount > 0) {
+                                extras.push('🔄 Dữ liệu Realtime Snapshot: ' + roomCount + ' phòng đồng bộ • ' + ticketCount + ' phiếu sự cố • ' + callCount + ' cuộc gọi.');
+                            }
+                        }
+                    } catch (_) { }
+                } else if (activeMode === 'resident' && (q.includes('rỉ nước') || q.includes('vòi sen') || q.includes('hỏng') || q.includes('sửa') || q.includes('máy lạnh'))) {
+                    try {
+                        var ticketCode = 'SC-2026-' + Math.floor(100 + Math.random() * 899);
+                        var resTicket = await fetch('/api/sync/su-co', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                SoPhieuSuCo: ticketCode,
+                                KyHieuPhong: roomCode,
+                                TieuDe: query.slice(0, 80),
+                                MoTa: 'Khởi tạo từ Bong bóng Chat AI: ' + query,
+                                UuTien: 'Khẩn cấp',
+                                TrangThai: 'Chờ xử lý'
+                            })
+                        });
+                        if (resTicket.ok) {
+                            extras.push('🎫 Đã tạo phiếu Kanban ' + ticketCode + ' cho phòng ' + roomCode + ' và gửi sang điều phối kỹ thuật.');
+                        }
+                    } catch (_) { }
+                }
+                return extras;
+            }
+
+            async function sendMessage(overrideText) {
+                var text = (typeof overrideText === 'string' ? overrideText : inputEl.value).trim();
+                if (!text) return;
+
+                appendBubble('user', text);
+                if (typeof overrideText !== 'string') {
+                    inputEl.value = '';
+                }
+
+                var typingBubble = appendBubble('bot', '⏳ AI đang phân tích ngữ cảnh & truy xuất dữ liệu...');
+                var mappedRole = activeMode === 'admin' ? 'Admin' : (activeMode === 'manager' ? 'QuanLy' : 'CuDan');
+                try {
+                    var sideNotesPromise = executeAgenticSideEffects(text);
+                    var apiRes = await fetch('/api/tro-ly/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            TinNhan: text,
+                            VaiTro: mappedRole,
+                            SoPhong: roomCode
+                        })
+                    });
+
+                    var replyText = 'Trợ lý AI SmartStay sẵn sàng hỗ trợ bạn!';
+                    if (apiRes.ok) {
+                        var data = await apiRes.json();
+                        if (data && data.traLoi) {
+                            replyText = data.traLoi;
+                        } else if (data && data.TraLoi) {
+                            replyText = data.TraLoi;
+                        }
+                    }
+                    var sideNotes = await sideNotesPromise;
+                    if (sideNotes.length > 0) {
+                        replyText = replyText + '\n\n' + sideNotes.join('\n');
+                    }
+                    typingBubble.innerText = replyText;
+                } catch (err) {
+                    typingBubble.innerText = 'Không kết nối được máy chủ AI lúc này, vui lòng thử lại sau.';
+                }
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+            }
+
+            launcherBtn.addEventListener('click', function () {
+                popup.classList.toggle('d-none');
+                if (!popup.classList.contains('d-none')) {
+                    inputEl.focus();
+                }
+            });
+
+            closeBtn.addEventListener('click', function () {
+                popup.classList.add('d-none');
+            });
+
+            clearBtn.addEventListener('click', function () {
+                resetMessages();
+            });
+
+            if (callBtnHeader) {
+                callBtnHeader.addEventListener('click', function () {
+                    popup.classList.add('d-none');
+                    if (window.openSmartStayCallModal) {
+                        var targetRole = activeMode === 'resident' ? 'QuanLy' : 'CuDan';
+                        var targetName = activeMode === 'resident' ? 'Ban Quản Lý (Trực ca 24/7)' : 'Hồ Ngọc Bảo (Cư dân P.305)';
+                        window.openSmartStayCallModal(targetRole, targetName, true);
+                    }
+                });
+            }
+
+            modeButtons.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var target = btn.getAttribute('data-mode');
+                    if (target && target !== activeMode) {
+                        activeMode = target;
+                        renderHeaderAndChips();
+                        resetMessages();
+                    }
+                });
+            });
+
+            sendBtn.addEventListener('click', function () { sendMessage(); });
+            inputEl.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            renderHeaderAndChips();
+            resetMessages();
+
+            // --- Logic Tổng Đài Thoại & Video Call ---
+            var callModalEl = document.getElementById('ssCallCenterModal');
+            if (!callModalEl) return;
+
+            var callState = {
+                active: false,
+                isVideo: true,
+                micOn: true,
+                camOn: true,
+                seconds: 0,
+                timerId: null,
+                stream: null,
+                targetRole: 'QuanLy',
+                targetName: 'Ban Quản Lý (Trực ca 24/7)'
+            };
+
+            var ringEl = document.getElementById('ssCallAvatarRing');
+            var partnerLabel = document.getElementById('ssCallPartnerLabel');
+            var statusBadge = document.getElementById('ssCallStatusBadge');
+            var timerText = document.getElementById('ssCallTimerText');
+            var remoteVideo = document.getElementById('ssCallRemoteVideo');
+            var localVideo = document.getElementById('ssCallLocalVideo');
+            var pipPlaceholder = document.getElementById('ssCallPipPlaceholder');
+            var customTargetInput = document.getElementById('ssCallCustomTarget');
+            var noteInput = document.getElementById('ssCallNoteInput');
+            var startAudioBtn = document.getElementById('ssCallStartAudioBtn');
+            var startVideoBtn = document.getElementById('ssCallStartVideoBtn');
+            var micBtn = document.getElementById('ssCallMicBtn');
+            var camBtn = document.getElementById('ssCallCamBtn');
+            var endBtn = document.getElementById('ssCallEndBtn');
+            var historyList = document.getElementById('ssCallHistoryList');
+            var countBadge = document.getElementById('ssCallCountBadge');
+
+            function fmtSec(s) {
+                var m = String(Math.floor(s / 60)).padStart(2, '0');
+                var rem = String(s % 60).padStart(2, '0');
+                return m + ':' + rem;
+            }
+
+            function stopStreams() {
+                if (callState.timerId) {
+                    clearInterval(callState.timerId);
+                    callState.timerId = null;
+                }
+                if (callState.stream) {
+                    callState.stream.getTracks().forEach(function (t) { t.stop(); });
+                    callState.stream = null;
+                }
+                localVideo.srcObject = null;
+                localVideo.classList.add('d-none');
+                remoteVideo.srcObject = null;
+                remoteVideo.classList.add('d-none');
+                pipPlaceholder.classList.remove('d-none');
+                ringEl.classList.remove('calling');
+            }
+
+            function renderCallLogs(logs) {
+                var arr = Array.isArray(logs) ? logs : [];
+                countBadge.innerText = String(arr.length);
+                if (!arr.length) {
+                    historyList.innerHTML = '<div class="text-muted small">Chưa có lịch sử cuộc gọi nào.</div>';
+                    return;
+                }
+                historyList.innerHTML = arr.slice(0, 8).map(function (c) {
+                    var icon = (c.loaiCuocGoi === 'Video') ? 'bi-camera-video-fill text-primary' : 'bi-telephone-fill text-success';
+                    return '<div class="p-2 rounded-2 border bg-light-subtle">' +
+                        '<div class="d-flex justify-content-between align-items-center fw-semibold">' +
+                        '<span><i class="bi ' + icon + ' me-1"></i>' + (c.nguoiNhan || 'Ban Quản Lý') + '</span>' +
+                        '<span class="badge bg-white text-dark border">' + fmtSec(c.thoiLuongGiay || 0) + '</span>' +
+                        '</div>' +
+                        '<div class="text-muted" style="font-size:11px;">' + (c.nguoiGoi || fullName) + ' -> ' + (c.vaiTroNguoiNhan || 'QuanLy') + '</div>' +
+                        (c.noiDungTraoDoi ? '<div class="text-dark mt-1" style="font-size:11px;">"' + c.noiDungTraoDoi + '"</div>' : '') +
+                        '</div>';
+                }).join('');
+            }
+
+            async function refreshCallHistory() {
+                try {
+                    var res = await fetch('/api/sync/snapshot');
+                    if (res.ok) {
+                        var snap = await res.json();
+                        renderCallLogs(snap.cuocGois || []);
+                    }
+                } catch (_) { }
+            }
+
+            async function beginCall(isVideo) {
+                stopStreams();
+                callState.active = true;
+                callState.isVideo = !!isVideo;
+                callState.micOn = true;
+                callState.camOn = !!isVideo;
+                callState.seconds = 0;
+                callState.targetName = (customTargetInput.value || callState.targetName).trim();
+
+                partnerLabel.innerText = callState.targetName;
+                statusBadge.className = 'badge bg-success rounded-pill px-3 py-1 mt-1';
+                statusBadge.innerText = (callState.isVideo ? 'Đang gọi Video HD' : 'Đang gọi Thoại') + ' • 00:00';
+                timerText.innerText = 'Đang kết nối kênh bảo mật SmartStay RTC...';
+                ringEl.classList.add('calling');
+                micBtn.disabled = false;
+                camBtn.disabled = !callState.isVideo;
+                endBtn.disabled = false;
+                startAudioBtn.disabled = true;
+                startVideoBtn.disabled = true;
+
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    try {
+                        var stream = await navigator.mediaDevices.getUserMedia({ video: callState.isVideo, audio: true });
+                        callState.stream = stream;
+                        if (callState.isVideo) {
+                            localVideo.srcObject = stream;
+                            localVideo.classList.remove('d-none');
+                            pipPlaceholder.classList.add('d-none');
+                        }
+                        timerText.innerText = 'Đã kết nối thiết bị Micro/Camera thực tế';
+                    } catch (_) {
+                        timerText.innerText = callState.isVideo ? 'Video HD mô phỏng (Trình duyệt chưa cấp quyền Cam)' : 'Đàm thoại Voice HD (Chế độ mô phỏng)';
+                    }
+                } else {
+                    timerText.innerText = 'Đàm thoại SmartStay Direct Line';
+                }
+
+                callState.timerId = setInterval(function () {
+                    callState.seconds += 1;
+                    statusBadge.innerText = (callState.isVideo ? 'Đang đàm thoại Video' : 'Đang đàm thoại Thoại') + ' • ' + fmtSec(callState.seconds);
+                }, 1000);
+            }
+
+            async function finishCall() {
+                if (!callState.active) return;
+                var duration = Math.max(callState.seconds, 1);
+                var note = (noteInput.value || '').trim();
+                var loai = callState.isVideo ? 'Video' : 'Thoại';
+                stopStreams();
+                callState.active = false;
+                micBtn.disabled = true;
+                camBtn.disabled = true;
+                endBtn.disabled = true;
+                startAudioBtn.disabled = false;
+                startVideoBtn.disabled = false;
+                statusBadge.className = 'badge bg-secondary rounded-pill px-3 py-1 mt-1';
+                statusBadge.innerText = 'Đã kết thúc • ' + fmtSec(duration);
+                timerText.innerText = 'Đã lưu lịch sử cuộc gọi lên SmartStay Sync';
+
+                try {
+                    await fetch('/api/sync/cuoc-goi', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            NguoiGoi: fullName + ' (' + serverRole + ')',
+                            VaiTroNguoiGoi: serverRole,
+                            NguoiNhan: callState.targetName,
+                            VaiTroNguoiNhan: callState.targetRole,
+                            LoaiCuocGoi: loai,
+                            TrangThai: 'Hoàn thành',
+                            ThoiLuongGiay: duration,
+                            NoiDungTraoDoi: note || ('Trao đổi ' + loai.toLowerCase() + ' trực tiếp trên cổng Web SmartStay')
+                        })
+                    });
+                    await refreshCallHistory();
+                } catch (_) { }
+            }
+
+            callModalEl.querySelectorAll('.ss-call-preset').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    callState.targetRole = btn.getAttribute('data-target-role') || 'QuanLy';
+                    callState.targetName = btn.getAttribute('data-target-name') || 'Ban Quản Lý';
+                    customTargetInput.value = callState.targetName;
+                    partnerLabel.innerText = callState.targetName;
+                });
+            });
+
+            startAudioBtn.addEventListener('click', function () { beginCall(false); });
+            startVideoBtn.addEventListener('click', function () { beginCall(true); });
+            endBtn.addEventListener('click', function () { finishCall(); });
+
+            micBtn.addEventListener('click', function () {
+                callState.micOn = !callState.micOn;
+                micBtn.innerHTML = callState.micOn ? '<i class="bi bi-mic-fill"></i> Mic Bật' : '<i class="bi bi-mic-mute-fill text-danger"></i> Mic Tắt';
+                if (callState.stream) {
+                    callState.stream.getAudioTracks().forEach(function (t) { t.enabled = callState.micOn; });
+                }
+            });
+
+            camBtn.addEventListener('click', function () {
+                callState.camOn = !callState.camOn;
+                camBtn.innerHTML = callState.camOn ? '<i class="bi bi-camera-video"></i> Cam Bật' : '<i class="bi bi-camera-video-off text-danger"></i> Cam Tắt';
+                if (callState.stream) {
+                    callState.stream.getVideoTracks().forEach(function (t) { t.enabled = callState.camOn; });
+                }
+                if (callState.camOn && callState.stream) {
+                    localVideo.classList.remove('d-none');
+                    pipPlaceholder.classList.add('d-none');
+                } else {
+                    localVideo.classList.add('d-none');
+                    pipPlaceholder.classList.remove('d-none');
+                }
+            });
+
+            callModalEl.addEventListener('hidden.bs.modal', function () {
+                if (callState.active) {
+                    finishCall();
+                } else {
+                    stopStreams();
+                }
+            });
+
+            window.openSmartStayCallModal = function (targetRole, targetName, autoStartVideo) {
+                if (targetRole) callState.targetRole = targetRole;
+                if (targetName) {
+                    callState.targetName = targetName;
+                    customTargetInput.value = targetName;
+                    partnerLabel.innerText = targetName;
+                }
+                refreshCallHistory();
+                var modal = bootstrap.Modal.getOrCreateInstance(callModalEl);
+                modal.show();
+                if (autoStartVideo === true) {
+                    beginCall(true);
+                } else if (autoStartVideo === false) {
+                    beginCall(false);
+                }
+            };
         })();
     </script>
     @await RenderSectionAsync("Scripts", required: false)

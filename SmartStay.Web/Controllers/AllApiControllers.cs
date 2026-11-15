@@ -473,31 +473,128 @@ public class TroLyAiController : ControllerBase
     [HttpPost("chat")]
     public IActionResult ChatVoiAi([FromBody] TroLyChatRequestDto req)
     {
-        var q = req.TinNhan.ToLower();
-        string reply;
+        var q = (req.TinNhan ?? string.Empty).Trim().ToLowerInvariant();
+        var roleRaw = (req.VaiTro ?? "CuDan").Trim().ToLowerInvariant();
+        var isAdminRole = roleRaw == "admin" || roleRaw.Contains("quản trị");
+        var isManagerRole = !isAdminRole &&
+                            (roleRaw is "quanly" or "kythuat" or "manager" ||
+                             roleRaw.Contains("quản lý") || roleRaw.Contains("kỹ thuật"));
+        var roomCode = string.IsNullOrWhiteSpace(req.SoPhong) ? "P.305" : req.SoPhong.Trim();
 
-        if (q.Contains("điện") || q.Contains("nước") || q.Contains("bậc thang"))
+        string reply;
+        string mode;
+
+        if (isAdminRole)
         {
-            reply = "⚡ Biểu giá Điện bậc thang:\n" +
-                    "• Bậc 1 (0 - 50 kWh): 1.800 đ/kWh\n" +
-                    "• Bậc 2 (51 - 100 kWh): 2.200 đ/kWh\n" +
-                    "• Bậc 3 (101 - 200 kWh): 2.700 đ/kWh\n" +
-                    "• Bậc 4 (> 200 kWh): 3.200 đ/kWh\n\n" +
-                    "💧 Biểu giá Nước:\n" +
-                    "• Bậc 1 (0 - 5 m³): 12.000 đ/m³\n" +
-                    "• Bậc 2 (6 - 10 m³): 15.000 đ/m³\n" +
-                    "• Bậc 3 (> 10 m³): 18.000 đ/m³\n" +
-                    "Hóa đơn tháng này của bạn được hệ thống tự động tính lũy tiến đúng theo từng bậc giá trên.";
+            mode = "Admin";
+            if (q.Contains("doanh thu") || q.Contains("công nợ") || q.Contains("tài chính") || q.Contains("hệ thống"))
+            {
+                reply = "🛡️ AI Copilot [Vai trò ADMIN HỆ THỐNG]:\n" +
+                        "• Toàn hệ thống đang quản lý 32 căn hộ, doanh thu dự kiến tháng 10 ~126.500.000 đ (tỷ lệ thu 88%).\n" +
+                        "• Cấu hình VietQR Napas247 (MB Bank 0389999888) và đồng bộ Supabase/SQL Server SmartStayDB đang hoạt động ổn định.\n" +
+                        "💡 Admin có thể vào 'Cấu hình & Ngân hàng' hoặc yêu cầu Ban Quản lý đối soát các biên lai đang chờ.";
+            }
+            else if (q.Contains("khóa") || q.Contains("iot") || q.Contains("mqtt") || q.Contains("bảo mật"))
+            {
+                reply = "🔐 Giám sát Bảo mật & IoT [ADMIN]:\n" +
+                        "• Broker MQTT TLS 1.3 hoạt động 100%, ghi nhận đầy đủ log mở khóa & phân quyền RBAC 3 vai trò.\n" +
+                        "• Cảnh báo bảo trì phần cứng: SmartLock P.202 pin 18% — nên điều phối Ban Quản lý/KTV thay pin định kỳ.";
+            }
+            else if (q.Contains("sự cố") || q.Contains("kanban") || q.Contains("bảo trì"))
+            {
+                reply = "🛠️ Giám sát Sự cố & SLA [ADMIN]:\n" +
+                        "• Hiện có các phiếu đang xử lý: SC-2026-091 (Vòi sen P.401), SC-2026-101 (Máy lạnh P.305), SC-2026-089 (Máy lạnh P.305).\n" +
+                        "• Admin có thể kiểm tra nhật ký đánh giá sao 5/5 từ cư dân và phân công lại KTV trên Bảng Kanban.";
+            }
+            else if (q.Contains("thông báo") || q.Contains("nhắc"))
+            {
+                reply = "📢 Đã sẵn sàng phát thông báo toàn hệ thống dưới quyền Admin!\n" +
+                        "Nhấn chip 'Phát thông báo nhắc đóng phí toàn tòa nhà' để đồng bộ ngay đến tất cả cư dân & Ban Quản lý.";
+            }
+            else
+            {
+                reply = "🛡️ Xin chào Admin! AI Copilot (Quyền Quản trị Hệ thống) sẵn sàng hỗ trợ kiểm tra tổng doanh thu toàn tòa nhà, đối soát Supabase/SQL Server, giám sát bảo mật khóa IoT & phân quyền vận hành.";
+            }
         }
-        else if (q.Contains("thanh toán") || q.Contains("vietqr"))
+        else if (isManagerRole)
         {
-            reply = "Bạn có thể thanh toán trực tiếp qua mã VietQR động được tạo sẵn trong tab 'Hóa đơn'. Sau khi chuyển khoản, chụp biên lai gửi lên để được tự động duyệt nhanh.";
+            mode = "QuanLy";
+            if (q.Contains("doanh thu") || q.Contains("công nợ") || q.Contains("hóa đơn") || q.Contains("chưa thu"))
+            {
+                reply = "📊 Trợ lý Ban Quản Lý — Công nợ & Đối soát:\n" +
+                        "• Còn P.305 (3.924.000 đ - chờ kiểm tra biên lai VietQR) và P.204 (4.150.000 đ - quá hạn 2 ngày).\n" +
+                        "• Ban Quản Lý có thể duyệt biên lai tại mục 'Hóa đơn & VietQR' hoặc mở cuộc gọi trực tiếp cho cư dân P.305 để xác nhận.";
+            }
+            else if (q.Contains("phòng trống") || q.Contains("lấp đầy") || q.Contains("sơ đồ") || q.Contains("ma trận") || q.Contains("hợp đồng"))
+            {
+                reply = "🏢 Trợ lý Ban Quản Lý — Ma trận Phòng & Hợp đồng:\n" +
+                        "• Đang ở: 28/32 phòng (87.5%). Phòng trống sẵn sàng đón khách: P.102 (Studio Deluxe 4.500.000 đ) và P.205.\n" +
+                        "• Bạn có thể lọc nhanh trạng thái trên Sơ đồ phòng (Matrix) để tiến hành Check-in hoặc gia hạn hợp đồng.";
+            }
+            else if (q.Contains("sự cố") || q.Contains("kanban") || q.Contains("bảo trì") || q.Contains("kỹ thuật"))
+            {
+                reply = "🛠️ Trợ lý Ban Quản Lý — Điều phối Kanban Kỹ thuật:\n" +
+                        "• Đang sửa: SC-2026-091 (Vòi sen P.401 - KTV Nguyễn Văn Bình), SC-2026-101 (Máy lạnh P.305).\n" +
+                        "• Kéo thả thẻ giữa 'Chờ xử lý' → 'Đang sửa chữa' → 'Đã hoàn thành' để cập nhật Realtime tới cư dân.";
+            }
+            else if (q.Contains("thông báo") || q.Contains("nhắc") || q.Contains("gọi"))
+            {
+                reply = "📢 Ban Quản Lý có thể phát thông báo nhắc phí ngay trên Bảng tin hoặc bấm nút 'Gọi / Video Call' trên thanh trên cùng để gọi trực tiếp cư dân P.305 / Kỹ thuật viên / Admin.";
+            }
+            else
+            {
+                reply = "📋 Xin chào Ban Quản Lý! AI Copilot hỗ trợ điều phối hàng ngày: kiểm tra phòng trống check-in, kéo thả Kanban sự cố, đối soát biên lai VietQR, gọi video trao đổi cư dân và phát thông báo tòa nhà.";
+            }
         }
         else
         {
-            reply = "Trợ lý AI SmartStay luôn sẵn sàng hỗ trợ bạn 24/7! Bạn có thể đặt câu hỏi về hóa đơn, sự cố thiết bị, hoặc các quy định lưu trú tại tòa nhà.";
+            mode = "CuDan";
+            if (q.Contains("tại sao") || q.Contains("cao") || q.Contains("tiền điện"))
+            {
+                reply = $"🧾 Phân tích hóa đơn phòng {roomCode}:\n" +
+                        "• Tháng 10 phòng bạn tiêu thụ 120 kWh (254.000 đ) + 8 m³ nước (105.000 đ), tăng 30 kWh so với tháng 09 (90 kWh - 162.000 đ).\n" +
+                        "• Nguyên nhân: 20 kWh vượt ngưỡng 100 kWh đã nhảy lên Bậc 3 (2.700 đ/kWh).\n" +
+                        "💡 Mẹo: Đặt điều hòa 26°C kèm quạt gió giúp giảm 15-20% điện năng.";
+            }
+            else if (q.Contains("điện") || q.Contains("nước") || q.Contains("bậc thang"))
+            {
+                reply = $"⚡ Biểu giá Điện bậc thang (Phòng {roomCode}):\n" +
+                        "• Bậc 1 (0 - 50 kWh): 1.800 đ/kWh\n" +
+                        "• Bậc 2 (51 - 100 kWh): 2.200 đ/kWh\n" +
+                        "• Bậc 3 (101 - 200 kWh): 2.700 đ/kWh\n" +
+                        "• Bậc 4 (> 200 kWh): 3.200 đ/kWh\n\n" +
+                        "💧 Biểu giá Nước:\n" +
+                        "• Bậc 1 (0 - 5 m³): 12.000 đ/m³\n" +
+                        "• Bậc 2 (6 - 10 m³): 15.000 đ/m³\n" +
+                        "• Bậc 3 (> 10 m³): 18.000 đ/m³\n" +
+                        "Hệ thống tự động bóc tách lũy tiến trong tab Hóa đơn & AI Quét Công Tơ.";
+            }
+            else if (q.Contains("rỉ") || q.Contains("vòi") || q.Contains("hỏng") || q.Contains("sửa") || q.Contains("máy lạnh") || q.Contains("đèn"))
+            {
+                reply = $"🛠️ AI Concierge đã tiếp nhận yêu cầu sửa chữa tại phòng {roomCode}!\n" +
+                        "Phiếu sự cố ưu tiên đã được đưa lên Bảng Kanban. Bạn cũng có thể chụp ảnh / quay video trực tiếp ở mục Báo Cáo Sự Cố hoặc gọi Video cho Ban Quản Lý.";
+            }
+            else if (q.Contains("thanh toán") || q.Contains("vietqr") || q.Contains("chuyển khoản"))
+            {
+                reply = $"💳 Để thanh toán hóa đơn phòng {roomCode}: Mở tab 'Hóa đơn & VietQR', quét mã QR chuẩn Napas 247 (đã điền sẵn STK & số tiền) rồi tải ảnh biên lai để Ban Quản Lý đối soát nhanh.";
+            }
+            else if (q.Contains("mở khóa") || q.Contains("cửa") || q.Contains("khách"))
+            {
+                reply = $"🔑 Đã hướng dẫn mở khóa / tiếp khách phòng {roomCode}: Bạn có thể dùng chức năng Mở khóa tạm thời (5s) hoặc tạo mã QR Vé Khách Vãng Lai (IoT) trong mục Tiện ích Đột phá.";
+            }
+            else if (q.Contains("nội quy") || q.Contains("gửi xe") || q.Contains("giờ"))
+            {
+                reply = $"📋 Nội quy SmartStay (Phòng {roomCode}):\n" +
+                        "• Cửa chính mở 24/7 bằng thẻ từ/vân tay thông minh.\n" +
+                        "• Giờ yên tĩnh: 23:00 – 06:00 sáng.\n" +
+                        "• Gửi xe qua đêm cho khách: 5.000 đ/lượt, đăng ký qua Vé Khách Vãng Lai hoặc bảo vệ.";
+            }
+            else
+            {
+                reply = $"Trợ lý AI SmartStay luôn sẵn sàng hỗ trợ cư dân phòng {roomCode} 24/7! Bạn có thể hỏi về hóa đơn bậc thang, báo hỏng kèm ảnh/video, thanh toán VietQR, gọi Video cho Ban Quản Lý hoặc nội quy tòa nhà.";
+            }
         }
 
-        return Ok(new { TraLoi = reply, ThoiGian = DateTime.UtcNow });
+        return Ok(new { TraLoi = reply, VaiTro = mode, ThoiGian = DateTime.UtcNow });
     }
 }

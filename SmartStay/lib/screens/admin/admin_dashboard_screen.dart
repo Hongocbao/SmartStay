@@ -76,10 +76,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // KPI Summary Cards
-            Row(
-              children: [
-                Expanded(
-                  child: _buildKpiCard(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final kpiCards = [
+                  _buildKpiCard(
                     title: 'Tỷ lệ lấp đầy',
                     value: '${summary.occupancyRate.toStringAsFixed(1)}%',
                     subtitle: '${summary.occupiedRooms}/${summary.totalRooms} phòng đang ở',
@@ -87,10 +87,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     color: const Color(0xFF2563EB),
                     bgColor: const Color(0xFFEFF6FF),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildKpiCard(
+                  _buildKpiCard(
                     title: 'Doanh thu tháng 10',
                     value: Formatters.formatCurrency(summary.monthlyRevenue),
                     subtitle: '20 phòng căn hộ Co-Living',
@@ -98,14 +95,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     color: const Color(0xFF16A34A),
                     bgColor: const Color(0xFFF0FDF4),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildKpiCard(
+                  _buildKpiCard(
                     title: 'Sự cố cần sửa',
                     value: '${summary.pendingTickets}',
                     subtitle: 'Kanban kỹ thuật viên',
@@ -113,10 +103,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     color: const Color(0xFFF59E0B),
                     bgColor: const Color(0xFFFFFBEB),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildKpiCard(
+                  _buildKpiCard(
                     title: 'Chưa thanh toán',
                     value: '${summary.uncollectedInvoices} phòng',
                     subtitle: Formatters.formatCurrency(summary.uncollectedAmount),
@@ -124,8 +111,39 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     color: const Color(0xFFDC2626),
                     bgColor: const Color(0xFFFEF2F2),
                   ),
-                ),
-              ],
+                ];
+
+                if (constraints.maxWidth >= 660) {
+                  return Row(
+                    children: [
+                      for (var i = 0; i < kpiCards.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 12),
+                        Expanded(child: kpiCards[i]),
+                      ],
+                    ],
+                  );
+                }
+
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: kpiCards[0]),
+                        const SizedBox(width: 12),
+                        Expanded(child: kpiCards[1]),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: kpiCards[2]),
+                        const SizedBox(width: 12),
+                        Expanded(child: kpiCards[3]),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
 
             const SizedBox(height: 24),
@@ -333,85 +351,93 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
             ),
             const SizedBox(height: 12),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.35,
-              children: [
-                _buildActionCard(
-                  context,
-                  title: 'Sơ Đồ Phòng',
-                  desc: 'Ma trận phòng 5 tầng, Check-in / Check-out',
-                  icon: Icons.grid_view_rounded,
-                  color: const Color(0xFF2563EB),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminRoomMatrixScreen()));
-                  },
-                ),
-                _buildActionCard(
-                  context,
-                  title: 'Kanban Sự Cố',
-                  desc: 'Phân công kỹ thuật & xử lý bảo trì',
-                  icon: Icons.view_kanban_rounded,
-                  color: const Color(0xFF8B5CF6),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminKanbanScreen()));
-                  },
-                ),
-                _buildActionCard(
-                  context,
-                  title: 'Tài Chính & VietQR',
-                  desc: 'Đối soát chuyển khoản & hóa đơn bậc thang',
-                  icon: Icons.qr_code_scanner_rounded,
-                  color: const Color(0xFF10B981),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceScreen()));
-                  },
-                ),
-                _buildActionCard(
-                  context,
-                  title: 'Khóa IoT & Ra Vào',
-                  desc: 'Nhật ký thẻ/vân tay, mở khóa từ xa',
-                  icon: Icons.lock_open_rounded,
-                  color: const Color(0xFF0284C7),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminIotScreen()));
-                  },
-                ),
-                _buildActionCard(
-                  context,
-                  title: 'Hợp Đồng & Cư Dân',
-                  desc: 'Ký điện tử PDF, nhập/xuất Excel cư dân',
-                  icon: Icons.assignment_ind_rounded,
-                  color: const Color(0xFFEA580C),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminContractsScreen()));
-                  },
-                ),
-                _buildActionCard(
-                  context,
-                  title: 'Truyền Thông & Sự Kiện',
-                  desc: 'Phát sóng Firebase FCM, điểm danh sự kiện',
-                  icon: Icons.campaign_rounded,
-                  color: const Color(0xFFDB2777),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const CommunityScreen()));
-                  },
-                ),
-                _buildActionCard(
-                  context,
-                  title: 'Cấu Hình & VietQR',
-                  desc: 'Ngân hàng Napas 247, giá điện nước bậc thang',
-                  icon: Icons.tune_rounded,
-                  color: const Color(0xFF4F46E5),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminSystemConfigScreen()));
-                  },
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                final crossAxisCount = width >= 840 ? 4 : (width >= 540 ? 3 : 2);
+                return GridView(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    mainAxisExtent: 106,
+                  ),
+                  children: [
+                    _buildActionCard(
+                      context,
+                      title: 'Sơ Đồ Phòng',
+                      desc: 'Ma trận phòng 5 tầng, Check-in / Check-out',
+                      icon: Icons.grid_view_rounded,
+                      color: const Color(0xFF2563EB),
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminRoomMatrixScreen()));
+                      },
+                    ),
+                    _buildActionCard(
+                      context,
+                      title: 'Kanban Sự Cố',
+                      desc: 'Phân công kỹ thuật & xử lý bảo trì',
+                      icon: Icons.view_kanban_rounded,
+                      color: const Color(0xFF8B5CF6),
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminKanbanScreen()));
+                      },
+                    ),
+                    _buildActionCard(
+                      context,
+                      title: 'Tài Chính & VietQR',
+                      desc: 'Đối soát chuyển khoản & hóa đơn bậc thang',
+                      icon: Icons.qr_code_scanner_rounded,
+                      color: const Color(0xFF10B981),
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceScreen()));
+                      },
+                    ),
+                    _buildActionCard(
+                      context,
+                      title: 'Khóa IoT & Ra Vào',
+                      desc: 'Nhật ký thẻ/vân tay, mở khóa từ xa',
+                      icon: Icons.lock_open_rounded,
+                      color: const Color(0xFF0284C7),
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminIotScreen()));
+                      },
+                    ),
+                    _buildActionCard(
+                      context,
+                      title: 'Hợp Đồng & Cư Dân',
+                      desc: 'Ký điện tử PDF, nhập/xuất Excel cư dân',
+                      icon: Icons.assignment_ind_rounded,
+                      color: const Color(0xFFEA580C),
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminContractsScreen()));
+                      },
+                    ),
+                    _buildActionCard(
+                      context,
+                      title: 'Truyền Thông & Sự Kiện',
+                      desc: 'Phát sóng Firebase FCM, điểm danh sự kiện',
+                      icon: Icons.campaign_rounded,
+                      color: const Color(0xFFDB2777),
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const CommunityScreen()));
+                      },
+                    ),
+                    _buildActionCard(
+                      context,
+                      title: 'Cấu Hình & VietQR',
+                      desc: 'Ngân hàng Napas 247, giá điện nước bậc thang',
+                      icon: Icons.tune_rounded,
+                      color: const Color(0xFF4F46E5),
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminSystemConfigScreen()));
+                      },
+                    ),
+                  ],
+                );
+              },
             ),
 
             const SizedBox(height: 24),
@@ -603,39 +629,53 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 22),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: color, size: 18),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12.5,
+                        height: 1.15,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFF94A3B8)),
+                ],
               ),
-              const SizedBox(height: 10),
-              Text(
-                title,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
-              ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(
                 desc,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), height: 1.2),
+                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.25),
               ),
             ],
           ),

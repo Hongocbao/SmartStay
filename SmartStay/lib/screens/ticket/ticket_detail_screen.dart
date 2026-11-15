@@ -1,8 +1,12 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import '../../models/ticket_model.dart';
 import '../../providers/ticket_provider.dart';
 import '../../utils/provider_scope.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/call_center_modal.dart';
 
 class TicketDetailScreen extends StatefulWidget {
   final TicketModel ticket;
@@ -23,6 +27,91 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     _commentController.dispose();
     _ratingCommentController.dispose();
     super.dispose();
+  }
+
+  Uint8List? _decodeDataUrlBytes(String? dataUrl) {
+    if (dataUrl == null || !dataUrl.startsWith('data:image')) return null;
+    final comma = dataUrl.indexOf(',');
+    if (comma <= 0 || comma + 1 >= dataUrl.length) return null;
+    try {
+      return base64Decode(dataUrl.substring(comma + 1));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _showVideoAttachmentDialog(String title, String videoUrl) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.videocam_rounded, color: Color(0xFFDC2626)),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Video hiện trường sự cố',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 165,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.play_circle_fill_rounded,
+                    color: Colors.redAccent,
+                    size: 46,
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Video hiện trường đã được đính kèm vào phiếu Kanban',
+                    style: TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Media URI: ${videoUrl.length > 52 ? '${videoUrl.substring(0, 52)}...' : videoUrl}',
+              style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _sendComment() {
@@ -66,6 +155,19 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF0F172A),
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Gọi Thoại / Video Kỹ Thuật & Quản Lý',
+            onPressed: () => showSmartStayCallModal(
+              context,
+              initialTargetRole: currentTicket.technicianName != null ? 'KyThuat' : 'QuanLy',
+              initialTargetName:
+                  currentTicket.technicianName ?? 'Ban Quản Lý (${currentTicket.ticketCode})',
+              initialVideo: true,
+            ),
+            icon: const Icon(Icons.videocam_rounded, color: Color(0xFF4F46E5)),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -199,10 +301,101 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                             ],
                           ),
                         ],
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => showSmartStayCallModal(
+                              context,
+                              initialTargetRole: currentTicket.technicianName != null ? 'KyThuat' : 'QuanLy',
+                              initialTargetName: currentTicket.technicianName ?? 'Ban Quản Lý (${currentTicket.ticketCode})',
+                              initialVideo: true,
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 44),
+                              side: const BorderSide(color: Color(0xFF4F46E5)),
+                            ),
+                            icon: const Icon(Icons.videocam_rounded, size: 18, color: Color(0xFF4F46E5)),
+                            label: const Text(
+                              'Gọi Thoại / Video KTV & Quản lý',
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF4F46E5)),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // Ảnh & Video hiện trường đính kèm
+                  if (currentTicket.images.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Ảnh & Video hiện trường đính kèm',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A)),
+                          ),
+                          const SizedBox(height: 10),
+                          ...currentTicket.images.map((media) {
+                            if (media.imageType == 'VideoSuCo') {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _showVideoAttachmentDialog(
+                                    currentTicket.title,
+                                    media.mediaUrl,
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size(double.infinity, 44),
+                                    side: const BorderSide(color: Color(0xFFDC2626)),
+                                  ),
+                                  icon: const Icon(Icons.play_circle_fill_rounded, color: Color(0xFFDC2626)),
+                                  label: const Text(
+                                    'Xem Video hiện trường đính kèm',
+                                    style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              );
+                            }
+                            final mem = _decodeDataUrlBytes(media.mediaUrl);
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: mem != null
+                                    ? Image.memory(
+                                        mem,
+                                        width: double.infinity,
+                                        height: 170,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Image.network(
+                                        media.mediaUrl,
+                                        width: double.infinity,
+                                        height: 170,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, _, _) => Container(
+                                          height: 70,
+                                          color: const Color(0xFFF1F5F9),
+                                          child: const Center(child: Text('Ảnh sự cố đính kèm')),
+                                        ),
+                                      ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // Khung Đánh giá sao nếu hoàn thành
                   if (currentTicket.status == 'Hoàn thành') ...[

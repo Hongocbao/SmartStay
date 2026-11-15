@@ -2,6 +2,109 @@
     ViewData["Title"] = "Điều phối Sự cố Kỹ thuật (Bảng Kanban) - SmartStay";
 }
 
+<style>
+    .kanban-col {
+        border: 2px solid transparent;
+        transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .kanban-col.drag-over {
+        border: 2px dashed #4F46E5 !important;
+        background: rgba(79, 70, 229, 0.08) !important;
+        box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+    }
+
+    .kanban-list {
+        flex: 1 1 auto;
+        min-height: 60px;
+    }
+
+    .kanban-card[draggable="true"] {
+        cursor: grab;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, border-color 0.18s ease;
+    }
+
+    .kanban-card[draggable="true"]:active {
+        cursor: grabbing;
+    }
+
+    .kanban-card.is-dragging {
+        opacity: 0.45;
+        transform: scale(0.98) rotate(1deg);
+        border: 2px dashed #4F46E5 !important;
+        box-shadow: 0 12px 24px rgba(79, 70, 229, 0.18) !important;
+        cursor: grabbing;
+    }
+
+    .kanban-drop-placeholder {
+        height: 6px;
+        border-radius: 999px;
+        background: #4F46E5;
+        margin: 4px 0 12px 0;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+        pointer-events: none;
+    }
+
+    .kanban-empty-dropzone {
+        border: 1.5px dashed #CBD5E1;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.65);
+        padding: 40px 16px;
+        text-align: center;
+        color: #64748B;
+        font-size: 0.82rem;
+        font-weight: 500;
+        transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .kanban-col.drag-over .kanban-empty-dropzone {
+        border-color: #4F46E5;
+        background: rgba(238, 242, 255, 0.85);
+        color: #4F46E5;
+    }
+
+    .kanban-ktv-select {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #1E293B;
+        background-color: #fff;
+        border-color: #CBD5E1;
+        padding-top: 0.2rem;
+        padding-bottom: 0.2rem;
+    }
+
+    .kanban-cost-input {
+        width: 96px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #334155;
+        text-align: right;
+        padding: 0.15rem 0.4rem;
+        border-color: transparent;
+        background-color: #F8FAFC;
+        border-radius: 6px;
+    }
+
+    .kanban-cost-input:hover,
+    .kanban-cost-input:focus {
+        border-color: #CBD5E1;
+        background-color: #fff;
+    }
+
+    .kanban-drag-grip {
+        cursor: grab;
+        color: #94A3B8;
+    }
+
+    @@media (max-width: 991.98px) {
+        .kanban-empty-dropzone {
+            padding: 24px 12px;
+        }
+    }
+</style>
+
 <!-- Alert thông báo tương tác -->
 <div id="kanbanAlert" class="alert alert-success alert-dismissible fade d-none rounded-3 shadow-sm mb-4" role="alert">
     <i class="bi bi-check-circle-fill me-2 fs-5"></i>
@@ -18,6 +121,9 @@
             <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill">2. Đang sửa</span>
             <i class="bi bi-arrow-right text-muted d-none d-sm-inline"></i>
             <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill">3. Hoàn thành & Đánh giá</span>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill fs-9 d-none d-md-inline-flex align-items-center ms-1">
+                <i class="bi bi-arrows-move me-1"></i>Kéo thả thẻ giữa các cột
+            </span>
         </div>
         <button class="btn btn-sm btn-primary rounded-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#newTicketModal">
             <i class="bi bi-plus-lg me-1"></i> Tạo phiếu sự cố mới
@@ -27,17 +133,17 @@
 
 <!-- Bộ lọc nhanh cột Kanban trên thiết bị di động -->
 <div class="d-flex d-lg-none flex-wrap gap-2 mb-3">
-    <button type="button" class="btn btn-sm btn-primary rounded-pill kanban-mob-tab" onclick="filterKanbanMobile('all', this)">Tất cả (3)</button>
-    <button type="button" class="btn btn-sm btn-outline-warning rounded-pill kanban-mob-tab" onclick="filterKanbanMobile('pending', this)">1. Chờ xử lý</button>
-    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill kanban-mob-tab" onclick="filterKanbanMobile('inprogress', this)">2. Đang sửa</button>
-    <button type="button" class="btn btn-sm btn-outline-success rounded-pill kanban-mob-tab" onclick="filterKanbanMobile('completed', this)">3. Hoàn thành</button>
+    <button type="button" class="btn btn-sm btn-primary rounded-pill kanban-mob-tab active fw-bold" id="mobTabAll" onclick="filterKanbanMobile('all', this)">Tất cả (4)</button>
+    <button type="button" class="btn btn-sm btn-outline-warning rounded-pill kanban-mob-tab" id="mobTabPending" onclick="filterKanbanMobile('pending', this)">1. Chờ xử lý (1)</button>
+    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill kanban-mob-tab" id="mobTabInProgress" onclick="filterKanbanMobile('inprogress', this)">2. Đang sửa (2)</button>
+    <button type="button" class="btn btn-sm btn-outline-success rounded-pill kanban-mob-tab" id="mobTabCompleted" onclick="filterKanbanMobile('completed', this)">3. Hoàn thành (1)</button>
 </div>
 
 <!-- 3 Cột Kanban -->
 <div class="row g-4">
     <!-- CỘT 1: CHỜ XỬ LÝ -->
     <div class="col-lg-4 kanban-col-wrap" data-col="pending">
-        <div class="kanban-col">
+        <div class="kanban-col" data-status="pending">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="fw-bold mb-0 text-slate-800">
                     <span class="badge bg-warning text-dark me-2">1</span> CHỜ XỬ LÝ
@@ -45,29 +151,17 @@
                 <span class="badge bg-white text-muted border px-2 py-1 fs-9 rounded-pill" id="badgeCol1">1 Ticket</span>
             </div>
 
-            <div id="colPending">
-                <!-- Card SC 091 -->
-                <div class="kanban-card" id="card-sc091">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <span class="badge bg-danger text-white fs-9">Khẩn cấp</span>
-                        <span class="fs-8 fw-bold text-muted">SC-2026-091</span>
-                    </div>
-                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">Vòi sen phòng tắm bị rò rỉ áp lực mạnh</h6>
-                    <p class="text-muted fs-8 mb-2">Khóa van tổng không ngắt được nước hoàn toàn, gây ướt sàn nhà tắm.</p>
-                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                        <span class="badge bg-primary-subtle text-primary fs-8">P.401</span>
-                        <button class="btn btn-xs btn-outline-primary rounded-pill px-3 py-1 fs-8 shadow-sm" onclick="assignTechnician('card-sc091', 'SC-2026-091', 'P.401', 'Vòi sen phòng tắm bị rò rỉ', 'Khẩn cấp')">
-                            <i class="bi bi-person-plus me-1"></i> Gán kỹ thuật
-                        </button>
-                    </div>
-                </div>
+            <div id="colPending" class="kanban-list"></div>
+            <div id="emptyColPending" class="kanban-empty-dropzone d-none">
+                <i class="bi bi-arrows-move fs-4 mb-2 d-block text-muted"></i>
+                <span>Kéo thả phiếu sự cố vào cột này</span>
             </div>
         </div>
     </div>
 
     <!-- CỘT 2: ĐANG SỬA -->
     <div class="col-lg-4 kanban-col-wrap" data-col="inprogress">
-        <div class="kanban-col" style="background: #EEF2FF;">
+        <div class="kanban-col" data-status="inprogress" style="background: #EEF2FF;">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="fw-bold mb-0 text-primary">
                     <span class="badge bg-primary text-white me-2">2</span> ĐANG SỬA CHỮA
@@ -75,54 +169,17 @@
                 <span class="badge bg-white text-primary border border-primary-subtle px-2 py-1 fs-9 rounded-pill" id="badgeCol2">2 Tickets</span>
             </div>
 
-            <div id="colInProgress">
-                <!-- Card SC 089 (Máy lạnh của Hồ Ngọc Bảo P.305) -->
-                <div class="kanban-card border-primary-subtle shadow-sm" id="card-sc089">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <span class="badge bg-warning text-dark fs-9">Ưu tiên Cao</span>
-                        <span class="fs-8 fw-bold text-muted">SC-2026-089</span>
-                    </div>
-                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">Máy lạnh không lạnh, chảy nước ở dàn lạnh</h6>
-                    <p class="text-muted fs-8 mb-2">Phòng P.305 (Cư dân: <strong>Hồ Ngọc Bảo</strong>) - Cục lạnh nhỏ giọt nước xuống sàn gỗ.</p>
-                    
-                    <div class="p-2 rounded-2 bg-light fs-8 text-slate-700 mb-2">
-                        <div><i class="bi bi-person-check-fill text-primary me-1"></i> Kỹ thuật: <strong>Nguyễn Văn Bình</strong></div>
-                        <div><i class="bi bi-clock-history text-muted me-1"></i> Deadline: Hôm nay 17:00</div>
-                    </div>
-
-                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                        <span class="badge bg-primary-subtle text-primary fs-8">P.305</span>
-                        <button class="btn btn-xs btn-success rounded-pill px-3 py-1 fs-8 shadow-sm" onclick="completeTicket('card-sc089', 'SC-2026-089', 'P.305', 'Hồ Ngọc Bảo', 'Máy lạnh không lạnh')">
-                            <i class="bi bi-check2-circle me-1"></i> Hoàn thành
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Card SC 085 -->
-                <div class="kanban-card" id="card-sc085">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <span class="badge bg-secondary-subtle text-secondary fs-9">Trung bình</span>
-                        <span class="fs-8 fw-bold text-muted">SC-2026-085</span>
-                    </div>
-                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">Bản lề cánh tủ quần áo bị xệ</h6>
-                    <p class="text-muted fs-8 mb-2">Cánh tủ đóng khó khít, phát tiếng kêu cọt kẹt.</p>
-                    <div class="p-2 rounded-2 bg-light fs-8 text-slate-700 mb-2">
-                        <i class="bi bi-person-check-fill text-primary me-1"></i> Kỹ thuật: <strong>Trần Văn Tuấn</strong>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                        <span class="badge bg-primary-subtle text-primary fs-8">P.301</span>
-                        <button class="btn btn-xs btn-outline-success rounded-pill px-3 py-1 fs-8" onclick="completeTicket('card-sc085', 'SC-2026-085', 'P.301', 'Trần Văn Nam', 'Bản lề cánh tủ quần áo')">
-                            <i class="bi bi-check2 me-1"></i> Xong
-                        </button>
-                    </div>
-                </div>
+            <div id="colInProgress" class="kanban-list"></div>
+            <div id="emptyColInProgress" class="kanban-empty-dropzone d-none">
+                <i class="bi bi-arrows-move fs-4 mb-2 d-block text-primary opacity-75"></i>
+                <span>Kéo thả phiếu sự cố vào cột này</span>
             </div>
         </div>
     </div>
 
     <!-- CỘT 3: HOÀN THÀNH -->
     <div class="col-lg-4 kanban-col-wrap" data-col="completed">
-        <div class="kanban-col" style="background: #F0FDF4;">
+        <div class="kanban-col" data-status="completed" style="background: #F0FDF4;">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="fw-bold mb-0 text-success">
                     <span class="badge bg-success text-white me-2">3</span> ĐÃ HOÀN THÀNH
@@ -130,33 +187,10 @@
                 <span class="badge bg-white text-success border border-success-subtle px-2 py-1 fs-9 rounded-pill" id="badgeCol3">1 Ticket</span>
             </div>
 
-            <div id="colCompleted">
-                <!-- Card SC 074 -->
-                <div class="kanban-card border-success-subtle">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <span class="badge bg-success-subtle text-success fs-9">Đã nghiệm thu</span>
-                        <span class="fs-8 fw-bold text-muted">SC-2026-074</span>
-                    </div>
-                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">Thay bóng đèn LED bàn học bị chớp nháy</h6>
-                    <p class="text-muted fs-8 mb-2">Đã thay thế bộ tăng phô và bóng LED Philips 12W mới.</p>
-                    
-                    <div class="p-2 rounded-2 bg-warning-subtle text-dark fs-8 mb-2 d-flex align-items-center justify-content-between">
-                        <div>
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star-fill text-warning"></i>
-                        </div>
-                        <span class="fw-bold">5/5 Sao</span>
-                    </div>
-                    <div class="fs-8 text-muted fst-italic mb-2">"Anh kỹ thuật đến đúng giờ, nhiệt tình, thay bóng rất sáng."</div>
-
-                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                        <span class="badge bg-primary-subtle text-primary fs-8">P.305</span>
-                        <span class="fs-8 text-muted">Vật tư: 120.000 đ</span>
-                    </div>
-                </div>
+            <div id="colCompleted" class="kanban-list"></div>
+            <div id="emptyColCompleted" class="kanban-empty-dropzone d-none">
+                <i class="bi bi-arrows-move fs-4 mb-2 d-block text-success opacity-75"></i>
+                <span>Kéo thả phiếu sự cố vào cột này</span>
             </div>
         </div>
     </div>
@@ -215,17 +249,477 @@
 </div>
 
 <script>
+    const KTV_OPTIONS = [
+        'Nguyễn Văn Bình',
+        'Trần Văn Tuấn',
+        'Lê Minh Khang'
+    ];
+
+    const DEFAULT_TICKETS = [
+        {
+            code: 'SC-2026-091',
+            room: 'P.401',
+            title: 'Vòi sen phòng tắm bị rò rỉ áp lực mạnh',
+            desc: 'Khóa van tổng không ngắt được nước hoàn toàn, gây ướt sàn nhà tắm.',
+            priority: 'Khẩn cấp',
+            resident: 'Lê Văn Cường',
+            ktv: '',
+            deadline: '',
+            cost: '150.000 đ',
+            ratingComment: '',
+            status: 'pending'
+        },
+        {
+            code: 'SC-2026-089',
+            room: 'P.305',
+            title: 'Máy lạnh không lạnh, chảy nước ở dàn lạnh',
+            desc: 'Phòng P.305 (Cư dân: Hồ Ngọc Bảo) - Cục lạnh nhỏ giọt nước xuống sàn gỗ.',
+            priority: 'Ưu tiên Cao',
+            resident: 'Hồ Ngọc Bảo',
+            ktv: 'Nguyễn Văn Bình',
+            deadline: 'Hôm nay 17:00',
+            cost: '150.000 đ',
+            ratingComment: '',
+            status: 'inprogress'
+        },
+        {
+            code: 'SC-2026-085',
+            room: 'P.301',
+            title: 'Bản lề cánh tủ quần áo bị xệ',
+            desc: 'Cánh tủ đóng khó khít, phát tiếng kêu cọt kẹt.',
+            priority: 'Trung bình',
+            resident: 'Trần Văn Nam',
+            ktv: 'Trần Văn Tuấn',
+            deadline: '',
+            cost: '150.000 đ',
+            ratingComment: '',
+            status: 'inprogress'
+        },
+        {
+            code: 'SC-2026-074',
+            room: 'P.305',
+            title: 'Thay bóng đèn LED bàn học bị chớp nháy',
+            desc: 'Đã thay thế bộ tăng phô và bóng LED Philips 12W mới.',
+            priority: 'Trung bình',
+            resident: 'Hồ Ngọc Bảo',
+            ktv: 'Trần Văn Tuấn',
+            deadline: '',
+            cost: '120.000 đ',
+            ratingComment: '"Anh kỹ thuật đến đúng giờ, nhiệt tình, thay bóng rất sáng."',
+            status: 'completed'
+        }
+    ];
+
+    let draggedCardEl = null;
+    let alertTimer = null;
+
     function escapeHtml(str) {
         return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
+    }
+
+    function normalizeStatus(statusRaw) {
+        const s = String(statusRaw || '').trim().toLowerCase();
+        if (s === 'completed' || s.includes('hoàn') || s.includes('xong')) return 'completed';
+        if (s === 'inprogress' || s.includes('đang')) return 'inprogress';
+        return 'pending';
+    }
+
+    function toApiStatus(statusKey) {
+        if (statusKey === 'completed') return 'Hoàn thành';
+        if (statusKey === 'inprogress') return 'Đang sửa';
+        return 'Chờ xử lý';
+    }
+
+    function getPriorityBadgeClass(priority) {
+        const p = String(priority || '').toLowerCase();
+        if (p.includes('khẩn')) return 'bg-danger text-white';
+        if (p.includes('cao')) return 'bg-warning text-dark';
+        return 'bg-secondary-subtle text-secondary';
+    }
+
+    function getColumnListId(statusKey) {
+        if (statusKey === 'completed') return 'colCompleted';
+        if (statusKey === 'inprogress') return 'colInProgress';
+        return 'colPending';
+    }
+
+    function getCardIdFromCode(code) {
+        return `card-${String(code || '').replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase()}`;
+    }
+
+    function buildKtvOptionsHtml(selectedKtv) {
+        const list = [...KTV_OPTIONS];
+        if (selectedKtv && !list.includes(selectedKtv)) {
+            list.unshift(selectedKtv);
+        }
+        return list.map(name => {
+            const selected = name === selectedKtv ? 'selected' : '';
+            return `<option value="${escapeHtml(name)}" ${selected}>${escapeHtml(name)}</option>`;
+        }).join('');
+    }
+
+    function renderCardHtml(ticket, statusKey) {
+        const code = ticket.code || 'SC-2026-000';
+        const room = ticket.room || 'P.305';
+        const title = ticket.title || 'Sự cố kỹ thuật';
+        const desc = ticket.desc || '';
+        const priority = ticket.priority || 'Cao';
+        const resident = ticket.resident || 'Cư dân';
+        const ktv = ticket.ktv || (statusKey === 'inprogress' ? KTV_OPTIONS[0] : '');
+        const deadline = ticket.deadline || '';
+        const cost = ticket.cost || '150.000 đ';
+        const ratingComment = ticket.ratingComment || '';
+        const cardId = ticket.cardId || getCardIdFromCode(code);
+
+        const safeCode = escapeHtml(code);
+        const safeRoom = escapeHtml(room);
+        const safeTitle = escapeHtml(title);
+        const safeDesc = escapeHtml(desc);
+        const safePriority = escapeHtml(priority);
+        const safeResident = escapeHtml(resident);
+        const safeKtv = escapeHtml(ktv);
+        const safeDeadline = escapeHtml(deadline);
+        const safeCost = escapeHtml(cost);
+        const safeComment = escapeHtml(ratingComment);
+        const badgeCls = getPriorityBadgeClass(priority);
+
+        let borderClass = '';
+        let topBadgeHtml = `<span class="badge ${badgeCls} fs-9">${safePriority}</span>`;
+        let middleHtml = '';
+        let footerRightHtml = '';
+
+        if (statusKey === 'inprogress') {
+            borderClass = 'border-primary-subtle shadow-sm';
+            middleHtml = `
+                <div class="p-2 rounded-2 bg-light fs-8 text-slate-700 mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-nowrap"><i class="bi bi-person-check-fill text-primary me-1"></i>KTV:</span>
+                        <select class="form-select form-select-sm kanban-ktv-select" aria-label="Chọn kỹ thuật viên">
+                            ${buildKtvOptionsHtml(ktv || KTV_OPTIONS[0])}
+                        </select>
+                    </div>
+                    ${deadline ? `<div class="mt-1"><i class="bi bi-clock-history text-muted me-1"></i>Deadline: ${safeDeadline}</div>` : ''}
+                </div>
+            `;
+            footerRightHtml = `
+                <div class="d-flex align-items-center gap-1">
+                    <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 fs-8 btn-move-status" data-target="pending" title="Đưa về Chờ xử lý">
+                        <i class="bi bi-arrow-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-xs btn-success rounded-pill px-3 py-1 fs-8 shadow-sm btn-move-status" data-target="completed">
+                        <i class="bi bi-check2-circle me-1"></i> Hoàn thành
+                    </button>
+                </div>
+            `;
+        } else if (statusKey === 'completed') {
+            borderClass = 'border-success-subtle';
+            topBadgeHtml = `<span class="badge bg-success-subtle text-success fs-9">Đã nghiệm thu</span>`;
+            middleHtml = `
+                <div class="p-2 rounded-2 bg-warning-subtle text-dark fs-8 mb-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <i class="bi bi-star-fill text-warning"></i>
+                        <i class="bi bi-star-fill text-warning"></i>
+                        <i class="bi bi-star-fill text-warning"></i>
+                        <i class="bi bi-star-fill text-warning"></i>
+                        <i class="bi bi-star-fill text-warning"></i>
+                    </div>
+                    <span class="fw-bold">5/5 Sao</span>
+                </div>
+                ${ratingComment ? `<div class="fs-8 text-muted fst-italic mb-2">${safeComment}</div>` : ''}
+            `;
+            footerRightHtml = `
+                <div class="d-flex align-items-center gap-1">
+                    <span class="fs-8 text-muted">Vật tư:</span>
+                    <input type="text" class="form-control form-control-sm kanban-cost-input" value="${safeCost}" aria-label="Chi phí vật tư" title="Nhấp để sửa chi phí vật tư" />
+                    <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 fs-8 btn-move-status" data-target="inprogress" title="Mở lại sửa chữa">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                </div>
+            `;
+        } else {
+            footerRightHtml = `
+                <button type="button" class="btn btn-xs btn-outline-primary rounded-pill px-3 py-1 fs-8 shadow-sm btn-move-status" data-target="inprogress">
+                    <i class="bi bi-play-fill me-1"></i> Tiếp nhận & Sửa
+                </button>
+            `;
+        }
+
+        return `
+            <div class="kanban-card ${borderClass}"
+                 id="${escapeHtml(cardId)}"
+                 draggable="true"
+                 data-code="${safeCode}"
+                 data-room="${safeRoom}"
+                 data-title="${safeTitle}"
+                 data-desc="${safeDesc}"
+                 data-priority="${safePriority}"
+                 data-resident="${safeResident}"
+                 data-ktv="${safeKtv}"
+                 data-deadline="${safeDeadline}"
+                 data-cost="${safeCost}"
+                 data-rating-comment="${safeComment}"
+                 data-status="${statusKey}">
+                <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                    <div class="d-flex align-items-center gap-1">
+                        <i class="bi bi-grip-vertical kanban-drag-grip" title="Kéo để chuyển cột"></i>
+                        ${topBadgeHtml}
+                    </div>
+                    <span class="fs-8 fw-bold text-muted">${safeCode}</span>
+                </div>
+                <h6 class="fw-bold fs-7 text-slate-900 mb-1">${safeTitle}</h6>
+                <p class="text-muted fs-8 mb-2">${safeDesc}</p>
+                ${middleHtml}
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 pt-2 border-top">
+                    <span class="badge bg-primary-subtle text-primary fs-8">${safeRoom}</span>
+                    ${footerRightHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    function createCardElement(ticket, statusKey) {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = renderCardHtml(ticket, statusKey).trim();
+        const cardEl = wrapper.firstElementChild;
+        bindCardInteractions(cardEl);
+        return cardEl;
+    }
+
+    function readTicketData(cardEl) {
+        return {
+            cardId: cardEl.id,
+            code: cardEl.dataset.code || '',
+            room: cardEl.dataset.room || 'P.305',
+            title: cardEl.dataset.title || '',
+            desc: cardEl.dataset.desc || '',
+            priority: cardEl.dataset.priority || 'Cao',
+            resident: cardEl.dataset.resident || 'Cư dân',
+            ktv: cardEl.dataset.ktv || '',
+            deadline: cardEl.dataset.deadline || '',
+            cost: cardEl.dataset.cost || '150.000 đ',
+            ratingComment: cardEl.dataset.ratingComment || '',
+            status: cardEl.dataset.status || 'pending'
+        };
+    }
+
+    function bindCardInteractions(cardEl) {
+        if (!cardEl) return;
+
+        // Tránh trình duyệt hiểu nhầm thao tác nhấn vào select/input/button là kéo thẻ
+        cardEl.querySelectorAll('select, input, button, a').forEach(ctrl => {
+            ctrl.addEventListener('pointerdown', () => cardEl.setAttribute('draggable', 'false'));
+            ctrl.addEventListener('mousedown', () => cardEl.setAttribute('draggable', 'false'));
+            ctrl.addEventListener('pointerup', () => cardEl.setAttribute('draggable', 'true'));
+            ctrl.addEventListener('mouseup', () => cardEl.setAttribute('draggable', 'true'));
+            ctrl.addEventListener('blur', () => cardEl.setAttribute('draggable', 'true'));
+        });
+
+        cardEl.addEventListener('dragstart', e => {
+            if (e.target && e.target.closest('select, input, button, a')) {
+                e.preventDefault();
+                return;
+            }
+            draggedCardEl = cardEl;
+            cardEl.classList.add('is-dragging');
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', cardEl.id);
+            }
+        });
+
+        cardEl.addEventListener('dragend', () => {
+            cardEl.classList.remove('is-dragging');
+            cardEl.setAttribute('draggable', 'true');
+            draggedCardEl = null;
+            clearDragIndicators();
+        });
+
+        cardEl.querySelectorAll('.btn-move-status').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetStatus = btn.getAttribute('data-target');
+                moveTicketToColumn(cardEl, targetStatus);
+            });
+        });
+
+        const ktvSelect = cardEl.querySelector('.kanban-ktv-select');
+        if (ktvSelect) {
+            ktvSelect.addEventListener('change', () => {
+                const selectedKtv = ktvSelect.value;
+                cardEl.dataset.ktv = selectedKtv;
+                const data = readTicketData(cardEl);
+                syncTicketToServer(data, 'inprogress');
+                showKanbanAlert(`Đã phân công KTV [${selectedKtv}] phụ trách phiếu ${data.code} (${data.room}).`);
+            });
+        }
+
+        const costInput = cardEl.querySelector('.kanban-cost-input');
+        if (costInput) {
+            costInput.addEventListener('change', () => {
+                const val = costInput.value.trim() || '0 đ';
+                costInput.value = val;
+                cardEl.dataset.cost = val;
+                const data = readTicketData(cardEl);
+                showKanbanAlert(`Đã cập nhật chi phí vật tư phiếu ${data.code}: ${val}.`);
+            });
+            costInput.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    costInput.blur();
+                }
+            });
+        }
+    }
+
+    function clearDragIndicators() {
+        document.querySelectorAll('.kanban-col.drag-over').forEach(col => col.classList.remove('drag-over'));
+        document.querySelectorAll('.kanban-drop-placeholder').forEach(p => p.remove());
+    }
+
+    function getDragAfterElement(container, y) {
+        const cards = [...container.querySelectorAll('.kanban-card:not(.is-dragging)')];
+        return cards.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset, element: child };
+            }
+            return closest;
+        }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+    }
+
+    function setupKanbanDropZones() {
+        document.querySelectorAll('.kanban-col[data-status]').forEach(colEl => {
+            const targetStatus = colEl.getAttribute('data-status');
+            const listEl = document.getElementById(getColumnListId(targetStatus));
+
+            colEl.addEventListener('dragover', e => {
+                if (!draggedCardEl) return;
+                e.preventDefault();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+
+                document.querySelectorAll('.kanban-col.drag-over').forEach(c => {
+                    if (c !== colEl) c.classList.remove('drag-over');
+                });
+                colEl.classList.add('drag-over');
+
+                document.querySelectorAll('.kanban-drop-placeholder').forEach(p => p.remove());
+                const afterEl = getDragAfterElement(listEl, e.clientY);
+                const placeholder = document.createElement('div');
+                placeholder.className = 'kanban-drop-placeholder';
+                if (afterEl) {
+                    listEl.insertBefore(placeholder, afterEl);
+                } else {
+                    listEl.appendChild(placeholder);
+                }
+            });
+
+            colEl.addEventListener('dragleave', e => {
+                if (!colEl.contains(e.relatedTarget)) {
+                    colEl.classList.remove('drag-over');
+                    colEl.querySelectorAll('.kanban-drop-placeholder').forEach(p => p.remove());
+                }
+            });
+
+            colEl.addEventListener('drop', e => {
+                e.preventDefault();
+                const cardId = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+                const card = draggedCardEl || (cardId ? document.getElementById(cardId) : null);
+                const afterEl = getDragAfterElement(listEl, e.clientY);
+                clearDragIndicators();
+                if (!card) return;
+                moveTicketToColumn(card, targetStatus, afterEl);
+            });
+        });
+    }
+
+    function syncTicketToServer(ticket, targetStatus) {
+        return fetch('/api/sync/su-co', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                SoPhieuSuCo: ticket.code,
+                KyHieuPhong: ticket.room,
+                TieuDe: ticket.title,
+                MoTa: ticket.desc,
+                UuTien: ticket.priority,
+                TrangThai: toApiStatus(targetStatus)
+            })
+        }).catch(() => {});
+    }
+
+    function moveTicketToColumn(cardEl, targetStatus, insertBeforeEl, options = {}) {
+        if (!cardEl) return;
+        const normalizedTarget = normalizeStatus(targetStatus);
+        const listEl = document.getElementById(getColumnListId(normalizedTarget));
+        if (!listEl) return;
+
+        const data = readTicketData(cardEl);
+        const prevStatus = normalizeStatus(data.status);
+
+        // Kéo thả sắp xếp lại thứ tự trong cùng 1 cột
+        if (prevStatus === normalizedTarget) {
+            if (insertBeforeEl === undefined) return;
+            if (insertBeforeEl) {
+                listEl.insertBefore(cardEl, insertBeforeEl);
+            } else {
+                listEl.appendChild(cardEl);
+            }
+            return;
+        }
+
+        if (normalizedTarget === 'inprogress' && !data.ktv) {
+            data.ktv = KTV_OPTIONS[0];
+        }
+        if (normalizedTarget === 'completed' && !data.cost) {
+            data.cost = '150.000 đ';
+        }
+
+        const newCard = createCardElement(data, normalizedTarget);
+        cardEl.remove();
+
+        if (insertBeforeEl === undefined) {
+            listEl.prepend(newCard);
+        } else if (insertBeforeEl) {
+            listEl.insertBefore(newCard, insertBeforeEl);
+        } else {
+            listEl.appendChild(newCard);
+        }
+
+        updateKanbanCounts();
+
+        if (options.syncApi !== false) {
+            syncTicketToServer(data, normalizedTarget);
+        }
+
+        if (options.silent !== true) {
+            if (normalizedTarget === 'inprogress') {
+                showKanbanAlert(`Đã chuyển phiếu ${data.code} (${data.room}) sang [ĐANG SỬA CHỮA] • KTV: ${data.ktv} & đồng bộ sang App.`);
+            } else if (normalizedTarget === 'completed') {
+                showKanbanAlert(`Phiếu ${data.code} (${data.room}) đã chuyển sang [ĐÃ HOÀN THÀNH] & đồng bộ Realtime sang App cư dân.`);
+            } else {
+                showKanbanAlert(`Đã chuyển phiếu ${data.code} (${data.room}) về cột [CHỜ XỬ LÝ] & đồng bộ Realtime.`);
+            }
+        }
     }
 
     function updateKanbanCounts() {
         const c1 = document.querySelectorAll('#colPending .kanban-card').length;
         const c2 = document.querySelectorAll('#colInProgress .kanban-card').length;
         const c3 = document.querySelectorAll('#colCompleted .kanban-card').length;
+
         document.getElementById('badgeCol1').innerText = `${c1} Ticket${c1 > 1 ? 's' : ''}`;
         document.getElementById('badgeCol2').innerText = `${c2} Ticket${c2 > 1 ? 's' : ''}`;
         document.getElementById('badgeCol3').innerText = `${c3} Ticket${c3 > 1 ? 's' : ''}`;
+
+        document.getElementById('emptyColPending').classList.toggle('d-none', c1 > 0);
+        document.getElementById('emptyColInProgress').classList.toggle('d-none', c2 > 0);
+        document.getElementById('emptyColCompleted').classList.toggle('d-none', c3 > 0);
+
+        const total = c1 + c2 + c3;
+        document.getElementById('mobTabAll').innerText = `Tất cả (${total})`;
+        document.getElementById('mobTabPending').innerText = `1. Chờ xử lý (${c1})`;
+        document.getElementById('mobTabInProgress').innerText = `2. Đang sửa (${c2})`;
+        document.getElementById('mobTabCompleted').innerText = `3. Hoàn thành (${c3})`;
     }
 
     function filterKanbanMobile(col, btn) {
@@ -236,195 +730,106 @@
         });
     }
 
-    function assignTechnician(cardId, code, room, desc, priority) {
-        const ktv = prompt(`Chọn Kỹ thuật viên phụ trách phiếu ${code} (${room}):\n1. Nguyễn Văn Bình (Chuyên Điện Lạnh)\n2. Trần Văn Tuấn (Chuyên Điện Nước)\n3. Lê Minh Khang (Chuyên Khóa IoT)`, "Nguyễn Văn Bình");
-        if (ktv) {
-            const cardEl = document.getElementById(cardId);
-            if (cardEl) cardEl.remove();
-
-            const safeCode = escapeHtml(code);
-            const safeRoom = escapeHtml(room);
-            const safeDesc = escapeHtml(desc);
-            const safePriority = escapeHtml(priority || 'Cao');
-            const safeKtv = escapeHtml(ktv);
-            const badgeCls = safePriority.toLowerCase().includes('khẩn') ? 'bg-danger text-white' : 'bg-warning text-dark';
-
-            const newCard = `
-                <div class="kanban-card border-primary-subtle shadow-sm mb-3" id="${cardId}" data-code="${safeCode}">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <span class="badge ${badgeCls} fs-9">${safePriority}</span>
-                        <span class="fs-8 fw-bold text-muted">${safeCode}</span>
-                    </div>
-                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">${safeDesc}</h6>
-                    <p class="text-muted fs-8 mb-2">Phòng ${safeRoom} - Đã phân công KTV tiếp nhận tại căn hộ.</p>
-                    <div class="p-2 rounded-2 bg-light fs-8 text-slate-700 mb-2">
-                        <i class="bi bi-person-check-fill text-primary me-1"></i> Kỹ thuật: <strong>${safeKtv}</strong>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                        <span class="badge bg-primary-subtle text-primary fs-8">${safeRoom}</span>
-                        <button class="btn btn-xs btn-success rounded-pill px-3 py-1 fs-8 shadow-sm btn-complete-ticket">
-                            <i class="bi bi-check2-circle me-1"></i> Hoàn thành
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.getElementById('colInProgress').insertAdjacentHTML('afterbegin', newCard);
-            const inserted = document.getElementById(cardId);
-            inserted.querySelector('.btn-complete-ticket').addEventListener('click', () => completeTicket(cardId, code, room, 'Cư dân', desc));
-            updateKanbanCounts();
-            fetch('/api/sync/su-co', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ SoPhieuSuCo: code, KyHieuPhong: room, TieuDe: desc, UuTien: priority, TrangThai: 'Đang sửa' })
-            }).catch(() => {});
-            showKanbanAlert(`Đã phân công thành công kỹ thuật viên [${ktv}] phụ trách phiếu ${code}! Thẻ sự cố đã chuyển sang cột [ĐANG SỬA CHỮA] & đồng bộ sang App.`);
-        }
-    }
-
-    function completeTicket(cardId, code, room, resident, desc) {
-        const cost = prompt(`Nhập chi phí vật tư thay thế cho phiếu ${code} (VNĐ):`, "150.000 đ");
-        if (cost !== null) {
-            const cardEl = document.getElementById(cardId);
-            if (cardEl) cardEl.remove();
-
-            const completedCard = `
-                <div class="kanban-card border-success-subtle mb-3" id="${cardId}" data-code="${escapeHtml(code)}">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <span class="badge bg-success-subtle text-success fs-9">Đã nghiệm thu</span>
-                        <span class="fs-8 fw-bold text-muted">${escapeHtml(code)}</span>
-                    </div>
-                    <h6 class="fw-bold fs-7 text-slate-900 mb-1">${escapeHtml(desc)}</h6>
-                    <p class="text-muted fs-8 mb-2">Phòng ${escapeHtml(room)} - KTV đã hoàn thành sửa chữa và nghiệm thu thực tế.</p>
-                    <div class="p-2 rounded-2 bg-warning-subtle text-dark fs-8 mb-2 d-flex align-items-center justify-content-between">
-                        <div>
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star-fill text-warning"></i>
-                        </div>
-                        <span class="fw-bold">5/5 Sao</span>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                        <span class="badge bg-primary-subtle text-primary fs-8">${escapeHtml(room)}</span>
-                        <span class="fs-8 text-muted">Vật tư: ${escapeHtml(cost)}</span>
-                    </div>
-                </div>
-            `;
-            document.getElementById('colCompleted').insertAdjacentHTML('afterbegin', completedCard);
-            updateKanbanCounts();
-            fetch('/api/sync/su-co', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ SoPhieuSuCo: code, KyHieuPhong: room, TieuDe: desc, TrangThai: 'Hoàn thành' })
-            }).catch(() => {});
-            showKanbanAlert(`Phiếu ${code} (${room}) đã hoàn thành sửa chữa! Hệ thống đã đẩy thông báo Realtime sang Ứng dụng Android/Web của cư dân ${resident}.`);
-        }
-    }
-
-    function createPendingTicketCard(code, room, desc, category, priority) {
-        const cardId = `card-${code.replace(/[^a-zA-Z0-9_-]/g, '')}`;
-        if (document.getElementById(cardId)) return;
-        const badgeCls = (priority || '').toLowerCase().includes('khẩn') ? 'bg-danger text-white' : 'bg-warning text-dark';
-        const newCard = `
-            <div class="kanban-card mb-3" id="${cardId}" data-code="${escapeHtml(code)}">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <span class="badge ${badgeCls} fs-9">${escapeHtml(priority || 'Cao')}</span>
-                    <span class="fs-8 fw-bold text-muted">${escapeHtml(code)}</span>
-                </div>
-                <h6 class="fw-bold fs-7 text-slate-900 mb-1">${escapeHtml(desc)}</h6>
-                <p class="text-muted fs-8 mb-2">${escapeHtml(category || 'Đồng bộ từ Cư dân / Mobile App')}</p>
-                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                    <span class="badge bg-primary-subtle text-primary fs-8">${escapeHtml(room || 'P.305')}</span>
-                    <button class="btn btn-xs btn-outline-primary rounded-pill px-3 py-1 fs-8 shadow-sm btn-assign-ktv">
-                        <i class="bi bi-person-plus me-1"></i> Gán kỹ thuật
-                    </button>
-                </div>
-            </div>
-        `;
-        document.getElementById('colPending').insertAdjacentHTML('afterbegin', newCard);
-        document.getElementById(cardId).querySelector('.btn-assign-ktv').addEventListener('click', () => assignTechnician(cardId, code, room, desc, priority));
-    }
-
     function handleCreateTicket(e) {
         e.preventDefault();
         const room = document.getElementById('tkRoom').value;
         const category = document.getElementById('tkCategory').value;
         const priority = document.getElementById('tkPriority').value;
-        const desc = document.getElementById('tkDesc').value;
+        const desc = document.getElementById('tkDesc').value.trim();
         const code = `SC-2026-0${Math.floor(100 + Math.random() * 900)}`;
 
-        createPendingTicketCard(code, room, desc, category, priority);
+        const ticket = {
+            code,
+            room,
+            title: desc,
+            desc: category,
+            priority,
+            resident: 'Cư dân',
+            ktv: '',
+            deadline: '',
+            cost: '150.000 đ',
+            ratingComment: '',
+            status: 'pending'
+        };
+
+        const card = createCardElement(ticket, 'pending');
+        document.getElementById('colPending').prepend(card);
+
         const modalEl = document.getElementById('newTicketModal');
         const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
         document.getElementById('tkDesc').value = '';
         updateKanbanCounts();
-        fetch('/api/sync/su-co', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ SoPhieuSuCo: code, KyHieuPhong: room, TieuDe: desc, MoTa: category, UuTien: priority, TrangThai: 'Chờ xử lý' })
-        }).catch(() => {});
+        syncTicketToServer(ticket, 'pending');
         showKanbanAlert(`Đã tạo thành công phiếu báo hỏng ${code} cho phòng ${room}! Đã đồng bộ Realtime sang Android & Web App.`);
+    }
+
+    function formatCostVnd(amount) {
+        const num = Number(amount);
+        if (!num || num <= 0) return '150.000 đ';
+        return `${Math.round(num).toLocaleString('vi-VN')} đ`;
     }
 
     function syncTicketsFromSnapshot(tickets) {
         if (!Array.isArray(tickets)) return;
+
         tickets.forEach(t => {
-            const code = t.soPhieuSuCo;
+            const code = (t.soPhieuSuCo || '').trim();
             if (!code) return;
-            const normCode = code.toLowerCase();
-            if ([...document.querySelectorAll('.kanban-card')].some(el => el.innerText.includes(code))) return;
 
-            const status = (t.trangThai || 'Chờ xử lý').toLowerCase();
-            const room = t.kyHieuPhong || 'P.305';
-            const title = t.tieuDe || 'Sự cố kỹ thuật';
-            const desc = t.moTa || 'Đồng bộ Realtime';
-            const priority = t.uuTien || 'Cao';
-            const cardId = `card-sync-${normCode.replace(/[^a-z0-9]/g, '')}`;
+            const targetStatus = normalizeStatus(t.trangThai || 'Chờ xử lý');
+            const existing = [...document.querySelectorAll('.kanban-card')].find(
+                el => (el.dataset.code || '').toLowerCase() === code.toLowerCase()
+            );
 
-            if (status.includes('hoàn') || status.includes('xong')) {
-                const html = `
-                    <div class="kanban-card border-success-subtle mb-3" id="${cardId}">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <span class="badge bg-success-subtle text-success fs-9">Đã nghiệm thu</span>
-                            <span class="fs-8 fw-bold text-muted">${escapeHtml(code)}</span>
-                        </div>
-                        <h6 class="fw-bold fs-7 text-slate-900 mb-1">${escapeHtml(title)}</h6>
-                        <p class="text-muted fs-8 mb-2">${escapeHtml(desc)}</p>
-                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                            <span class="badge bg-primary-subtle text-primary fs-8">${escapeHtml(room)}</span>
-                            <span class="fs-8 text-success fw-semibold">Đã đồng bộ App</span>
-                        </div>
-                    </div>`;
-                document.getElementById('colCompleted').insertAdjacentHTML('afterbegin', html);
-            } else if (status.includes('đang')) {
-                const html = `
-                    <div class="kanban-card border-primary-subtle shadow-sm mb-3" id="${cardId}">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <span class="badge bg-warning text-dark fs-9">${escapeHtml(priority)}</span>
-                            <span class="fs-8 fw-bold text-muted">${escapeHtml(code)}</span>
-                        </div>
-                        <h6 class="fw-bold fs-7 text-slate-900 mb-1">${escapeHtml(title)}</h6>
-                        <p class="text-muted fs-8 mb-2">${escapeHtml(desc)}</p>
-                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                            <span class="badge bg-primary-subtle text-primary fs-8">${escapeHtml(room)}</span>
-                            <button class="btn btn-xs btn-success rounded-pill px-3 py-1 fs-8 shadow-sm btn-complete-ticket">
-                                <i class="bi bi-check2-circle me-1"></i> Hoàn thành
-                            </button>
-                        </div>
-                    </div>`;
-                document.getElementById('colInProgress').insertAdjacentHTML('afterbegin', html);
-                document.getElementById(cardId).querySelector('.btn-complete-ticket').addEventListener('click', () => completeTicket(cardId, code, room, 'Cư dân', title));
-            } else {
-                createPendingTicketCard(code, room, title, desc, priority);
+            if (existing) {
+                if (t.chiPhiVatTu && Number(t.chiPhiVatTu) > 0) {
+                    existing.dataset.cost = formatCostVnd(t.chiPhiVatTu);
+                    const costInput = existing.querySelector('.kanban-cost-input');
+                    if (costInput) costInput.value = existing.dataset.cost;
+                }
+                if (normalizeStatus(existing.dataset.status) !== targetStatus) {
+                    moveTicketToColumn(existing, targetStatus, undefined, { syncApi: false, silent: true });
+                }
+                return;
+            }
+
+            const ticketData = {
+                cardId: `card-sync-${code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}`,
+                code,
+                room: t.kyHieuPhong || 'P.305',
+                title: t.tieuDe || 'Sự cố kỹ thuật',
+                desc: t.moTa || 'Đồng bộ Realtime',
+                priority: t.uuTien || 'Cao',
+                resident: 'Cư dân',
+                ktv: targetStatus === 'inprogress' ? KTV_OPTIONS[0] : '',
+                deadline: '',
+                cost: formatCostVnd(t.chiPhiVatTu),
+                ratingComment: '',
+                status: targetStatus
+            };
+
+            const cardEl = createCardElement(ticketData, targetStatus);
+            document.getElementById(getColumnListId(targetStatus)).prepend(cardEl);
+        });
+
+        updateKanbanCounts();
+    }
+
+    function renderInitialTickets() {
+        DEFAULT_TICKETS.forEach(ticket => {
+            const listEl = document.getElementById(getColumnListId(ticket.status));
+            if (listEl) {
+                listEl.appendChild(createCardElement(ticket, ticket.status));
             }
         });
         updateKanbanCounts();
     }
 
     document.addEventListener('DOMContentLoaded', async function () {
-        updateKanbanCounts();
+        renderInitialTickets();
+        setupKanbanDropZones();
+
         try {
             const res = await fetch('/api/sync/snapshot');
             if (res.ok) {
@@ -439,9 +844,10 @@
         document.getElementById('kanbanAlertText').innerText = msg;
         alertBox.classList.remove('d-none');
         alertBox.classList.add('show');
-        setTimeout(() => {
+        if (alertTimer) clearTimeout(alertTimer);
+        alertTimer = setTimeout(() => {
             alertBox.classList.remove('show');
             alertBox.classList.add('d-none');
-        }, 5000);
+        }, 4500);
     }
 </script>

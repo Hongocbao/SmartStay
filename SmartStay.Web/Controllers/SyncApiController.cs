@@ -22,6 +22,78 @@ public class SyncApiController : ControllerBase
     private static readonly ConcurrentQueue<SyncNoticeItem> _liveNotices = new();
     private static SyncResidentMeterState _latestResidentMeter = new();
     private static readonly ConcurrentQueue<SyncResidentMeterLogItem> _residentMeterLogs = new();
+    private static readonly ConcurrentDictionary<string, SyncMarketItem> _liveMarketItems = InitDefaultMarketItems();
+    private static readonly ConcurrentQueue<SyncCallLogItem> _liveCallLogs = new();
+
+    private static ConcurrentDictionary<string, SyncMarketItem> InitDefaultMarketItems()
+    {
+        var dict = new ConcurrentDictionary<string, SyncMarketItem>(StringComparer.OrdinalIgnoreCase);
+        dict["MKT-001"] = new SyncMarketItem
+        {
+            MaTin = "MKT-001",
+            TieuDe = "Quạt đứng Senko 3 tốc độ gió có hẹn giờ",
+            DanhMuc = "electronics",
+            GiaBan = 120000,
+            GiaGoc = 350000,
+            KyHieuPhong = "P.305",
+            NguoiBan = "Hồ Ngọc Bảo (P.305)",
+            TinhTrang = "Còn rất mới 95%",
+            MoTa = "Dùng được 4 tháng, chạy êm ru, có remote điều khiển. Pass lại do phòng đã có máy lạnh.",
+            HinhAnhUrl = "https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80",
+            VideoUrl = "demo://video-quat-senko-p305.mp4",
+            SoSaoTrungBinh = 4.9,
+            SoLuotDanhGia = 2,
+            TaoLuc = DateTime.UtcNow.AddHours(-6),
+            DanhGias = new List<SyncMarketReviewItem>
+            {
+                new() { NguoiDanhGia = "Trần Minh Quân", KyHieuPhong = "P.302", SoSao = 5, BinhLuan = "Quạt chạy cực êm, chủ phòng giao đồ đúng hẹn ngay sảnh!", ThoiGian = "Hôm qua 19:20" },
+                new() { NguoiDanhGia = "Lê Thảo Vy", KyHieuPhong = "P.204", SoSao = 5, BinhLuan = "Video quay test gió rất thật, ngoại hình còn mới tinh 95%.", ThoiGian = "Hôm nay 08:45" }
+            }
+        };
+        dict["MKT-002"] = new SyncMarketItem
+        {
+            MaTin = "MKT-002",
+            TieuDe = "Combo 5 cuốn giáo trình Cấu trúc dữ liệu & Giải thuật",
+            DanhMuc = "free",
+            GiaBan = 0,
+            GiaGoc = 0,
+            KyHieuPhong = "P.201",
+            NguoiBan = "Nguyễn Dương Bảo (P.201)",
+            TinhTrang = "TẶNG MIỄN PHÍ 0Đ",
+            MoTa = "Mình đã học xong môn, tặng lại cho các bạn khóa dưới cần ôn thi cuối kỳ.",
+            HinhAnhUrl = "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=600&q=80",
+            VideoUrl = null,
+            SoSaoTrungBinh = 5.0,
+            SoLuotDanhGia = 1,
+            TaoLuc = DateTime.UtcNow.AddHours(-4),
+            DanhGias = new List<SyncMarketReviewItem>
+            {
+                new() { NguoiDanhGia = "Phạm Anh Khoa", KyHieuPhong = "P.105", SoSao = 5, BinhLuan = "Sách sạch đẹp như mới, cảm ơn bạn P.201 rất nhiệt tình!", ThoiGian = "Hôm nay 10:15" }
+            }
+        };
+        dict["MKT-003"] = new SyncMarketItem
+        {
+            MaTin = "MKT-003",
+            TieuDe = "Ấm đun nước siêu tốc Sunhouse Inox 1.8L",
+            DanhMuc = "electronics",
+            GiaBan = 70000,
+            GiaGoc = 180000,
+            KyHieuPhong = "P.401",
+            NguoiBan = "Trần Hoàng Gia Bảo (P.401)",
+            TinhTrang = "Inox 304",
+            MoTa = "Đun sôi siêu nhanh trong 3 phút, tự ngắt điện an toàn khi sôi, còn nguyên hộp.",
+            HinhAnhUrl = "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=600&q=80",
+            VideoUrl = "demo://video-am-sieu-toc-p401.mp4",
+            SoSaoTrungBinh = 4.8,
+            SoLuotDanhGia = 1,
+            TaoLuc = DateTime.UtcNow.AddHours(-2),
+            DanhGias = new List<SyncMarketReviewItem>
+            {
+                new() { NguoiDanhGia = "Hoàng Gia Huy", KyHieuPhong = "P.403", SoSao = 5, BinhLuan = "Đã kiểm tra đun thử, sôi rất nhanh và sạch sẽ.", ThoiGian = "Hôm nay 13:05" }
+            }
+        };
+        return dict;
+    }
 
     public SyncApiController(SmartStayDbContext db)
     {
@@ -134,7 +206,9 @@ public class SyncApiController : ControllerBase
             suCos = ticketsResult.OrderByDescending(t => t.ThoiDiemTao).ToList(),
             thongBaos = noticesResult.OrderByDescending(n => n.ThoiDiemCongBo).ToList(),
             chiSoCuDan = _latestResidentMeter,
-            soTheoDoiCuDan = _residentMeterLogs.Reverse().Take(15).ToList()
+            soTheoDoiCuDan = _residentMeterLogs.Reverse().Take(15).ToList(),
+            choDoCu = _liveMarketItems.Values.OrderByDescending(m => m.TaoLuc).ToList(),
+            cuocGois = _liveCallLogs.Reverse().Take(20).ToList()
         });
     }
 
@@ -221,7 +295,9 @@ public class SyncApiController : ControllerBase
         string? tieuDe,
         string? moTa,
         string? uuTien,
-        string? trangThai)
+        string? trangThai,
+        string? hinhAnhUrl = null,
+        string? videoUrl = null)
     {
         var code = string.IsNullOrWhiteSpace(soPhieuSuCo)
             ? $"SC-2026-{DateTime.UtcNow.Ticks % 900 + 100}"
@@ -236,6 +312,8 @@ public class SyncApiController : ControllerBase
             MoTa = string.IsNullOrWhiteSpace(moTa) ? (tieuDe ?? "") : moTa.Trim(),
             UuTien = string.IsNullOrWhiteSpace(uuTien) ? "Cao" : uuTien.Trim(),
             TrangThai = string.IsNullOrWhiteSpace(trangThai) ? "Chờ xử lý" : trangThai.Trim(),
+            HinhAnhUrl = hinhAnhUrl,
+            VideoUrl = videoUrl,
             ThoiDiemTao = DateTime.UtcNow
         });
 
@@ -244,6 +322,8 @@ public class SyncApiController : ControllerBase
         if (!string.IsNullOrWhiteSpace(moTa)) item.MoTa = moTa.Trim();
         if (!string.IsNullOrWhiteSpace(uuTien)) item.UuTien = uuTien.Trim();
         if (!string.IsNullOrWhiteSpace(kyHieuPhong)) item.KyHieuPhong = kyHieuPhong.Trim();
+        if (!string.IsNullOrWhiteSpace(hinhAnhUrl)) item.HinhAnhUrl = hinhAnhUrl;
+        if (!string.IsNullOrWhiteSpace(videoUrl)) item.VideoUrl = videoUrl;
         return item;
     }
 
@@ -251,7 +331,15 @@ public class SyncApiController : ControllerBase
     [HttpPost("su-co")]
     public async Task<IActionResult> DongBoPhieuSuCo([FromBody] DongBoSuCoSyncDto req)
     {
-        var item = UpsertLiveTicket(req.SoPhieuSuCo, req.KyHieuPhong, req.TieuDe, req.MoTa, req.UuTien, req.TrangThai);
+        var item = UpsertLiveTicket(
+            req.SoPhieuSuCo,
+            req.KyHieuPhong,
+            req.TieuDe,
+            req.MoTa,
+            req.UuTien,
+            req.TrangThai,
+            req.HinhAnhUrl,
+            req.VideoUrl);
 
         try
         {
@@ -265,6 +353,109 @@ public class SyncApiController : ControllerBase
         catch { }
 
         return Ok(new { success = true, ticket = item });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("cho-do-cu")]
+    public IActionResult DongBoTinChoDoCu([FromBody] DangTinChoDoCuDto req)
+    {
+        if (string.IsNullOrWhiteSpace(req.TieuDe))
+            return BadRequest(new { success = false, message = "Tiêu đề món đồ là bắt buộc." });
+
+        var id = string.IsNullOrWhiteSpace(req.MaTin)
+            ? $"MKT-{DateTime.UtcNow.Ticks % 9000 + 1000}"
+            : req.MaTin.Trim();
+
+        var item = new SyncMarketItem
+        {
+            MaTin = id,
+            TieuDe = req.TieuDe.Trim(),
+            DanhMuc = string.IsNullOrWhiteSpace(req.DanhMuc) ? "electronics" : req.DanhMuc.Trim(),
+            GiaBan = req.GiaBan,
+            GiaGoc = req.GiaGoc,
+            KyHieuPhong = string.IsNullOrWhiteSpace(req.KyHieuPhong) ? "P.305" : req.KyHieuPhong.Trim(),
+            NguoiBan = string.IsNullOrWhiteSpace(req.NguoiBan) ? "Hồ Ngọc Bảo (P.305)" : req.NguoiBan.Trim(),
+            TinhTrang = string.IsNullOrWhiteSpace(req.TinhTrang) ? "Mới đăng" : req.TinhTrang.Trim(),
+            MoTa = string.IsNullOrWhiteSpace(req.MoTa) ? "Còn mới tốt, liên hệ trao đổi trực tiếp tại sảnh tòa nhà." : req.MoTa.Trim(),
+            HinhAnhUrl = req.HinhAnhUrl,
+            VideoUrl = req.VideoUrl,
+            SoSaoTrungBinh = 5.0,
+            SoLuotDanhGia = 0,
+            TaoLuc = DateTime.UtcNow,
+            DanhGias = new List<SyncMarketReviewItem>()
+        };
+
+        _liveMarketItems[id] = item;
+        return Ok(new
+        {
+            success = true,
+            item,
+            choDoCu = _liveMarketItems.Values.OrderByDescending(m => m.TaoLuc).ToList()
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("cho-do-cu/danh-gia")]
+    public IActionResult DanhGiaTinChoDoCu([FromBody] DanhGiaChoDoCuDto req)
+    {
+        if (string.IsNullOrWhiteSpace(req.MaTin) || string.IsNullOrWhiteSpace(req.BinhLuan))
+            return BadRequest(new { success = false, message = "Thiếu mã tin hoặc nội dung bình luận." });
+
+        var key = req.MaTin.Trim();
+        var item = _liveMarketItems.GetOrAdd(key, _ => new SyncMarketItem
+        {
+            MaTin = key,
+            TieuDe = req.TieuDeFallback ?? "Sản phẩm Chợ Cư Dân",
+            DanhMuc = "electronics",
+            KyHieuPhong = "P.305",
+            NguoiBan = "Cư dân SmartStay",
+            TinhTrang = "Đã xác minh",
+            TaoLuc = DateTime.UtcNow
+        });
+
+        var stars = Math.Clamp(req.SoSao, 1, 5);
+        lock (item.DanhGias)
+        {
+            item.DanhGias.Insert(0, new SyncMarketReviewItem
+            {
+                NguoiDanhGia = string.IsNullOrWhiteSpace(req.NguoiDanhGia) ? "Hồ Ngọc Bảo" : req.NguoiDanhGia.Trim(),
+                KyHieuPhong = string.IsNullOrWhiteSpace(req.KyHieuPhong) ? "P.305" : req.KyHieuPhong.Trim(),
+                SoSao = stars,
+                BinhLuan = req.BinhLuan.Trim(),
+                ThoiGian = "Vừa xong"
+            });
+            item.SoLuotDanhGia = item.DanhGias.Count;
+            item.SoSaoTrungBinh = Math.Round(item.DanhGias.Average(r => r.SoSao), 1);
+        }
+
+        return Ok(new { success = true, item });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("cuoc-goi")]
+    public IActionResult LuuCuocGoi([FromBody] LuuCuocGoiSyncDto req)
+    {
+        var log = new SyncCallLogItem
+        {
+            MaCuocGoi = $"CALL-{DateTime.UtcNow.Ticks % 9000 + 1000}",
+            NguoiGoi = string.IsNullOrWhiteSpace(req.NguoiGoi) ? "Người dùng SmartStay" : req.NguoiGoi.Trim(),
+            VaiTroNguoiGoi = string.IsNullOrWhiteSpace(req.VaiTroNguoiGoi) ? "CuDan" : req.VaiTroNguoiGoi.Trim(),
+            NguoiNhan = string.IsNullOrWhiteSpace(req.NguoiNhan) ? "Ban Quản Lý Vận Hành" : req.NguoiNhan.Trim(),
+            VaiTroNguoiNhan = string.IsNullOrWhiteSpace(req.VaiTroNguoiNhan) ? "QuanLy" : req.VaiTroNguoiNhan.Trim(),
+            LoaiCuocGoi = string.IsNullOrWhiteSpace(req.LoaiCuocGoi) ? "Video" : req.LoaiCuocGoi.Trim(),
+            NoiDungTraoDoi = string.IsNullOrWhiteSpace(req.NoiDungTraoDoi) ? "Trao đổi trực tiếp trên hệ thống" : req.NoiDungTraoDoi.Trim(),
+            ThoiLuongGiay = Math.Max(1, req.ThoiLuongGiay),
+            TrangThai = string.IsNullOrWhiteSpace(req.TrangThai) ? "Đã kết nối" : req.TrangThai.Trim(),
+            ThoiDiem = DateTime.UtcNow
+        };
+        _liveCallLogs.Enqueue(log);
+
+        return Ok(new
+        {
+            success = true,
+            call = log,
+            cuocGois = _liveCallLogs.Reverse().Take(20).ToList()
+        });
     }
 
     [AllowAnonymous]
@@ -328,6 +519,8 @@ public class SyncTicketItem
     public string TrangThai { get; set; } = "Chờ xử lý";
     public DateTime ThoiDiemTao { get; set; } = DateTime.UtcNow;
     public decimal ChiPhiVatTu { get; set; }
+    public string? HinhAnhUrl { get; set; }
+    public string? VideoUrl { get; set; }
 }
 
 public class SyncNoticeItem
@@ -357,6 +550,8 @@ public class DongBoSuCoSyncDto
     public string? MoTa { get; set; }
     public string? UuTien { get; set; }
     public string? TrangThai { get; set; }
+    public string? HinhAnhUrl { get; set; }
+    public string? VideoUrl { get; set; }
 }
 
 public class DangThongBaoSyncDto
@@ -401,4 +596,83 @@ public class SyncResidentMeterDto
     public string? NhanThoiGian { get; set; }
     public string? NguonCapNhat { get; set; }
     public bool LuuVaoSoCaNhan { get; set; }
+}
+
+public class SyncMarketReviewItem
+{
+    public string NguoiDanhGia { get; set; } = string.Empty;
+    public string KyHieuPhong { get; set; } = "P.305";
+    public int SoSao { get; set; } = 5;
+    public string BinhLuan { get; set; } = string.Empty;
+    public string ThoiGian { get; set; } = "Vừa xong";
+}
+
+public class SyncMarketItem
+{
+    public string MaTin { get; set; } = string.Empty;
+    public string TieuDe { get; set; } = string.Empty;
+    public string DanhMuc { get; set; } = "electronics";
+    public decimal GiaBan { get; set; }
+    public decimal GiaGoc { get; set; }
+    public string KyHieuPhong { get; set; } = "P.305";
+    public string NguoiBan { get; set; } = string.Empty;
+    public string TinhTrang { get; set; } = "Mới đăng";
+    public string MoTa { get; set; } = string.Empty;
+    public string? HinhAnhUrl { get; set; }
+    public string? VideoUrl { get; set; }
+    public double SoSaoTrungBinh { get; set; } = 5.0;
+    public int SoLuotDanhGia { get; set; }
+    public DateTime TaoLuc { get; set; } = DateTime.UtcNow;
+    public List<SyncMarketReviewItem> DanhGias { get; set; } = new();
+}
+
+public class DangTinChoDoCuDto
+{
+    public string? MaTin { get; set; }
+    public string TieuDe { get; set; } = string.Empty;
+    public string? DanhMuc { get; set; }
+    public decimal GiaBan { get; set; }
+    public decimal GiaGoc { get; set; }
+    public string? KyHieuPhong { get; set; }
+    public string? NguoiBan { get; set; }
+    public string? TinhTrang { get; set; }
+    public string? MoTa { get; set; }
+    public string? HinhAnhUrl { get; set; }
+    public string? VideoUrl { get; set; }
+}
+
+public class DanhGiaChoDoCuDto
+{
+    public string MaTin { get; set; } = string.Empty;
+    public string? TieuDeFallback { get; set; }
+    public string? NguoiDanhGia { get; set; }
+    public string? KyHieuPhong { get; set; }
+    public int SoSao { get; set; } = 5;
+    public string BinhLuan { get; set; } = string.Empty;
+}
+
+public class SyncCallLogItem
+{
+    public string MaCuocGoi { get; set; } = string.Empty;
+    public string NguoiGoi { get; set; } = string.Empty;
+    public string VaiTroNguoiGoi { get; set; } = "CuDan";
+    public string NguoiNhan { get; set; } = string.Empty;
+    public string VaiTroNguoiNhan { get; set; } = "QuanLy";
+    public string LoaiCuocGoi { get; set; } = "Video";
+    public string NoiDungTraoDoi { get; set; } = string.Empty;
+    public int ThoiLuongGiay { get; set; }
+    public string TrangThai { get; set; } = "Đã kết nối";
+    public DateTime ThoiDiem { get; set; } = DateTime.UtcNow;
+}
+
+public class LuuCuocGoiSyncDto
+{
+    public string? NguoiGoi { get; set; }
+    public string? VaiTroNguoiGoi { get; set; }
+    public string? NguoiNhan { get; set; }
+    public string? VaiTroNguoiNhan { get; set; }
+    public string? LoaiCuocGoi { get; set; }
+    public string? NoiDungTraoDoi { get; set; }
+    public int ThoiLuongGiay { get; set; }
+    public string? TrangThai { get; set; }
 }

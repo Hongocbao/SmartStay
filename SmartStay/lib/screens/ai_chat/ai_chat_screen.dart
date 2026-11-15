@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../providers/ai_chat_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/ticket_provider.dart';
 import '../../utils/provider_scope.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/ai_floating_bubble.dart';
 
 class AiChatScreen extends StatefulWidget {
   const AiChatScreen({super.key});
@@ -19,17 +19,39 @@ class _AiChatScreenState extends State<AiChatScreen> {
   String _activeToolBadge = 'Trạng thái: Chờ lệnh';
   Color _activeToolColor = const Color(0xFF64748B);
   List<String> _actionLogDetails = [
-    'Khi bạn chat yêu cầu sửa chữa hoặc kiểm tra, AI sẽ tự động kích hoạt API Backend để tạo ticket Kanban, đọc database Supabase mà không cần thao tác tay.',
+    'Khi bạn chat yêu cầu kiểm tra doanh thu, phòng trống, sửa chữa hoặc phát thông báo, AI sẽ tự động kích hoạt API & cập nhật dữ liệu Realtime.',
   ];
   String? _actionStatusSummary;
 
-  final List<String> _quickCommands = [
+  static const List<String> _adminQuickCommands = [
+    'Báo cáo doanh thu & công nợ tháng này',
+    'Thống kê phòng trống & tỷ lệ lấp đầy',
+    'Kiểm tra sự cố Kanban khẩn cấp',
+    'Phát thông báo nhắc đóng phí toàn tòa nhà',
+    'Mở khóa cửa IoT từ xa P.305',
+  ];
+
+  static const List<String> _residentQuickCommands = [
     'Phòng tôi bị rỉ nước vòi sen, gọi thợ sửa gấp giùm!',
     'Tại sao tháng này tiền điện phòng tôi cao vậy?',
     'Quy định gửi xe qua đêm của tòa nhà thế nào?',
     'Tạo mã VietQR thanh toán tiền phòng tháng này',
     'Mở khóa từ xa cửa phòng P.305 cho bạn tôi vào',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      context.read<AiChatProvider>().syncRoleGreeting(
+            isAdmin: auth.isAdmin,
+            userName: auth.user?.fullName,
+            roomCode: auth.user?.effectiveRoomCode,
+          );
+    });
+  }
 
   @override
   void dispose() {
@@ -50,92 +72,48 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
   }
 
-  void _sendMessage([String? textToSend]) {
-    final text = textToSend ?? _inputController.text.trim();
+  Future<void> _sendMessage([String? textToSend]) async {
+    final text = (textToSend ?? _inputController.text).trim();
     if (text.isEmpty) return;
 
     final auth = context.read<AuthProvider>();
     final prov = context.read<AiChatProvider>();
-    final ticketProv = context.read<TicketProvider>();
 
-    prov.sendMessage(text, currentUser: auth.user);
-    _inputController.clear();
-    _scrollToBottom();
+    if (textToSend == null) {
+      _inputController.clear();
+    }
 
-    // Xử lý Agentic Tool Calling như bản Web (AiConcierge.cshtml)
-    final q = text.toLowerCase();
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      if (q.contains('rỉ nước') ||
-          q.contains('vòi sen') ||
-          q.contains('sửa') ||
-          q.contains('hỏng') ||
-          q.contains('máy lạnh')) {
-        // Thực thi thật sự tạo Ticket vào TicketProvider
-        ticketProv.createTicket(
-          roomCode: auth.user?.effectiveRoomCode ?? 'P.305',
-          authorName: auth.user?.fullName ?? 'Hồ Ngọc Bảo',
-          title: text.length > 55 ? '${text.substring(0, 55)}...' : text,
-          description: 'Tự động khởi tạo bởi Agentic AI Concierge từ yêu cầu chat: "$text"',
-          categoryName: q.contains('nước') || q.contains('vòi') ? 'Hệ thống nước' : 'Điện - Điện lạnh',
-          priority: 'Khẩn cấp',
-        );
+    final toolResult = await executeSmartStayAiTools(
+      context: context,
+      query: text,
+      isAdminMode: auth.isAdmin,
+    );
+    if (!mounted) return;
 
-        setState(() {
-          _activeToolBadge = 'Kích hoạt Tool: create_kanban_ticket()';
-          _activeToolColor = const Color(0xFFDC2626);
-          _actionLogDetails = [
-            'Phòng: ${auth.user?.effectiveRoomCode ?? "P.305"} (${auth.user?.fullName ?? "Hồ Ngọc Bảo"})',
-            'Vấn đề: $text',
-            'Mức độ: Khẩn cấp (Xử lý trong 2h)',
-            'Kỹ thuật phụ trách: Nguyễn Văn Bình',
-          ];
-          _actionStatusSummary = 'Phiếu SC-2026-095 đã được đẩy lên Bảng Kanban!';
-        });
-
+    if (toolResult != null) {
+      setState(() {
+        _activeToolBadge = toolResult.toolBadge;
+        _activeToolColor = toolResult.toolColor;
+        _actionLogDetails = toolResult.details;
+        _actionStatusSummary = toolResult.statusSummary;
+      });
+      if (toolResult.snackbarMessage != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('AI Agent đã tự động tạo thành công 1 Ticket sự cố mới trên bảng Kanban!'),
-            backgroundColor: Color(0xFF16A34A),
+          SnackBar(
+            content: Text(toolResult.snackbarMessage!),
+            backgroundColor: const Color(0xFF16A34A),
           ),
         );
-      } else if (q.contains('tiền điện') || q.contains('hóa đơn') || q.contains('cao')) {
-        setState(() {
-          _activeToolBadge = 'Kích hoạt Tool: query_invoice_breakdown()';
-          _activeToolColor = const Color(0xFF2563EB);
-          _actionLogDetails = [
-            'Phòng: ${auth.user?.effectiveRoomCode ?? "P.305"}',
-            'Tháng 10: 120 kWh (254.000 đ)',
-            'Tháng 09: 90 kWh (162.000 đ)',
-            'Chênh lệch: +30 kWh (+92.000 đ)',
-          ];
-          _actionStatusSummary = 'Đã phân tích biểu đồ lũy tiến Bậc 3';
-        });
-      } else if (q.contains('vietqr') || q.contains('thanh toán')) {
-        setState(() {
-          _activeToolBadge = 'Kích hoạt Tool: generate_vietqr_link()';
-          _activeToolColor = const Color(0xFFD97706);
-          _actionLogDetails = [
-            'Ngân hàng: MB Bank - 0389999888',
-            'Số tiền: 3.924.000 đ',
-            'Nội dung: SMARTSTAY P305 T10',
-          ];
-          _actionStatusSummary = 'Đã sinh mã động VietQR Napas247 thành công!';
-        });
-      } else if (q.contains('mở khóa') || q.contains('cửa')) {
-        setState(() {
-          _activeToolBadge = 'Kích hoạt Tool: remote_iot_lock_control()';
-          _activeToolColor = const Color(0xFF8B5CF6);
-          _actionLogDetails = [
-            'Thiết bị: SmartLock-P305 (MQTT TLS)',
-            'Lệnh: UNLOCK_TEMPORARY (5s)',
-            'Người yêu cầu: ${auth.user?.fullName ?? "Hồ Ngọc Bảo"}',
-          ];
-          _actionStatusSummary = 'Đã gửi xung mở khóa từ xa thành công!';
-        });
       }
-      _scrollToBottom();
-    });
+    }
+
+    await prov.sendMessage(
+      text,
+      currentUser: auth.user,
+      forceAdminMode: auth.isAdmin,
+      adminContextSummary: toolResult?.liveReplySummary,
+    );
+    _scrollToBottom();
   }
 
   @override
@@ -146,19 +124,25 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        title: const Text(
-          'Trợ Lý Ảo AI Tự Hành (AI Agentic Concierge)',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+        title: Text(
+          auth.isAdmin
+              ? 'Trợ Lý AI Copilot Quản Trị & Vận Hành'
+              : 'Trợ Lý Ảo AI Tự Hành (AI Agentic Concierge)',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
         ),
         actions: [
           TextButton.icon(
             onPressed: () {
-              aiProv.clearChat();
+              aiProv.clearChat(
+                isAdmin: auth.isAdmin,
+                userName: auth.user?.fullName,
+                roomCode: auth.user?.effectiveRoomCode,
+              );
               setState(() {
                 _activeToolBadge = 'Trạng thái: Chờ lệnh';
                 _activeToolColor = const Color(0xFF64748B);
                 _actionLogDetails = [
-                  'Khi bạn chat yêu cầu sửa chữa hoặc kiểm tra, AI sẽ tự động kích hoạt API Backend để tạo ticket Kanban, đọc database Supabase mà không cần thao tác tay.',
+                  'Khi bạn chat yêu cầu kiểm tra doanh thu, phòng trống, sửa chữa hoặc phát thông báo, AI sẽ tự động kích hoạt API & cập nhật dữ liệu Realtime.',
                 ];
                 _actionStatusSummary = null;
               });
@@ -318,6 +302,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
   }
 
   Widget _buildChatPanel(AiChatProvider aiProv, AuthProvider auth) {
+    final quickCommands =
+        auth.isAdmin ? _adminQuickCommands : _residentQuickCommands;
+
     return Container(
       height: 540,
       padding: const EdgeInsets.all(16),
@@ -347,9 +334,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'SmartStay AI Concierge',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    Text(
+                      auth.isAdmin
+                          ? 'SmartStay AI Copilot (Quản Trị & Vận Hành)'
+                          : 'SmartStay AI Concierge',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                     Row(
                       children: [
@@ -357,7 +349,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         const SizedBox(width: 5),
                         Flexible(
                           child: Text(
-                            'Sẵn sàng hỗ trợ cư dân ${auth.user?.fullName ?? "Hồ Ngọc Bảo"} (${auth.user?.effectiveRoomCode ?? "P.305"})',
+                            auth.isAdmin
+                                ? 'Sẵn sàng hỗ trợ Quản lý ${auth.user?.fullName ?? "Quản Trị Viên"}'
+                                : 'Sẵn sàng hỗ trợ cư dân ${auth.user?.fullName ?? "Hồ Ngọc Bảo"} (${auth.user?.effectiveRoomCode ?? "P.305"})',
                             style: const TextStyle(fontSize: 11, color: Color(0xFF16A34A)),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -461,10 +455,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
             height: 32,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: _quickCommands.length,
+              itemCount: quickCommands.length,
               separatorBuilder: (_, _) => const SizedBox(width: 6),
               itemBuilder: (context, index) {
-                final cmd = _quickCommands[index];
+                final cmd = quickCommands[index];
                 return OutlinedButton(
                   onPressed: () => _sendMessage(cmd),
                   style: OutlinedButton.styleFrom(

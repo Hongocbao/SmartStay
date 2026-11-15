@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../models/contract_model.dart';
 import '../services/mock_data_service.dart';
 import '../services/api_service.dart';
+import '../services/api_transport.dart';
 
 class _FallbackAccount {
   final int userId;
@@ -138,6 +140,151 @@ class AuthProvider extends ChangeNotifier {
 
   AuthProvider();
 
+  final Map<String, UserModel> _savedUserProfiles = {};
+  late final ResidentProfile _defaultResidentTemplate =
+      _mock.currentUser.residentProfile ??
+          ResidentProfile(
+            residentId: 101,
+            roomCode: 'P.305',
+            buildingName: 'Tòa nhà A - Co-Living SmartStay',
+            floorNumber: 3,
+            dateOfBirth: DateTime(2003, 5, 15),
+            gender: 'Nam',
+            idCardNumber: '079203001234',
+            permanentAddress:
+                '123 Đường Điện Biên Phủ, Phường 25, Bình Thạnh, TP.HCM',
+            emergencyContactName: 'Hồ Văn Minh (Phụ huynh)',
+            emergencyContactPhone: '0988776655',
+          );
+
+  ResidentProfile _buildDefaultResidentProfile(
+    String? roomCode, {
+    String? idCardNumber,
+  }) {
+    final fallback = _defaultResidentTemplate;
+    final effectiveRoom = (roomCode != null && roomCode.trim().isNotEmpty)
+        ? roomCode.trim()
+        : fallback.roomCode;
+    final effectiveIdCard = (idCardNumber != null && idCardNumber.trim().isNotEmpty)
+        ? idCardNumber.trim()
+        : fallback.idCardNumber;
+    return fallback.copyWith(
+      roomCode: effectiveRoom,
+      idCardNumber: effectiveIdCard,
+    );
+  }
+
+  UserModel _applySavedProfile(UserModel baseUser) {
+    final key = baseUser.username.toLowerCase();
+    UserModel? saved = _savedUserProfiles[key];
+    if (saved == null) {
+      final raw = readLocalStorage('smartstay_profile_$key');
+      if (raw != null && raw.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map<String, dynamic>) {
+            saved = UserModel.fromJson(decoded);
+            _savedUserProfiles[key] = saved;
+          }
+        } catch (_) {}
+      }
+    }
+    if (saved == null) return baseUser;
+    return baseUser.copyWith(
+      fullName: saved.fullName.isNotEmpty ? saved.fullName : baseUser.fullName,
+      phone: saved.phone.isNotEmpty ? saved.phone : baseUser.phone,
+      email: saved.email.isNotEmpty ? saved.email : baseUser.email,
+      roomCode: saved.roomCode ?? baseUser.roomCode,
+      avatarUrl: saved.avatarUrl,
+      clearAvatar: saved.avatarUrl == null,
+      residentProfile: saved.residentProfile ?? baseUser.residentProfile,
+    );
+  }
+
+  void _persistSavedProfile(UserModel user) {
+    final key = user.username.toLowerCase();
+    _savedUserProfiles[key] = user;
+    writeLocalStorage('smartstay_profile_$key', jsonEncode(user.toJson()));
+    _mock.currentUser = user;
+  }
+
+  /// Cập nhật ảnh đại diện người dùng (Data URL base64, URL http/https, preset:..., hoặc xóa)
+  void updateAvatar(String? avatarUrl, {bool clear = false}) {
+    if (_user == null) return;
+    final normalized = (avatarUrl != null && avatarUrl.trim().isNotEmpty)
+        ? avatarUrl.trim()
+        : null;
+    _user = _user!.copyWith(
+      avatarUrl: normalized,
+      clearAvatar: clear || normalized == null,
+    );
+    _persistSavedProfile(_user!);
+    notifyListeners();
+  }
+
+  /// Cập nhật thông tin hồ sơ cá nhân người dùng & lưu bền vững cục bộ
+  void updateUserProfile({
+    required String fullName,
+    required String phone,
+    required String email,
+    String? idCardNumber,
+    String? gender,
+    DateTime? dateOfBirth,
+    String? permanentAddress,
+    String? emergencyContactName,
+    String? emergencyContactPhone,
+    String? roomCode,
+    String? buildingName,
+  }) {
+    if (_user == null) return;
+    final cleanName = fullName.trim();
+    final cleanPhone = phone.trim();
+    final cleanEmail = email.trim();
+    final currentProfile =
+        _user!.residentProfile ?? _buildDefaultResidentProfile(_user!.roomCode);
+
+    final updatedProfile = currentProfile.copyWith(
+      roomCode: (roomCode != null && roomCode.trim().isNotEmpty)
+          ? roomCode.trim()
+          : currentProfile.roomCode,
+      buildingName: (buildingName != null && buildingName.trim().isNotEmpty)
+          ? buildingName.trim()
+          : currentProfile.buildingName,
+      idCardNumber:
+          idCardNumber != null ? idCardNumber.trim() : currentProfile.idCardNumber,
+      gender: (gender != null && gender.trim().isNotEmpty)
+          ? gender.trim()
+          : currentProfile.gender,
+      dateOfBirth: dateOfBirth ?? currentProfile.dateOfBirth,
+      permanentAddress: permanentAddress != null
+          ? permanentAddress.trim()
+          : currentProfile.permanentAddress,
+      emergencyContactName: emergencyContactName != null
+          ? emergencyContactName.trim()
+          : currentProfile.emergencyContactName,
+      emergencyContactPhone: emergencyContactPhone != null
+          ? emergencyContactPhone.trim()
+          : currentProfile.emergencyContactPhone,
+    );
+
+    final isResidentAccount =
+        _user!.role == 'Cư dân' || _user!.residentProfile != null;
+    _user = _user!.copyWith(
+      fullName: cleanName.isNotEmpty ? cleanName : _user!.fullName,
+      phone: cleanPhone.isNotEmpty ? cleanPhone : _user!.phone,
+      email: cleanEmail.isNotEmpty ? cleanEmail : _user!.email,
+      roomCode: updatedProfile.roomCode,
+      residentProfile: isResidentAccount ? updatedProfile : null,
+    );
+
+    if (_contract != null && roomCode != null && roomCode.trim().isNotEmpty) {
+      _contract = _contract!.copyWith(roomCode: roomCode.trim());
+    }
+
+    _persistSavedProfile(_user!);
+    notifyListeners();
+  }
+
   /// Đăng nhập xác thực qua Backend API, tự động chuyển sang Offline-First Fallback nếu Backend chưa bật
   Future<bool> login(String username, String password) async {
     _isLoading = true;
@@ -166,19 +313,25 @@ class AuthProvider extends ChangeNotifier {
       final fullName = (apiResult['hoTen'] as String?) ?? cleanUser;
       final room = apiResult['soPhong'] as String?;
 
-      _user = UserModel(
-        userId: (apiResult['maNguoiDung'] as num?)?.toInt() ?? 101,
-        username: cleanUser,
-        email: '$cleanUser@smartstay.vn',
-        phone: '0901234567',
-        fullName: fullName,
-        role: role,
-        roomCode: room,
-        mustChangePassword: false,
+      _user = _applySavedProfile(
+        UserModel(
+          userId: (apiResult['maNguoiDung'] as num?)?.toInt() ?? 101,
+          username: cleanUser,
+          email: '$cleanUser@smartstay.vn',
+          phone: '0901234567',
+          fullName: fullName,
+          role: role,
+          roomCode: room,
+          mustChangePassword: false,
+          residentProfile:
+              role == 'Cư dân' ? _buildDefaultResidentProfile(room) : null,
+        ),
       );
 
       if (role == 'Cư dân') {
-        _contract = _mock.contract.copyWith(roomCode: room ?? 'P.305');
+        _contract = _mock.contract.copyWith(
+          roomCode: _user!.residentProfile?.roomCode ?? room ?? 'P.305',
+        );
       } else {
         _contract = null;
       }
@@ -194,19 +347,25 @@ class AuthProvider extends ChangeNotifier {
     final localAcc = _localAccounts[key];
     if (localAcc != null && (localAcc.password == cleanPass || cleanPass == '123456')) {
       _token = 'offline-jwt-token-${localAcc.username}';
-      _user = UserModel(
-        userId: localAcc.userId,
-        username: localAcc.username,
-        email: localAcc.email,
-        phone: localAcc.phone,
-        fullName: localAcc.fullName,
-        role: localAcc.role,
-        roomCode: localAcc.roomCode,
-        mustChangePassword: false,
-        residentProfile: localAcc.role == 'Cư dân' ? _mock.currentUser.residentProfile : null,
+      _user = _applySavedProfile(
+        UserModel(
+          userId: localAcc.userId,
+          username: localAcc.username,
+          email: localAcc.email,
+          phone: localAcc.phone,
+          fullName: localAcc.fullName,
+          role: localAcc.role,
+          roomCode: localAcc.roomCode,
+          mustChangePassword: false,
+          residentProfile: localAcc.role == 'Cư dân'
+              ? _buildDefaultResidentProfile(localAcc.roomCode)
+              : null,
+        ),
       );
       if (localAcc.role == 'Cư dân') {
-        _contract = _mock.contract.copyWith(roomCode: localAcc.roomCode ?? 'P.305');
+        _contract = _mock.contract.copyWith(
+          roomCode: _user!.residentProfile?.roomCode ?? localAcc.roomCode ?? 'P.305',
+        );
       } else {
         _contract = null;
       }
@@ -221,18 +380,25 @@ class AuthProvider extends ChangeNotifier {
           key.contains('admin') || key.contains('quanly') || key.contains('kythuat') || key.contains('tech');
       final role = isManagementUser ? 'Ban Quản lý & Kỹ thuật' : 'Cư dân';
       _token = 'offline-jwt-token-$cleanUser';
-      _user = UserModel(
-        userId: isManagementUser ? 1 : 105,
-        username: cleanUser,
-        email: '$cleanUser@smartstay.vn',
-        phone: '0901234567',
-        fullName: isManagementUser ? 'Ban Quản Lý & Kỹ Thuật SmartStay' : 'Hồ Ngọc Bảo ($cleanUser)',
-        role: role,
-        roomCode: isManagementUser ? null : 'P.305',
-        mustChangePassword: false,
-        residentProfile: isManagementUser ? null : _mock.currentUser.residentProfile,
+      _user = _applySavedProfile(
+        UserModel(
+          userId: isManagementUser ? 1 : 105,
+          username: cleanUser,
+          email: '$cleanUser@smartstay.vn',
+          phone: '0901234567',
+          fullName: isManagementUser ? 'Ban Quản Lý & Kỹ Thuật SmartStay' : 'Hồ Ngọc Bảo ($cleanUser)',
+          role: role,
+          roomCode: isManagementUser ? null : 'P.305',
+          mustChangePassword: false,
+          residentProfile:
+              isManagementUser ? null : _buildDefaultResidentProfile('P.305'),
+        ),
       );
-      _contract = isManagementUser ? null : _mock.contract.copyWith(roomCode: 'P.305');
+      _contract = isManagementUser
+          ? null
+          : _mock.contract.copyWith(
+              roomCode: _user!.residentProfile?.roomCode ?? 'P.305',
+            );
       _isLoading = false;
       notifyListeners();
       return true;
@@ -292,17 +458,26 @@ class AuthProvider extends ChangeNotifier {
 
     if (apiResult != null && apiResult['token'] is String) {
       _token = apiResult['token'] as String;
-      _user = UserModel(
-        userId: (apiResult['maNguoiDung'] as num?)?.toInt() ?? 109,
-        username: cleanUser,
-        email: cleanEmail.isNotEmpty ? cleanEmail : '$cleanUser@smartstay.vn',
-        phone: cleanPhone.isNotEmpty ? cleanPhone : '0901234567',
-        fullName: cleanName,
-        role: 'Cư dân',
-        roomCode: (apiResult['soPhong'] as String?) ?? cleanRoom,
-        mustChangePassword: false,
+      final assignedRoom = (apiResult['soPhong'] as String?) ?? cleanRoom;
+      _user = _applySavedProfile(
+        UserModel(
+          userId: (apiResult['maNguoiDung'] as num?)?.toInt() ?? 109,
+          username: cleanUser,
+          email: cleanEmail.isNotEmpty ? cleanEmail : '$cleanUser@smartstay.vn',
+          phone: cleanPhone.isNotEmpty ? cleanPhone : '0901234567',
+          fullName: cleanName,
+          role: 'Cư dân',
+          roomCode: assignedRoom,
+          mustChangePassword: false,
+          residentProfile: _buildDefaultResidentProfile(
+            assignedRoom,
+            idCardNumber: nationalId,
+          ),
+        ),
       );
-      _contract = _mock.contract.copyWith(roomCode: cleanRoom);
+      _contract = _mock.contract.copyWith(
+        roomCode: _user!.residentProfile?.roomCode ?? assignedRoom,
+      );
       _isLoading = false;
       notifyListeners();
       return true;
@@ -322,18 +497,25 @@ class AuthProvider extends ChangeNotifier {
     _localAccounts[cleanUser.toLowerCase()] = newAccount;
 
     _token = 'offline-jwt-token-$cleanUser';
-    _user = UserModel(
-      userId: newAccount.userId,
-      username: newAccount.username,
-      email: newAccount.email,
-      phone: newAccount.phone,
-      fullName: newAccount.fullName,
-      role: 'Cư dân',
-      roomCode: newAccount.roomCode,
-      mustChangePassword: false,
-      residentProfile: _mock.currentUser.residentProfile,
+    _user = _applySavedProfile(
+      UserModel(
+        userId: newAccount.userId,
+        username: newAccount.username,
+        email: newAccount.email,
+        phone: newAccount.phone,
+        fullName: newAccount.fullName,
+        role: 'Cư dân',
+        roomCode: newAccount.roomCode,
+        mustChangePassword: false,
+        residentProfile: _buildDefaultResidentProfile(
+          cleanRoom,
+          idCardNumber: nationalId,
+        ),
+      ),
     );
-    _contract = _mock.contract.copyWith(roomCode: cleanRoom);
+    _contract = _mock.contract.copyWith(
+      roomCode: _user!.residentProfile?.roomCode ?? cleanRoom,
+    );
     _isLoading = false;
     notifyListeners();
     return true;

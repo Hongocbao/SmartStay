@@ -26,6 +26,11 @@ class SupabaseDirectService {
 
   static const String renderCloudApiUrl = 'https://smartstay-admin.onrender.com/api';
 
+  Future<Map<String, dynamic>?>? _inFlightSnapshot;
+  Map<String, dynamic>? _cachedSnapshot;
+  DateTime? _cachedAt;
+  bool _localSyncUnreachable = false;
+
   static String get adminPortalUrl {
     const envAdmin = String.fromEnvironment('ADMIN_PORTAL_URL');
     if (envAdmin.isNotEmpty) {
@@ -40,13 +45,20 @@ class SupabaseDirectService {
     return 'https://smartstay-admin.onrender.com';
   }
 
-  /// Danh sách các cổng Sync API (kết nối cả Local lẫn Render Cloud để giả lập Android và Web Render luôn thấy nhau)
+  bool _isLocalBase(String baseUrl) {
+    final host = Uri.tryParse(baseUrl)?.host.toLowerCase() ?? '';
+    return host == 'localhost' || host == '127.0.0.1' || host == '10.0.2.2';
+  }
+
+  /// Danh sách các cổng Sync API (bỏ qua cổng local nếu đã xác định không mở server local)
   List<String> get _syncApiBases {
     final bases = <String>{
       renderCloudApiUrl,
       ApiService.baseUrl,
     };
-    return bases.toList();
+    return bases
+        .where((base) => !(_localSyncUnreachable && _isLocalBase(base)))
+        .toList();
   }
 
   Map<String, String> get _supabaseHeaders => {
@@ -119,49 +131,88 @@ class SupabaseDirectService {
     return null;
   }
 
-  /// Đồng bộ Snapshot hợp nhất (Ưu tiên API Admin .NET trên Render/Local -> Kết hợp Supabase PostgREST Phương án A)
-  Future<Map<String, dynamic>?> fetchUnifiedSnapshot() async {
-    // 1. Thử lấy từ cổng /api/sync/snapshot của Render Cloud hoặc Local Web Admin
+  Future<bool> _postToSyncBases(String path, String payload) async {
+    var ok = false;
     for (final base in _syncApiBases) {
       try {
-        final uri = Uri.parse('$base/sync/snapshot');
         final res = await sendApiRequest(
-          method: 'GET',
-          uri: uri,
-          headers: const {'Accept': 'application/json'},
+          method: 'POST',
+          uri: Uri.parse('$base$path'),
+          headers: const {'Content-Type': 'application/json'},
+          body: payload,
         );
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          final decoded = jsonDecode(res.body);
-          if (decoded is Map<String, dynamic> && decoded['success'] == true) {
-            return decoded;
-          }
+          ok = true;
         }
       } catch (_) {
-        // Thử tiếp cổng tiếp theo hoặc fallback sang Supabase PostgREST trực tiếp
+        if (_isLocalBase(base)) _localSyncUnreachable = true;
       }
     }
+    return ok;
+  }
 
-    // 2. Gọi trực tiếp vào Supabase qua PostgREST (Phương án A)
-    final results = await Future.wait([
-      fetchRoomsDirect(),
-      fetchTicketsDirect(),
-      fetchAnnouncementsDirect(),
-    ]);
-
-    final rooms = results[0];
-    final tickets = results[1];
-    final announcements = results[2];
-
-    if (rooms != null || tickets != null || announcements != null) {
-      return {
-        'success': true,
-        'source': 'supabase-direct-option-a',
-        'phongs': rooms ?? const [],
-        'suCos': tickets ?? const [],
-        'thongBaos': announcements ?? const [],
-      };
+  /// Đồng bộ Snapshot hợp nhất (Ưu tiên API Admin .NET trên Render/Local -> Kết hợp Supabase PostgREST Phương án A)
+  Future<Map<String, dynamic>?> fetchUnifiedSnapshot() {
+    if (_cachedSnapshot != null &&
+        _cachedAt != null &&
+        DateTime.now().difference(_cachedAt!) < const Duration(seconds: 3)) {
+      return Future.value(_cachedSnapshot);
     }
-    return null;
+    return _inFlightSnapshot ??= _performFetchUnifiedSnapshot();
+  }
+
+  Future<Map<String, dynamic>?> _performFetchUnifiedSnapshot() async {
+    try {
+      // 1. Thử lấy từ cổng /api/sync/snapshot của Render Cloud hoặc Local Web Admin
+      for (final base in _syncApiBases) {
+        try {
+          final uri = Uri.parse('$base/sync/snapshot');
+          final res = await sendApiRequest(
+            method: 'GET',
+            uri: uri,
+            headers: const {'Accept': 'application/json'},
+          );
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            final decoded = jsonDecode(res.body);
+            if (decoded is Map<String, dynamic> && decoded['success'] == true) {
+              _cachedSnapshot = decoded;
+              _cachedAt = DateTime.now();
+              return decoded;
+            }
+          }
+        } catch (_) {
+          if (_isLocalBase(base)) _localSyncUnreachable = true;
+          // Thử tiếp cổng tiếp theo hoặc fallback sang Supabase PostgREST trực tiếp
+        }
+      }
+
+      // 2. Gọi trực tiếp vào Supabase qua PostgREST (Phương án A)
+      final results = await Future.wait([
+        fetchRoomsDirect(),
+        fetchTicketsDirect(),
+        fetchAnnouncementsDirect(),
+      ]);
+
+      final rooms = results[0];
+      final tickets = results[1];
+      final announcements = results[2];
+
+      if (rooms != null || tickets != null || announcements != null) {
+        final snapshot = <String, dynamic>{
+          'success': true,
+          'source': 'supabase-direct-option-a',
+          'phongs': rooms ?? const [],
+          'suCos': tickets ?? const [],
+          'thongBaos': announcements ?? const [],
+        };
+        _cachedSnapshot = snapshot;
+        _cachedAt = DateTime.now();
+        return snapshot;
+      }
+      return null;
+    } finally {
+      _inFlightSnapshot = null;
+    }
   }
 
   /// Cập nhật trạng thái phòng lên cả Render Cloud, Local và Supabase để giả lập Android & Web Render đồng bộ 2 chiều
@@ -170,7 +221,6 @@ class SupabaseDirectService {
     required String status,
     double? price,
   }) async {
-    bool ok = false;
     final payload = jsonEncode({
       'KyHieuPhong': roomCode,
       'TrangThai': status,
@@ -178,19 +228,7 @@ class SupabaseDirectService {
     });
 
     // 1. Ghi qua các cổng API Web Admin (Render Cloud + Local)
-    for (final base in _syncApiBases) {
-      try {
-        final res = await sendApiRequest(
-          method: 'POST',
-          uri: Uri.parse('$base/sync/cap-nhat-phong'),
-          headers: const {'Content-Type': 'application/json'},
-          body: payload,
-        );
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          ok = true;
-        }
-      } catch (_) {}
-    }
+    bool ok = await _postToSyncBases('/sync/cap-nhat-phong', payload);
 
     // 2. Ghi trực tiếp vào bảng Phong trên Supabase (Phương án A)
     try {
@@ -212,7 +250,7 @@ class SupabaseDirectService {
     return ok;
   }
 
-  /// Đồng bộ Phiếu sự cố (Tạo mới hoặc đổi trạng thái) sang Render Cloud, Local & Supabase
+  /// Đồng bộ Phiếu sự cố (Tạo mới hoặc đổi trạng thái) sang Render Cloud & Local Sync API
   Future<void> syncTicket({
     required String ticketCode,
     required String roomCode,
@@ -220,6 +258,8 @@ class SupabaseDirectService {
     String? description,
     String? priority,
     required String status,
+    String? imageUrl,
+    String? videoUrl,
   }) async {
     final payload = jsonEncode({
       'SoPhieuSuCo': ticketCode,
@@ -228,36 +268,11 @@ class SupabaseDirectService {
       'MoTa': description ?? title,
       'UuTien': priority ?? 'Cao',
       'TrangThai': status,
+      if (imageUrl != null && imageUrl.isNotEmpty) 'HinhAnhUrl': imageUrl,
+      if (videoUrl != null && videoUrl.isNotEmpty) 'VideoUrl': videoUrl,
     });
 
-    for (final base in _syncApiBases) {
-      try {
-        await sendApiRequest(
-          method: 'POST',
-          uri: Uri.parse('$base/sync/su-co'),
-          headers: const {'Content-Type': 'application/json'},
-          body: payload,
-        );
-      } catch (_) {}
-    }
-
-    // Ghi trực tiếp lên bảng PhieuSuCo trên Supabase (Phương án A)
-    try {
-      await sendApiRequest(
-        method: 'POST',
-        uri: Uri.parse('$supabaseUrl/rest/v1/PhieuSuCo'),
-        headers: _supabaseHeaders,
-        body: jsonEncode({
-          'SoPhieuSuCo': ticketCode,
-          'MaPhong': 305,
-          'TieuDe': title,
-          'MoTa': description ?? title,
-          'UuTien': priority ?? 'Cao',
-          'TrangThai': status,
-          'ThoiDiemTao': DateTime.now().toUtc().toIso8601String(),
-        }),
-      );
-    } catch (_) {}
+    await _postToSyncBases('/sync/su-co', payload);
   }
 
   /// Đồng bộ Thông báo mới sang Render Cloud, Local & Supabase
@@ -277,16 +292,7 @@ class SupabaseDirectService {
       'LaKhanCap': isImportant,
     });
 
-    for (final base in _syncApiBases) {
-      try {
-        await sendApiRequest(
-          method: 'POST',
-          uri: Uri.parse('$base/sync/thong-bao'),
-          headers: const {'Content-Type': 'application/json'},
-          body: payload,
-        );
-      } catch (_) {}
-    }
+    await _postToSyncBases('/sync/thong-bao', payload);
 
     // Ghi trực tiếp vào bảng ThongBao trên Supabase (Phương án A)
     try {
@@ -335,15 +341,6 @@ class SupabaseDirectService {
       'LuuVaoSoCaNhan': saveToPersonalLog,
     });
 
-    for (final base in _syncApiBases) {
-      try {
-        await sendApiRequest(
-          method: 'POST',
-          uri: Uri.parse('$base/sync/chi-so-cu-dan'),
-          headers: const {'Content-Type': 'application/json'},
-          body: payload,
-        );
-      } catch (_) {}
-    }
+    await _postToSyncBases('/sync/chi-so-cu-dan', payload);
   }
 }

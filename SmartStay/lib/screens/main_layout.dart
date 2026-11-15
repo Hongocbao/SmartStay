@@ -12,6 +12,8 @@ import 'community/community_screen.dart';
 import 'profile/profile_screen.dart';
 import 'resident_services/resident_services_screen.dart';
 import 'ai_chat/ai_chat_screen.dart';
+import '../widgets/ai_floating_bubble.dart';
+import '../widgets/call_center_modal.dart';
 
 // Admin screens
 import 'admin/admin_dashboard_screen.dart';
@@ -50,12 +52,13 @@ class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
   int _residentServiceTab = 2; // Mặc định mở tab AI Quét Công Tơ hoặc tab được chọn
   Timer? _realtimeSyncTimer;
+  bool _isSyncing = false;
 
   @override
   void initState() {
     super.initState();
-    // Đồng bộ thời gian thực mỗi 4 giây giữa Web Admin, Web App và Android App qua Supabase & Sync API
-    _realtimeSyncTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    // Đồng bộ thời gian thực mỗi 8 giây giữa Web Admin, Web App và Android App qua Supabase & Sync API
+    _realtimeSyncTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       _triggerRealtimeSync(silent: true);
     });
   }
@@ -67,27 +70,32 @@ class _MainLayoutState extends State<MainLayout> {
   }
 
   Future<void> _triggerRealtimeSync({bool silent = false}) async {
-    if (!mounted) return;
-    final adminProv = context.read<AdminProvider>();
-    final ticketProv = context.read<TicketProvider>();
-    final commProv = context.read<CommunityProvider>();
+    if (!mounted || _isSyncing) return;
+    _isSyncing = true;
+    try {
+      final adminProv = context.read<AdminProvider>();
+      final ticketProv = context.read<TicketProvider>();
+      final commProv = context.read<CommunityProvider>();
 
-    await Future.wait([
-      adminProv.syncWithCloudSupabase(),
-      ticketProv.syncTicketsFromCloud(),
-      commProv.syncAnnouncementsFromCloud(),
-    ]);
+      await Future.wait([
+        adminProv.syncWithCloudSupabase(),
+        ticketProv.syncTicketsFromCloud(),
+        commProv.syncAnnouncementsFromCloud(),
+      ]);
 
-    if (!silent && mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Đã đồng bộ dữ liệu Realtime từ Supabase Cloud & Web Admin!'),
-            backgroundColor: Color(0xFF16A34A),
-            duration: Duration(seconds: 2),
-          ),
-        );
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Đã đồng bộ dữ liệu Realtime từ Supabase Cloud & Web Admin!'),
+              backgroundColor: Color(0xFF16A34A),
+              duration: Duration(seconds: 2),
+            ),
+          );
+      }
+    } finally {
+      _isSyncing = false;
     }
   }
 
@@ -150,6 +158,12 @@ class _MainLayoutState extends State<MainLayout> {
           icon: Icons.tune_rounded,
           iconColor: Color(0xFF94A3B8),
           screenIndex: 7,
+        ),
+        _SidebarMenuItem(
+          title: 'Trợ Lý AI Quản Trị',
+          icon: Icons.smart_toy_rounded,
+          iconColor: Color(0xFFA78BFA),
+          screenIndex: 8,
         ),
       ];
     } else {
@@ -495,8 +509,51 @@ class _MainLayoutState extends State<MainLayout> {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
           ],
+          // Nút Tổng đài Thoại & Video Call nội bộ
+          if (isCompact)
+            Tooltip(
+              message: 'Gọi Thoại / Video Call',
+              child: InkWell(
+                onTap: () => showSmartStayCallModal(context),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFC7D2FE)),
+                  ),
+                  child: const Icon(
+                    Icons.videocam_rounded,
+                    size: 18,
+                    color: Color(0xFF4F46E5),
+                  ),
+                ),
+              ),
+            )
+          else
+            ElevatedButton.icon(
+              onPressed: () => showSmartStayCallModal(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4F46E5),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                minimumSize: const Size(0, 38),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              icon: const Icon(Icons.videocam_rounded, size: 16),
+              label: const Text(
+                'Gọi / Video',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+          SizedBox(width: isCompact ? 6 : 10),
           // User Pill
           Container(
             padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 10, vertical: isCompact ? 4 : 5),
@@ -508,17 +565,12 @@ class _MainLayoutState extends State<MainLayout> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                CircleAvatar(
+                UserAvatarWidget(
+                  user: auth.user,
                   radius: isCompact ? 12 : 14,
-                  backgroundColor: const Color(0xFF2563EB),
-                  child: Text(
-                    initials.length > 3 ? initials.substring(0, 3) : initials,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  fontSize: 10,
+                  fallbackText:
+                      initials.length > 3 ? initials.substring(0, 3) : initials,
                 ),
                 const SizedBox(width: 6),
                 ConstrainedBox(
@@ -617,6 +669,7 @@ class _MainLayoutState extends State<MainLayout> {
         AdminContractsScreen(),
         CommunityScreen(),
         AdminSystemConfigScreen(),
+        AiChatScreen(),
       ];
       navItems = const [
         BottomNavigationBarItem(
@@ -658,6 +711,11 @@ class _MainLayoutState extends State<MainLayout> {
           icon: Icon(Icons.tune_outlined),
           activeIcon: Icon(Icons.tune_rounded),
           label: 'Cấu hình',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.smart_toy_outlined),
+          activeIcon: Icon(Icons.smart_toy_rounded),
+          label: 'Trợ lý AI',
         ),
       ];
     } else {
@@ -790,9 +848,25 @@ class _MainLayoutState extends State<MainLayout> {
               children: [
                 _buildWebTopbar(context, auth, safeIndex, isDesktop),
                 Expanded(
-                  child: IndexedStack(
-                    index: safeIndex,
-                    children: screens,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: IndexedStack(
+                          index: safeIndex,
+                          children: screens,
+                        ),
+                      ),
+                      if (!((auth.isAdmin && safeIndex == 8) ||
+                          (!auth.isAdmin && safeIndex == 3)))
+                        Positioned(
+                          right: 16,
+                          bottom: 16,
+                          child: AiFloatingBubble(
+                            onOpenFullScreen: () =>
+                                _onTabSelected(auth.isAdmin ? 8 : 3),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ],

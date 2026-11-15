@@ -25,7 +25,7 @@ class ApiService {
   bool isConnectedToBackend = false;
 
   /// Helper thực hiện POST request an toàn đa nền tảng
-  Future<Map<String, dynamic>?> _post(String endpoint, Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>?> _post(String endpoint, Map<String, dynamic> body, {Duration? timeout}) async {
     try {
       final headers = <String, String>{'content-type': 'application/json'};
       if (authToken != null) {
@@ -36,6 +36,7 @@ class ApiService {
         uri: Uri.parse('$baseUrl$endpoint'),
         headers: headers,
         body: jsonEncode(body),
+        timeout: timeout,
       );
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -164,13 +165,36 @@ class ApiService {
   }
 
   /// Chat trợ lý ảo AI qua Backend RAG (.NET TroLyAiController)
-  Future<String?> askAi(String question) async {
-    final res = await _post('/tro-ly/chat', {
-      'TinNhan': question,
-    });
+  Future<String?> askAi(
+    String question, {
+    String? role,
+    String? roomCode,
+  }) async {
+    final res = await _post(
+      '/tro-ly/chat',
+      {
+        'TinNhan': question,
+        'content': question,
+        'message': question,
+        if (role != null && role.isNotEmpty) 'VaiTro': role,
+        if (roomCode != null && roomCode.isNotEmpty) 'SoPhong': roomCode,
+      },
+      timeout: const Duration(seconds: 15),
+    );
 
-    if (res != null && res.containsKey('traLoi')) {
-      return res['traLoi'] as String;
+    if (res != null) {
+      if (res['traLoi'] != null && res['traLoi'].toString().isNotEmpty) {
+        return res['traLoi'].toString();
+      }
+      if (res['reply'] != null && res['reply'].toString().isNotEmpty) {
+        return res['reply'].toString();
+      }
+      if (res['message'] != null && res['message'].toString().isNotEmpty) {
+        return res['message'].toString();
+      }
+      if (res['data'] != null && res['data'].toString().isNotEmpty) {
+        return res['data'].toString();
+      }
     }
     return null;
   }
@@ -191,4 +215,28 @@ class ApiService {
     });
     return res != null && res['success'] == true;
   }
+
+  /// Lấy snapshot đồng bộ realtime (phòng, sự cố, chợ đồ cũ, cuộc gọi)
+  Future<Map<String, dynamic>?> getSyncSnapshot() async {
+    final res = await _get('/sync/snapshot');
+    return res is Map<String, dynamic> ? res : null;
+  }
+
+  /// Đồng bộ phiếu sự cố (kèm ảnh & video) lên bảng Kanban
+  Future<Map<String, dynamic>?> postSyncTicket(Map<String, dynamic> payload) =>
+      _post('/sync/su-co', payload);
+
+  /// Đăng bán đồ cũ kèm ảnh & video lên Chợ Cư Dân
+  Future<Map<String, dynamic>?> postSyncMarketplaceItem(
+    Map<String, dynamic> payload,
+  ) => _post('/sync/cho-do-cu', payload);
+
+  /// Gửi đánh giá sao & bình luận chi tiết cho món đồ Chợ Cư Dân
+  Future<Map<String, dynamic>?> postSyncMarketplaceReview(
+    Map<String, dynamic> payload,
+  ) => _post('/sync/cho-do-cu/danh-gia', payload);
+
+  /// Lưu lịch sử cuộc gọi thoại / Video Call giữa Cư dân, Quản lý & Admin
+  Future<Map<String, dynamic>?> postSyncCallLog(Map<String, dynamic> payload) =>
+      _post('/sync/cuoc-goi', payload);
 }

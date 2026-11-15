@@ -70,12 +70,15 @@ class HomeScreen extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Text(
-                                'Xin chào, ${user?.fullName ?? "Cư dân"}',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F172A),
+                              Flexible(
+                                child: Text(
+                                  'Xin chào, ${user?.fullName ?? "Cư dân"}',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0F172A),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 4),
@@ -112,53 +115,60 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 16),
 
                 // 4 KPI Thẻ Nhanh Cư Dân (tương đương 4 KPI trên /CuDan/Index Web)
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 1.72,
-                  children: [
-                    _buildResidentKpiCard(
-                      title: 'HÓA ĐƠN THÁNG 10',
-                      badge: unpaidInvoice?.status ?? 'Chờ đối soát',
-                      badgeColor: const Color(0xFFD97706),
-                      value: AppFormatters.currency(unpaidInvoice?.remainingAmount ?? 4159000),
-                      subtitle: 'Hạn chót: 05/11/2026',
-                      valueColor: const Color(0xFFDC2626),
-                      onTap: () => onNavigateTab?.call(1),
-                    ),
-                    _buildResidentKpiCard(
-                      title: 'HỢP ĐỒNG THUÊ',
-                      badge: 'Hiệu lực',
-                      badgeColor: const Color(0xFF16A34A),
-                      value: auth.contract?.contractCode ?? 'HĐ-2026-0305',
-                      subtitle: 'Hạn: 31/12/2026 (Cọc: 7tr)',
-                      valueColor: const Color(0xFF0F172A),
-                      onTap: () => onNavigateTab?.call(6),
-                    ),
-                    _buildResidentKpiCard(
-                      title: 'KHÓA THÔNG MINH IOT',
-                      badge: 'Pin 92%',
-                      badgeColor: const Color(0xFF2563EB),
-                      value: '🔒 Khóa An Toàn',
-                      subtitle: 'Mã PIN phòng: 305888',
-                      valueColor: const Color(0xFF16A34A),
-                      onTap: () => _showResidentSmartLockModal(context, roomCode),
-                    ),
-                    _buildResidentKpiCard(
-                      title: 'SỰ CỐ ĐANG XỬ LÝ',
-                      badge: activeTicket != null ? '1 phiếu' : 'Ổn định',
-                      badgeColor: const Color(0xFF0284C7),
-                      value: activeTicket != null ? 'Máy Lạnh $roomCode' : 'Không có sự cố',
-                      subtitle: activeTicket?.technicianName != null
-                          ? 'KTV ${activeTicket!.technicianName} đang sửa'
-                          : 'Bấm để báo hỏng thiết bị',
-                      valueColor: const Color(0xFF0F172A),
-                      onTap: () => onNavigateTab?.call(4),
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final crossAxisCount = constraints.maxWidth >= 660 ? 4 : 2;
+                    return GridView(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        mainAxisExtent: 104,
+                      ),
+                      children: [
+                        _buildResidentKpiCard(
+                          title: 'HÓA ĐƠN THÁNG 10',
+                          badge: unpaidInvoice?.status ?? 'Chờ đối soát',
+                          badgeColor: const Color(0xFFD97706),
+                          value: AppFormatters.currency(unpaidInvoice?.remainingAmount ?? 4159000),
+                          subtitle: 'Hạn chót: 05/11/2026',
+                          valueColor: const Color(0xFFDC2626),
+                          onTap: () => onNavigateTab?.call(1),
+                        ),
+                        _buildResidentKpiCard(
+                          title: 'HỢP ĐỒNG THUÊ',
+                          badge: 'Hiệu lực',
+                          badgeColor: const Color(0xFF16A34A),
+                          value: auth.contract?.contractCode ?? 'HĐ-2026-0305',
+                          subtitle: 'Hạn: 31/12/2026 (Cọc: 7tr)',
+                          valueColor: const Color(0xFF0F172A),
+                          onTap: () => onNavigateTab?.call(6),
+                        ),
+                        _buildResidentKpiCard(
+                          title: 'KHÓA THÔNG MINH IOT',
+                          badge: 'Pin 92%',
+                          badgeColor: const Color(0xFF2563EB),
+                          value: '🔒 Khóa An Toàn',
+                          subtitle: 'Mã PIN phòng: 305888',
+                          valueColor: const Color(0xFF16A34A),
+                          onTap: () => _showResidentSmartLockModal(context, roomCode),
+                        ),
+                        _buildResidentKpiCard(
+                          title: 'SỰ CỐ ĐANG XỬ LÝ',
+                          badge: activeTicket != null ? '1 phiếu' : 'Ổn định',
+                          badgeColor: const Color(0xFF0284C7),
+                          value: activeTicket != null ? 'Máy Lạnh $roomCode' : 'Không có sự cố',
+                          subtitle: activeTicket?.technicianName != null
+                              ? 'KTV ${activeTicket!.technicianName} đang sửa'
+                              : 'Bấm để báo hỏng thiết bị',
+                          valueColor: const Color(0xFF0F172A),
+                          onTap: () => onNavigateTab?.call(4),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 18),
 
@@ -321,58 +331,68 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildQuickAction(
-                      context,
-                      icon: Icons.build_circle_outlined,
-                      color: const Color(0xFFEA580C),
-                      label: 'Báo sự cố',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const CreateTicketScreen(),
-                          ),
-                        );
-                      },
+                    Expanded(
+                      child: _buildQuickAction(
+                        context,
+                        icon: Icons.build_circle_outlined,
+                        color: const Color(0xFFEA580C),
+                        label: 'Báo sự cố',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const CreateTicketScreen(),
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                    _buildQuickAction(
-                      context,
-                      icon: Icons.grid_view_rounded,
-                      color: const Color(0xFF2563EB),
-                      label: 'Tiện ích',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ResidentServicesScreen(),
-                          ),
-                        );
-                      },
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildQuickAction(
+                        context,
+                        icon: Icons.grid_view_rounded,
+                        color: const Color(0xFF2563EB),
+                        label: 'Tiện ích',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ResidentServicesScreen(),
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                    _buildQuickAction(
-                      context,
-                      icon: Icons.celebration_outlined,
-                      color: const Color(0xFF16A34A),
-                      label: 'Sự kiện',
-                      onTap: () {
-                        onNavigateTab?.call(5); // Mở tab Bảng tin & Sự kiện
-                      },
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildQuickAction(
+                        context,
+                        icon: Icons.celebration_outlined,
+                        color: const Color(0xFF16A34A),
+                        label: 'Sự kiện',
+                        onTap: () {
+                          onNavigateTab?.call(5); // Mở tab Bảng tin & Sự kiện
+                        },
+                      ),
                     ),
-                    _buildQuickAction(
-                      context,
-                      icon: Icons.auto_awesome,
-                      color: const Color(0xFF9333EA),
-                      label: 'AI 24/7',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AiChatScreen(),
-                          ),
-                        );
-                      },
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildQuickAction(
+                        context,
+                        icon: Icons.auto_awesome,
+                        color: const Color(0xFF9333EA),
+                        label: 'AI 24/7',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const AiChatScreen(),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -996,8 +1016,7 @@ class HomeScreen extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        width: 80,
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
