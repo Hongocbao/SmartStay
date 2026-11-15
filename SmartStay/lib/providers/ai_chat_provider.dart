@@ -11,6 +11,7 @@ class AiChatProvider extends ChangeNotifier {
   final List<ChatMessageModel> _messages = [];
   bool _isTyping = false;
   String _lastInitializedRoleMode = 'resident';
+  String _lastInitializedUserKey = '';
 
   List<ChatMessageModel> get messages => _messages;
   bool get isTyping => _isTyping;
@@ -43,6 +44,7 @@ class AiChatProvider extends ChangeNotifier {
   }) {
     final mode = resolveRoleMode(isAdmin: isAdmin, explicitRoleMode: roleMode);
     _lastInitializedRoleMode = mode;
+    _lastInitializedUserKey = '${userName ?? ''}|${roomCode ?? ''}|$mode';
     final displayName = (userName != null && userName.trim().isNotEmpty)
         ? userName.trim()
         : (mode == 'admin'
@@ -78,7 +80,8 @@ class AiChatProvider extends ChangeNotifier {
     String? roomCode,
   }) {
     final mode = resolveRoleMode(isAdmin: isAdmin, explicitRoleMode: roleMode);
-    if (_messages.length <= 1 && _lastInitializedRoleMode != mode) {
+    final userKey = '${userName ?? ''}|${roomCode ?? ''}|$mode';
+    if (_lastInitializedRoleMode != mode || _lastInitializedUserKey != userKey) {
       _messages.clear();
       _initDefaultMessage(
         isAdmin: isAdmin,

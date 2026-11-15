@@ -45,8 +45,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final auth = context.read<AuthProvider>();
+      final roleMode = auth.effectiveAiRoleMode;
       context.read<AiChatProvider>().syncRoleGreeting(
-            isAdmin: auth.isAdmin,
+            isAdmin: roleMode != 'resident',
+            roleMode: roleMode,
             userName: auth.user?.fullName,
             roomCode: auth.user?.effectiveRoomCode,
           );
@@ -86,7 +88,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final toolResult = await executeSmartStayAiTools(
       context: context,
       query: text,
-      isAdminMode: auth.isAdmin,
+      isAdminMode: auth.effectiveAiRoleMode != 'resident',
     );
     if (!mounted) return;
 
@@ -110,7 +112,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
     await prov.sendMessage(
       text,
       currentUser: auth.user,
-      forceAdminMode: auth.isAdmin,
+      forceAdminMode: auth.effectiveAiRoleMode != 'resident',
+      roleMode: auth.effectiveAiRoleMode,
       adminContextSummary: toolResult?.liveReplySummary,
     );
     _scrollToBottom();
@@ -120,21 +123,25 @@ class _AiChatScreenState extends State<AiChatScreen> {
   Widget build(BuildContext context) {
     final aiProv = context.watch<AiChatProvider>();
     final auth = context.watch<AuthProvider>();
+    final effectiveRoleMode = auth.effectiveAiRoleMode;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
         title: Text(
-          auth.isAdmin
-              ? 'Trợ Lý AI Copilot Quản Trị & Vận Hành'
-              : 'Trợ Lý Ảo AI Tự Hành (AI Agentic Concierge)',
+          switch (effectiveRoleMode) {
+            'admin' => 'Trợ Lý AI Copilot Quản Trị Hệ Thống',
+            'manager' => 'Trợ Lý AI Điều Hành Ban Quản Lý',
+            _ => 'Trợ Lý Ảo AI Hỗ Trợ Cư Dân',
+          },
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
         ),
         actions: [
           TextButton.icon(
             onPressed: () {
               aiProv.clearChat(
-                isAdmin: auth.isAdmin,
+                isAdmin: effectiveRoleMode != 'resident',
+                roleMode: effectiveRoleMode,
                 userName: auth.user?.fullName,
                 roomCode: auth.user?.effectiveRoomCode,
               );

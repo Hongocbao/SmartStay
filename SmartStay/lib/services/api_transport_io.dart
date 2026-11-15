@@ -55,3 +55,20 @@ void writeLocalStorage(String key, String value) {
 }
 
 String? readLocalStorage(String key) => _memoryStorage[key];
+
+void rtcStartRingtone() {}
+void rtcStopRingtone() {}
+Future<bool> rtcPrepareLocalMedia(bool isVideo, String label) async => false;
+Future<void> rtcStartCallerPeer(String metaJson) async {}
+Future<void> rtcStartCalleePeer(String metaJson) async {}
+Future<void> rtcHandleSignal(String packetJson) async {}
+void rtcSetMic(bool enabled) {}
+void rtcSetCam(bool enabled) {}
+void rtcHangup() {}
+
+Future<Map<String, dynamic>?> analyzeMeterImageOcr({
+  required String dataUrl,
+  required String meterType,
+  required int previousReading,
+  required String apiBaseUrl,
+}) async => null;

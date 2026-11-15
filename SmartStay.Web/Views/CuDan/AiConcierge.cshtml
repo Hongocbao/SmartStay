@@ -1,5 +1,7 @@
 @{
     ViewData["Title"] = "Trợ Lý Ảo AI Tự Hành (AI Agentic Concierge) - SmartStay";
+    var curName = User.FindFirst("FullName")?.Value ?? "Hồ Ngọc Bảo";
+    var curRoom = User.FindFirst("RoomCode")?.Value ?? "P.305";
 }
 
 <!-- Alert thông báo -->
@@ -37,8 +39,8 @@
                         <i class="bi bi-stars"></i>
                     </div>
                     <div>
-                        <h6 class="fw-bold mb-0 text-slate-900">SmartStay AI Concierge</h6>
-                        <span class="fs-9 text-success"><i class="bi bi-circle-fill fs-9 me-1"></i>Sẵn sàng hỗ trợ cư dân Hồ Ngọc Bảo (P.305)</span>
+                        <h6 class="fw-bold mb-0 text-slate-900">SmartStay AI Concierge (Cư dân)</h6>
+                        <span class="fs-9 text-success"><i class="bi bi-circle-fill fs-9 me-1"></i>Phiên độc quyền cư dân @curName (@curRoom)</span>
                     </div>
                 </div>
                 <button class="btn btn-xs btn-outline-secondary rounded-pill" onclick="clearChat()">
@@ -54,7 +56,7 @@
                         <i class="bi bi-robot"></i>
                     </div>
                     <div class="p-3 rounded-4 bg-light text-slate-800 fs-8 shadow-sm" style="max-width: 80%;">
-                        <div>Xin chào bạn <strong>Hồ Ngọc Bảo</strong> (Căn hộ P.305)! Tôi là Trợ lý ảo AI của hệ thống SmartStay.</div>
+                        <div>Xin chào bạn <strong>@curName</strong> (Căn hộ @curRoom)! Tôi là Trợ lý ảo AI của hệ thống SmartStay.</div>
                         <div class="mt-2">Tôi có thể tự động giúp bạn:</div>
                         <ul class="mb-0 mt-1 ps-3">
                             <li>Tự động báo hỏng thiết bị và gọi kỹ thuật viên.</li>
@@ -258,7 +260,7 @@
                 const res = await fetch('/api/tro-ly/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ TinNhan: userQuery })
+                    body: JSON.stringify({ TinNhan: userQuery, VaiTro: 'CuDan', SoPhong: '@curRoom' })
                 });
                 if (res.ok) {
                     const data = await res.json();

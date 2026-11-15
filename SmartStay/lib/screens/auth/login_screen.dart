@@ -151,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _usernameController.text = username;
       _passwordController.text = password;
-      if (username == 'admin' || username == 'kythuat') {
+      if (username == 'admin' || username == 'quanly' || username == 'kythuat') {
         _selectedRole = 'Ban Quản lý & Kỹ thuật';
       } else {
         _selectedRole = 'Cư dân';
@@ -459,7 +459,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                               onPressed: () => _fillQuickAccount('2380600133', '123456'),
-                              child: const Text('Cư dân\n(P.305)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10.5)),
+                              child: const Text('Cư dân\n(P.305)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10)),
                             ),
                           ),
                           const SizedBox(width: 6),
@@ -469,8 +469,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
-                              onPressed: () => _fillQuickAccount('admin', '123456'),
-                              child: const Text('Quản lý\n(Admin)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10.5)),
+                              onPressed: () => _fillQuickAccount('quanly', '123456'),
+                              child: const Text('Ban Quản\nlý', textAlign: TextAlign.center, style: TextStyle(fontSize: 10)),
                             ),
                           ),
                           const SizedBox(width: 6),
@@ -481,7 +481,18 @@ class _LoginScreenState extends State<LoginScreen> {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                               onPressed: () => _fillQuickAccount('kythuat', '123456'),
-                              child: const Text('Kỹ thuật\n(KTV)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10.5)),
+                              child: const Text('Kỹ thuật\n(KTV)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10)),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onPressed: () => _fillQuickAccount('admin', '123456'),
+                              child: const Text('Admin\nHệ thống', textAlign: TextAlign.center, style: TextStyle(fontSize: 10)),
                             ),
                           ),
                         ],

@@ -261,7 +261,7 @@ class _AiFloatingBubbleState extends State<AiFloatingBubble> {
   final _scrollController = ScrollController();
 
   bool _isOpen = false;
-  String? _roleModeOverride;
+  String _lastSyncedSessionKey = '';
 
   static const List<String> _adminQuickPrompts = [
     'Báo cáo doanh thu & công nợ tháng này',
@@ -433,59 +433,32 @@ class _AiFloatingBubbleState extends State<AiFloatingBubble> {
     );
   }
 
-  Widget _buildModeChip({
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.white.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected
-                ? Colors.white
-                : Colors.white.withValues(alpha: 0.35),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: selected ? const Color(0xFF4338CA) : Colors.white,
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _selectRoleMode(String mode) {
-    final auth = context.read<AuthProvider>();
-    final aiProv = context.read<AiChatProvider>();
-    setState(() => _roleModeOverride = mode);
-    aiProv.clearChat(
-      isAdmin: mode != 'resident',
-      roleMode: mode,
-      userName: auth.user?.fullName,
-      roomCode: auth.user?.effectiveRoomCode,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final aiProv = context.watch<AiChatProvider>();
-    final effectiveRoleMode = AiChatProvider.resolveRoleMode(
-      isAdmin: auth.isAdmin,
-      explicitRoleMode: _roleModeOverride,
-      userRole: auth.currentRole,
-    );
+    final effectiveRoleMode = auth.effectiveAiRoleMode;
     final isAdminLike = effectiveRoleMode != 'resident';
+    final sessionKey =
+        '${auth.user?.userId ?? ''}|${auth.currentRole}|$effectiveRoleMode';
+    if (_lastSyncedSessionKey != sessionKey) {
+      _lastSyncedSessionKey = sessionKey;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<AiChatProvider>().syncRoleGreeting(
+              isAdmin: isAdminLike,
+              roleMode: effectiveRoleMode,
+              userName: auth.user?.fullName,
+              roomCode: auth.user?.effectiveRoomCode,
+            );
+      });
+    }
+    final roleLockBadgeText = switch (effectiveRoleMode) {
+      'admin' => 'AI Quản trị Hệ thống • Admin',
+      'manager' => 'AI Điều hành • Ban Quản lý',
+      _ =>
+        'AI Hỗ trợ Cư dân • ${auth.user?.effectiveRoomCode ?? 'P.305'}',
+    };
     final size = MediaQuery.of(context).size;
     final isCompactScreen = size.width < 520;
     final popupWidth = math.min(385.0, math.max(240.0, size.width - 24));
@@ -665,26 +638,41 @@ class _AiFloatingBubbleState extends State<AiFloatingBubble> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          _buildModeChip(
-                            label: 'Người dùng',
-                            selected: effectiveRoleMode == 'resident',
-                            onTap: () => _selectRoleMode('resident'),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.35),
                           ),
-                          _buildModeChip(
-                            label: 'Ban Quản lý',
-                            selected: effectiveRoleMode == 'manager',
-                            onTap: () => _selectRoleMode('manager'),
-                          ),
-                          _buildModeChip(
-                            label: 'Admin',
-                            selected: effectiveRoleMode == 'admin',
-                            onTap: () => _selectRoleMode('admin'),
-                          ),
-                        ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.verified_user_rounded,
+                              color: Colors.white,
+                              size: 13,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                roleLockBadgeText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

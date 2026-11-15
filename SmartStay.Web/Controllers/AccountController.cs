@@ -157,6 +157,14 @@ public class AccountController : Controller
             return View(model);
         }
 
+        var displayRoleName = role switch
+        {
+            "Admin" => "Quản trị viên (Admin)",
+            "QuanLy" => "Ban Quản lý",
+            "KyThuat" => "Kỹ thuật viên",
+            _ => "Cư dân"
+        };
+
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, userIdStr),
@@ -165,7 +173,7 @@ public class AccountController : Controller
             new Claim(ClaimTypes.Email, email),
             new Claim("FullName", fullName),
             new Claim("Username", username),
-            new Claim("RoleName", role)
+            new Claim("RoleName", displayRoleName)
         };
 
         if (!string.IsNullOrEmpty(roomCode))

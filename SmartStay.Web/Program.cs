@@ -253,8 +253,9 @@ app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 
-// SignalR Real-time Hub
+// SignalR Real-time Hub (Phòng, Kanban & Tổng đài WebRTC /call)
 app.MapHub<SmartStayHub>("/hub/smartstay");
+app.MapHub<SmartStayHub>("/hub/call");
 
 // Map API Controllers (/api/auth, /api/phong, /api/tro-ly, /api/hoadon, /api/sync, ...)
 app.MapControllers();

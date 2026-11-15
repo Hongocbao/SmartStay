@@ -1,3 +1,6 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -474,12 +477,21 @@ public class TroLyAiController : ControllerBase
     public IActionResult ChatVoiAi([FromBody] TroLyChatRequestDto req)
     {
         var q = (req.TinNhan ?? string.Empty).Trim().ToLowerInvariant();
-        var roleRaw = (req.VaiTro ?? "CuDan").Trim().ToLowerInvariant();
+        var authRole = User.Identity?.IsAuthenticated == true
+            ? User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
+            : null;
+        var effectiveRoleSource = !string.IsNullOrWhiteSpace(authRole)
+            ? authRole
+            : (req.VaiTro ?? "CuDan");
+        var roleRaw = effectiveRoleSource.Trim().ToLowerInvariant();
         var isAdminRole = roleRaw == "admin" || roleRaw.Contains("quản trị");
         var isManagerRole = !isAdminRole &&
                             (roleRaw is "quanly" or "kythuat" or "manager" ||
                              roleRaw.Contains("quản lý") || roleRaw.Contains("kỹ thuật"));
-        var roomCode = string.IsNullOrWhiteSpace(req.SoPhong) ? "P.305" : req.SoPhong.Trim();
+        var authRoom = User.Identity?.IsAuthenticated == true ? User.FindFirst("RoomCode")?.Value : null;
+        var roomCode = !string.IsNullOrWhiteSpace(authRoom)
+            ? authRoom.Trim()
+            : (string.IsNullOrWhiteSpace(req.SoPhong) ? "P.305" : req.SoPhong.Trim());
 
         string reply;
         string mode;
@@ -596,5 +608,182 @@ public class TroLyAiController : ControllerBase
         }
 
         return Ok(new { TraLoi = reply, VaiTro = mode, ThoiGian = DateTime.UtcNow });
+    }
+}
+
+public class OcrReadMeterRequestDto
+{
+    public string? ImageBase64 { get; set; }
+    public string? MeterType { get; set; } // "electric" | "water"
+    public int? PreviousReading { get; set; }
+}
+
+[ApiController]
+[Route("api/ocr")]
+public class OcrApiController : ControllerBase
+{
+    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(25) };
+    private readonly IConfiguration _config;
+
+    public OcrApiController(IConfiguration config)
+    {
+        _config = config;
+    }
+
+    [AllowAnonymous]
+    [HttpPost("read-meter")]
+    [HttpPost("/api/tro-ly/ocr-cong-to")]
+    public async Task<IActionResult> ReadMeter([FromBody] OcrReadMeterRequestDto req)
+    {
+        if (string.IsNullOrWhiteSpace(req.ImageBase64))
+        {
+            return BadRequest(new { success = false, message = "Thiếu dữ liệu ảnh Base64 để nhận diện." });
+        }
+
+        var rawDataUrl = req.ImageBase64.Trim();
+        var mimeType = "image/jpeg";
+        var pureBase64 = rawDataUrl;
+
+        var dataUrlMatch = Regex.Match(rawDataUrl, @"^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$", RegexOptions.Singleline);
+        if (dataUrlMatch.Success)
+        {
+            mimeType = dataUrlMatch.Groups[1].Value;
+            pureBase64 = dataUrlMatch.Groups[2].Value;
+        }
+
+        try
+        {
+            var bytes = Convert.FromBase64String(pureBase64);
+            if (bytes.Length < 64)
+            {
+                return BadRequest(new { success = false, message = "Dữ liệu ảnh không hợp lệ hoặc quá nhỏ." });
+            }
+        }
+        catch
+        {
+            return BadRequest(new { success = false, message = "Chuỗi ảnh Base64 không đúng định dạng." });
+        }
+
+        var meterType = (req.MeterType ?? "electric").Trim().ToLowerInvariant() == "water" ? "water" : "electric";
+        var apiKey = _config["GEMINI_API_KEY"]
+                     ?? _config["Gemini:ApiKey"]
+                     ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY")
+                     ?? Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return Ok(new
+            {
+                success = true,
+                needsClientOcr = true,
+                meterType,
+                message = "Chuyển sang trình nhận diện ảnh AI Vision OCR cục bộ (Tesseract WASM + Canvas CV)."
+            });
+        }
+
+        var prompt = meterType == "electric"
+            ? "Bạn là chuyên gia AI Vision đọc công tơ điện Việt Nam (EVN điện tử 1 pha/3 pha màn hình LCD 7 đoạn hoặc công tơ cơ). " +
+              "Hãy đọc CHÍNH XÁC con số chỉ số tiêu thụ kWh chính trên màn hình đồng hồ trong ảnh (VD: '01548.5'). " +
+              "TUYỆT ĐỐI bỏ qua điện áp '220V', tần số '50Hz', mã số serial, mã vạch. " +
+              "Quy tắc trả về JSON: {\"rawText\": chuỗi số đọc được nguyên bản có dấu chấm nếu có, \"reading\": số nguyên kWh làm tròn phần nguyên trước dấu chấm (VD 01548.5 -> 1548), \"alternativeReading\": null, \"hasRedDecimalDigit\": false, \"meterStyle\": \"Công tơ điện tử LCD EVN\" hoặc \"Công tơ điện cơ\", \"confidence\": độ tin cậy thực tế từ 0 đến 99.9, \"note\": mô tả ngắn cách đọc}. Chỉ xuất JSON."
+            : "Bạn là chuyên gia AI Vision đọc đồng hồ nước tại Việt Nam. " +
+              "Hãy đọc CHÍNH XÁC dãy số trong ô chỉ số m3 (VD: '01284' gồm 4 ô đen 0128 và 1 ô đỏ 4). " +
+              "Bỏ qua chữ 'm3', x0.1, x0.01, tên hãng. " +
+              "Quy tắc trả về JSON: {\"rawText\": toàn bộ chữ số trong ô đếm (VD '01284'), \"reading\": phần nguyên m3 màu đen bỏ qua số thập phân màu đỏ ở cuối nếu có (VD '01284' có số 4 màu đỏ -> 128), \"alternativeReading\": toàn bộ phần số nguyên cả 5 ô không dấu phẩy (VD 1284) nếu có chữ số đỏ, \"hasRedDecimalDigit\": true/false, \"meterStyle\": \"Đồng hồ nước cơ học m3\", \"confidence\": độ tin cậy thực tế từ 0 đến 99.9, \"note\": giải thích số đen vs số đỏ}. Chỉ xuất JSON.";
+
+        try
+        {
+            var payload = new
+            {
+                contents = new[]
+                {
+                    new
+                    {
+                        parts = new object[]
+                        {
+                            new { text = prompt },
+                            new { inline_data = new { mime_type = mimeType, data = pureBase64 } }
+                        }
+                    }
+                },
+                generationConfig = new
+                {
+                    temperature = 0.0,
+                    responseMimeType = "application/json"
+                }
+            };
+
+            var endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(apiKey.Trim())}";
+            using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            using var response = await _http.PostAsync(endpoint, content);
+            var jsonStr = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    needsClientOcr = true,
+                    meterType,
+                    message = "Gemini Vision tạm thời không phản hồi, chuyển sang OCR cục bộ."
+                });
+            }
+
+            using var doc = JsonDocument.Parse(jsonStr);
+            var textOut = doc.RootElement
+                .GetProperty("candidates")[0]
+                .GetProperty("content")
+                .GetProperty("parts")[0]
+                .GetProperty("text")
+                .GetString() ?? string.Empty;
+
+            textOut = Regex.Replace(textOut, @"^```json\s*|\s*```$", "", RegexOptions.IgnoreCase).Trim();
+            using var parsed = JsonDocument.Parse(textOut);
+            var rootEl = parsed.RootElement;
+
+            var rawText = rootEl.TryGetProperty("rawText", out var rt) ? (rt.GetString() ?? "") : "";
+            var reading = rootEl.TryGetProperty("reading", out var rd) && rd.ValueKind == JsonValueKind.Number
+                ? (int)Math.Round(rd.GetDouble())
+                : (int?)null;
+            int? altReading = rootEl.TryGetProperty("alternativeReading", out var ar) && ar.ValueKind == JsonValueKind.Number
+                ? (int)Math.Round(ar.GetDouble())
+                : null;
+            var hasRed = rootEl.TryGetProperty("hasRedDecimalDigit", out var hr) && hr.ValueKind == JsonValueKind.True;
+            var style = rootEl.TryGetProperty("meterStyle", out var ms) ? (ms.GetString() ?? "") : "";
+            var confidence = rootEl.TryGetProperty("confidence", out var cf) && cf.ValueKind == JsonValueKind.Number
+                ? Math.Round(cf.GetDouble(), 1)
+                : 95.0;
+            var note = rootEl.TryGetProperty("note", out var nt) ? (nt.GetString() ?? "") : "";
+
+            if (reading == null)
+            {
+                return Ok(new { success = true, needsClientOcr = true, meterType });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                needsClientOcr = false,
+                provider = "Gemini Vision 2.0 Flash",
+                meterType,
+                rawText,
+                reading,
+                alternativeReading = altReading,
+                hasRedDecimalDigit = hasRed,
+                meterStyle = style,
+                confidence,
+                note
+            });
+        }
+        catch
+        {
+            return Ok(new
+            {
+                success = true,
+                needsClientOcr = true,
+                meterType,
+                message = "Chuyển sang OCR cục bộ (Tesseract WASM + Canvas CV)."
+            });
+        }
     }
 }

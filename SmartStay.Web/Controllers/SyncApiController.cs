@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using SmartStay.Web.Data;
+using SmartStay.Web.Hubs;
 using SmartStay.Web.Models;
 
 namespace SmartStay.Web.Controllers;
@@ -15,6 +17,7 @@ namespace SmartStay.Web.Controllers;
 public class SyncApiController : ControllerBase
 {
     private readonly SmartStayDbContext _db;
+    private readonly IHubContext<SmartStayHub> _hubContext;
 
     // Bộ đệm đồng bộ tức thì (In-Memory Realtime State) kết hợp Database Supabase
     private static readonly ConcurrentDictionary<string, SyncRoomItem> _liveRooms = new(StringComparer.OrdinalIgnoreCase);
@@ -95,9 +98,10 @@ public class SyncApiController : ControllerBase
         return dict;
     }
 
-    public SyncApiController(SmartStayDbContext db)
+    public SyncApiController(SmartStayDbContext db, IHubContext<SmartStayHub> hubContext)
     {
         _db = db;
+        _hubContext = hubContext;
     }
 
     [AllowAnonymous]
@@ -435,16 +439,36 @@ public class SyncApiController : ControllerBase
     [HttpPost("cuoc-goi")]
     public IActionResult LuuCuocGoi([FromBody] LuuCuocGoiSyncDto req)
     {
+        var callCode = !string.IsNullOrWhiteSpace(req.CallId)
+            ? req.CallId.Trim()
+            : $"CALL-{DateTime.UtcNow.Ticks % 9000 + 1000}";
+
+        var existing = _liveCallLogs.FirstOrDefault(c =>
+            string.Equals(c.MaCuocGoi, callCode, StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null)
+        {
+            existing.ThoiLuongGiay = Math.Max(existing.ThoiLuongGiay, Math.Max(0, req.ThoiLuongGiay));
+            if (!string.IsNullOrWhiteSpace(req.TrangThai)) existing.TrangThai = req.TrangThai.Trim();
+            if (!string.IsNullOrWhiteSpace(req.NoiDungTraoDoi)) existing.NoiDungTraoDoi = req.NoiDungTraoDoi.Trim();
+            return Ok(new
+            {
+                success = true,
+                call = existing,
+                cuocGois = _liveCallLogs.Reverse().Take(20).ToList()
+            });
+        }
+
         var log = new SyncCallLogItem
         {
-            MaCuocGoi = $"CALL-{DateTime.UtcNow.Ticks % 9000 + 1000}",
+            MaCuocGoi = callCode,
             NguoiGoi = string.IsNullOrWhiteSpace(req.NguoiGoi) ? "Người dùng SmartStay" : req.NguoiGoi.Trim(),
             VaiTroNguoiGoi = string.IsNullOrWhiteSpace(req.VaiTroNguoiGoi) ? "CuDan" : req.VaiTroNguoiGoi.Trim(),
             NguoiNhan = string.IsNullOrWhiteSpace(req.NguoiNhan) ? "Ban Quản Lý Vận Hành" : req.NguoiNhan.Trim(),
             VaiTroNguoiNhan = string.IsNullOrWhiteSpace(req.VaiTroNguoiNhan) ? "QuanLy" : req.VaiTroNguoiNhan.Trim(),
             LoaiCuocGoi = string.IsNullOrWhiteSpace(req.LoaiCuocGoi) ? "Video" : req.LoaiCuocGoi.Trim(),
             NoiDungTraoDoi = string.IsNullOrWhiteSpace(req.NoiDungTraoDoi) ? "Trao đổi trực tiếp trên hệ thống" : req.NoiDungTraoDoi.Trim(),
-            ThoiLuongGiay = Math.Max(1, req.ThoiLuongGiay),
+            ThoiLuongGiay = Math.Max(0, req.ThoiLuongGiay),
             TrangThai = string.IsNullOrWhiteSpace(req.TrangThai) ? "Đã kết nối" : req.TrangThai.Trim(),
             ThoiDiem = DateTime.UtcNow
         };
@@ -455,6 +479,67 @@ public class SyncApiController : ControllerBase
             success = true,
             call = log,
             cuocGois = _liveCallLogs.Reverse().Take(20).ToList()
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("call-signal")]
+    public async Task<IActionResult> DispatchCallSignalRest([FromBody] CallSignalPacket req)
+    {
+        if (string.IsNullOrWhiteSpace(req.SignalType) || string.IsNullOrWhiteSpace(req.FromClientId))
+        {
+            return BadRequest(new { success = false, message = "Thiếu signalType hoặc fromClientId." });
+        }
+
+        CallSignalingEngine.UpsertPresence(req.FromClientId, req.FromRole, req.FromName, req.FromRoom);
+        var saved = CallSignalingEngine.EnqueueSignal(req);
+        await CallSignalingEngine.BroadcastPacketAsync(_hubContext.Clients, saved);
+
+        return Ok(new
+        {
+            success = true,
+            signal = saved,
+            latestSeq = CallSignalingEngine.CurrentSeq
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpGet("call-signal/poll")]
+    public IActionResult PollCallSignals(
+        [FromQuery] string clientId,
+        [FromQuery] string? role = "CuDan",
+        [FromQuery] string? displayName = null,
+        [FromQuery] string? roomCode = null,
+        [FromQuery] long sinceSeq = 0)
+    {
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            return BadRequest(new { success = false, message = "Thiếu clientId." });
+        }
+
+        CallSignalingEngine.UpsertPresence(clientId, role, displayName, roomCode);
+        var effectiveSince = sinceSeq <= 0 ? CallSignalingEngine.CurrentSeq : sinceSeq;
+        var items = sinceSeq <= 0
+            ? new List<CallSignalPacket>()
+            : CallSignalingEngine.PollSignals(clientId, role, effectiveSince);
+
+        return Ok(new
+        {
+            success = true,
+            latestSeq = items.Count > 0 ? items.Max(x => x.Seq) : effectiveSince,
+            signals = items,
+            onlinePeers = CallSignalingEngine.GetOnlinePeers(clientId)
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpGet("call-presence")]
+    public IActionResult GetCallPresence([FromQuery] string? excludeClientId = null)
+    {
+        return Ok(new
+        {
+            success = true,
+            peers = CallSignalingEngine.GetOnlinePeers(excludeClientId)
         });
     }
 
@@ -667,6 +752,7 @@ public class SyncCallLogItem
 
 public class LuuCuocGoiSyncDto
 {
+    public string? CallId { get; set; }
     public string? NguoiGoi { get; set; }
     public string? VaiTroNguoiGoi { get; set; }
     public string? NguoiNhan { get; set; }

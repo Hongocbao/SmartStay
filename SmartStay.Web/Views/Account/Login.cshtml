@@ -106,7 +106,7 @@
 
         .role-btn-group {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 8px;
             margin-bottom: 24px;
         }
@@ -285,8 +285,12 @@
             </div>
 
             <div class="role-btn-group">
-                <div class="role-btn role-badge-admin active" onclick="selectRole('Admin', 'admin', '123456', 'Toàn quyền Ban Quản Lý: Dashboard KPI, sơ đồ phòng, đối soát VietQR, hợp đồng cư dân, Kanban & khóa IoT.')">
+                <div class="role-btn role-badge-admin active" onclick="selectRole('Admin', 'admin', '123456', 'Toàn quyền Admin Hệ Thống: Dashboard KPI, cấu hình VietQR/ngân hàng, phân quyền, bảo mật & đối soát toàn tòa nhà.')">
                     <i class="bi bi-shield-lock-fill text-purple"></i>
+                    <span>Admin Hệ Thống</span>
+                </div>
+                <div class="role-btn role-badge-admin" onclick="selectRole('QuanLy', 'quanly', '123456', 'Không gian Ban Quản Lý: Điều hành sơ đồ phòng, đối soát VietQR, hợp đồng cư dân & phối hợp kỹ thuật.')">
+                    <i class="bi bi-building-gear text-info"></i>
                     <span>Ban Quản Lý</span>
                 </div>
                 <div class="role-btn role-badge-tech" onclick="selectRole('KyThuat', 'kythuat', '123456', 'Không gian Kỹ Thuật Viên: Điều phối xử lý sự cố Kanban, bảo trì vật tư & khóa IoT.')">
@@ -388,10 +392,12 @@
 
             if (role === 'Admin') {
                 buttons[0].classList.add('active');
-            } else if (role === 'KyThuat') {
+            } else if (role === 'QuanLy') {
                 buttons[1].classList.add('active');
-            } else {
+            } else if (role === 'KyThuat') {
                 buttons[2].classList.add('active');
+            } else {
+                buttons[3].classList.add('active');
             }
         }
 

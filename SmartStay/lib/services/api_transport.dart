@@ -34,3 +34,29 @@ void writeLocalStorage(String key, String value) =>
     transport.writeLocalStorage(key, value);
 
 String? readLocalStorage(String key) => transport.readLocalStorage(key);
+
+void rtcStartRingtone() => transport.rtcStartRingtone();
+void rtcStopRingtone() => transport.rtcStopRingtone();
+Future<bool> rtcPrepareLocalMedia(bool isVideo, String label) =>
+    transport.rtcPrepareLocalMedia(isVideo, label);
+Future<void> rtcStartCallerPeer(String metaJson) =>
+    transport.rtcStartCallerPeer(metaJson);
+Future<void> rtcStartCalleePeer(String metaJson) =>
+    transport.rtcStartCalleePeer(metaJson);
+Future<void> rtcHandleSignal(String packetJson) =>
+    transport.rtcHandleSignal(packetJson);
+void rtcSetMic(bool enabled) => transport.rtcSetMic(enabled);
+void rtcSetCam(bool enabled) => transport.rtcSetCam(enabled);
+void rtcHangup() => transport.rtcHangup();
+
+Future<Map<String, dynamic>?> analyzeMeterImageOcr({
+  required String dataUrl,
+  required String meterType,
+  required int previousReading,
+  required String apiBaseUrl,
+}) => transport.analyzeMeterImageOcr(
+  dataUrl: dataUrl,
+  meterType: meterType,
+  previousReading: previousReading,
+  apiBaseUrl: apiBaseUrl,
+);

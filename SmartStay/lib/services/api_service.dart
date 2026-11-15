@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'api_transport.dart';
@@ -23,6 +24,22 @@ class ApiService {
 
   String? authToken;
   bool isConnectedToBackend = false;
+
+  static final String callClientId =
+      'flt-${DateTime.now().millisecondsSinceEpoch % 1000000}-${DateTime.now().microsecond}';
+  final StreamController<Map<String, dynamic>> _callSignalController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final Set<int> _seenSignalSeqs = <int>{};
+  int _lastCallSignalSeq = 0;
+  List<Map<String, dynamic>> latestOnlinePeers = <Map<String, dynamic>>[];
+
+  Stream<Map<String, dynamic>> get callSignalStream =>
+      _callSignalController.stream;
+
+  void resetCallSignalCursor() {
+    _lastCallSignalSeq = 0;
+    _seenSignalSeqs.clear();
+  }
 
   /// Helper thực hiện POST request an toàn đa nền tảng
   Future<Map<String, dynamic>?> _post(String endpoint, Map<String, dynamic> body, {Duration? timeout}) async {
@@ -239,4 +256,88 @@ class ApiService {
   /// Lưu lịch sử cuộc gọi thoại / Video Call giữa Cư dân, Quản lý & Admin
   Future<Map<String, dynamic>?> postSyncCallLog(Map<String, dynamic> payload) =>
       _post('/sync/cuoc-goi', payload);
+
+  /// Gửi tín hiệu SignalR/WebRTC cuộc gọi (đổ chuông, chấp nhận, từ chối, offer/answer/ice)
+  Future<Map<String, dynamic>?> postCallSignal(Map<String, dynamic> payload) =>
+      _post('/sync/call-signal', payload);
+
+  /// Đồng bộ tín hiệu cuộc gọi đến & danh sách thiết bị đang trực tuyến
+  Future<List<Map<String, dynamic>>> pollCallSignals({
+    required String role,
+    required String displayName,
+    String? roomCode,
+  }) async {
+    final query = Uri(
+      queryParameters: {
+        'clientId': callClientId,
+        'role': role,
+        'displayName': displayName,
+        'roomCode': roomCode ?? '',
+        'sinceSeq': '$_lastCallSignalSeq',
+      },
+    ).query;
+    final res = await _get('/sync/call-signal/poll?$query');
+    if (res is! Map<String, dynamic>) return const [];
+
+    final latestSeq = (res['latestSeq'] as num?)?.toInt() ?? 0;
+    if (latestSeq > _lastCallSignalSeq) {
+      _lastCallSignalSeq = latestSeq;
+    }
+    if (res['onlinePeers'] is List) {
+      latestOnlinePeers = (res['onlinePeers'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+
+    final received = <Map<String, dynamic>>[];
+    if (res['signals'] is List) {
+      for (final raw in res['signals'] as List) {
+        if (raw is! Map) continue;
+        final pkt = Map<String, dynamic>.from(raw);
+        final seq = (pkt['seq'] as num?)?.toInt() ?? 0;
+        if (seq > 0) {
+          if (_seenSignalSeqs.contains(seq)) continue;
+          _seenSignalSeqs.add(seq);
+          if (seq > _lastCallSignalSeq) _lastCallSignalSeq = seq;
+        }
+        received.add(pkt);
+        if (!_callSignalController.isClosed) {
+          _callSignalController.add(pkt);
+        }
+      }
+    }
+    return received;
+  }
+
+  /// Phân tích ảnh công tơ điện / đồng hồ nước thực tế bằng AI Vision / Client OCR
+  Future<Map<String, dynamic>?> analyzeMeterOcr({
+    required String dataUrl,
+    required String meterType,
+    required int previousReading,
+  }) async {
+    final webOrEngine = await analyzeMeterImageOcr(
+      dataUrl: dataUrl,
+      meterType: meterType,
+      previousReading: previousReading,
+      apiBaseUrl: baseUrl,
+    );
+    if (webOrEngine != null && webOrEngine['reading'] is num) {
+      return webOrEngine;
+    }
+
+    final res = await _post(
+      '/ocr/read-meter',
+      {
+        'ImageBase64': dataUrl,
+        'MeterType': meterType,
+        'PreviousReading': previousReading,
+      },
+      timeout: const Duration(seconds: 25),
+    );
+    if (res != null && res['success'] == true && res['reading'] is num) {
+      return res;
+    }
+    return null;
+  }
 }

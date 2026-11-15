@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
+import '../services/api_transport.dart';
 import '../utils/provider_scope.dart';
 import '../providers/auth_provider.dart';
 import '../providers/admin_provider.dart';
@@ -52,7 +55,12 @@ class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
   int _residentServiceTab = 2; // Mặc định mở tab AI Quét Công Tơ hoặc tab được chọn
   Timer? _realtimeSyncTimer;
+  Timer? _callPollTimer;
   bool _isSyncing = false;
+  bool _isPollingCalls = false;
+  bool _incomingDialogOpen = false;
+  String? _incomingCallIdShowing;
+  String? _activeCallDialogCallId;
 
   @override
   void initState() {
@@ -61,12 +69,232 @@ class _MainLayoutState extends State<MainLayout> {
     _realtimeSyncTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       _triggerRealtimeSync(silent: true);
     });
+    _callPollTimer = Timer.periodic(const Duration(milliseconds: 1400), (_) {
+      _pollIncomingCallSignals();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pollIncomingCallSignals();
+    });
   }
 
   @override
   void dispose() {
     _realtimeSyncTimer?.cancel();
+    _callPollTimer?.cancel();
+    rtcStopRingtone();
     super.dispose();
+  }
+
+  String _resolveNormalizedCallRole(AuthProvider auth) {
+    final mode = auth.effectiveAiRoleMode;
+    if (mode == 'admin') return 'Admin';
+    if (mode == 'manager') {
+      final uname = (auth.user?.username ?? '').toLowerCase();
+      final roleLower = auth.currentRole.toLowerCase();
+      if (uname == 'kythuat' || roleLower.contains('kỹ thuật')) {
+        return 'KyThuat';
+      }
+      return 'QuanLy';
+    }
+    return 'CuDan';
+  }
+
+  Future<void> _pollIncomingCallSignals() async {
+    if (!mounted || _isPollingCalls) return;
+    final auth = context.read<AuthProvider>();
+    if (!auth.isAuthenticated) return;
+
+    _isPollingCalls = true;
+    try {
+      final api = ApiService();
+      final roleToken = _resolveNormalizedCallRole(auth);
+      final signals = await api.pollCallSignals(
+        role: roleToken,
+        displayName: auth.user?.fullName ?? roleToken,
+        roomCode: auth.user?.effectiveRoomCode,
+      );
+      if (!mounted) return;
+
+      for (final sig in signals) {
+        final sigType = (sig['signalType'] ?? '').toString();
+        final callId = (sig['callId'] ?? '').toString();
+        if (sigType == 'webrtc_offer' ||
+            sigType == 'webrtc_answer' ||
+            sigType == 'webrtc_ice') {
+          unawaited(rtcHandleSignal(jsonEncode(sig)));
+        } else if (sigType == 'call_ended') {
+          if (_incomingDialogOpen && _incomingCallIdShowing == callId) {
+            rtcStopRingtone();
+            _incomingDialogOpen = false;
+            _incomingCallIdShowing = null;
+            if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+              Navigator.of(context, rootNavigator: true).pop();
+            }
+          }
+        } else if (sigType == 'initiate_call' &&
+            !_incomingDialogOpen &&
+            _activeCallDialogCallId != callId) {
+          _showIncomingCallDialog(sig, roleToken, auth.user?.fullName ?? roleToken);
+        }
+      }
+    } finally {
+      _isPollingCalls = false;
+    }
+  }
+
+  Future<void> _showIncomingCallDialog(
+    Map<String, dynamic> incomingPacket,
+    String myRoleToken,
+    String myName,
+  ) async {
+    final callId = (incomingPacket['callId'] ?? '').toString();
+    final callerName = (incomingPacket['fromName'] ?? 'Người gọi SmartStay').toString();
+    final callerRole = (incomingPacket['fromRole'] ?? 'CuDan').toString();
+    final callerRoom = (incomingPacket['fromRoom'] ?? '').toString();
+    final callMode = (incomingPacket['callMode'] ?? 'Video').toString();
+    final isVideo = callMode.toLowerCase() != 'thoại';
+
+    _incomingDialogOpen = true;
+    _incomingCallIdShowing = callId;
+    rtcStartRingtone();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.2),
+                    border: Border.all(color: const Color(0xFF22C55E), width: 2),
+                  ),
+                  child: Icon(
+                    isVideo ? Icons.videocam_rounded : Icons.call_rounded,
+                    color: const Color(0xFF4ADE80),
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isVideo ? 'Cuộc gọi Video HD đến' : 'Cuộc gọi Thoại đến',
+                    style: const TextStyle(
+                      color: Color(0xFF4ADE80),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  callerName,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Vai trò: $callerRole${callerRoom.isNotEmpty ? ' • Phòng $callerRoom' : ''}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          rtcStopRingtone();
+                          _incomingDialogOpen = false;
+                          _incomingCallIdShowing = null;
+                          Navigator.of(dialogCtx).pop();
+                          await ApiService().postCallSignal({
+                            'callId': callId,
+                            'signalType': 'call_rejected',
+                            'fromClientId': ApiService.callClientId,
+                            'fromName': myName,
+                            'fromRole': myRoleToken,
+                            'targetClientId': incomingPacket['fromClientId'] ?? '',
+                            'targetRole': callerRole,
+                            'callMode': callMode,
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red.shade600,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 46),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                        ),
+                        icon: const Icon(Icons.call_end_rounded, size: 18),
+                        label: const Text('Từ chối'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          rtcStopRingtone();
+                          _incomingDialogOpen = false;
+                          _incomingCallIdShowing = null;
+                          _activeCallDialogCallId = callId;
+                          Navigator.of(dialogCtx).pop();
+                          if (!mounted) return;
+                          await showSmartStayCallModal(
+                            context,
+                            incomingSignal: incomingPacket,
+                            initialTargetRole: callerRole,
+                            initialTargetName: callerName,
+                            initialVideo: isVideo,
+                          );
+                          _activeCallDialogCallId = null;
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade600,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(0, 46),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                        ),
+                        icon: const Icon(Icons.call_rounded, size: 18),
+                        label: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Chấp nhận (Nghe máy)'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    rtcStopRingtone();
+    _incomingDialogOpen = false;
+    _incomingCallIdShowing = null;
   }
 
   Future<void> _triggerRealtimeSync({bool silent = false}) async {

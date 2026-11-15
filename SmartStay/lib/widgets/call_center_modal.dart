@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../services/api_transport.dart';
 import '../utils/provider_scope.dart';
 
 const _callPrimary = Color(0xFF4F46E5);
@@ -16,6 +18,7 @@ Future<void> showSmartStayCallModal(
   String? initialTargetRole,
   String? initialTargetName,
   bool initialVideo = true,
+  Map<String, dynamic>? incomingSignal,
 }) {
   return showDialog<void>(
     context: context,
@@ -24,6 +27,7 @@ Future<void> showSmartStayCallModal(
       initialTargetRole: initialTargetRole,
       initialTargetName: initialTargetName,
       initialVideo: initialVideo,
+      incomingSignal: incomingSignal,
     ),
   );
 }
@@ -73,11 +77,13 @@ class _SmartStayCallDialog extends StatefulWidget {
   final String? initialTargetRole;
   final String? initialTargetName;
   final bool initialVideo;
+  final Map<String, dynamic>? incomingSignal;
 
   const _SmartStayCallDialog({
     this.initialTargetRole,
     this.initialTargetName,
     required this.initialVideo,
+    this.incomingSignal,
   });
 
   @override
@@ -91,14 +97,20 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
   late final TextEditingController _targetController;
   final TextEditingController _noteController = TextEditingController();
 
+  StreamSubscription<Map<String, dynamic>>? _signalSub;
   Timer? _callTimer;
   bool _inCall = false;
+  bool _ringingOutgoing = false;
+  bool _connected = false;
   late bool _isVideo;
   bool _micOn = true;
   bool _camOn = true;
   int _elapsedSeconds = 0;
+  String _activeCallId = '';
+  String _targetClientId = '';
   late String _targetRole;
   bool _savingLog = false;
+  bool _hasSavedCurrentCall = false;
   String? _statusNote;
   List<Map<String, dynamic>> _callLogs = [];
 
@@ -115,16 +127,170 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
+
+    _signalSub = _api.callSignalStream.listen(_handleRemoteCallSignal);
     _loadRecentLogs();
+
+    if (widget.incomingSignal != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _acceptIncomingSignal(widget.incomingSignal!);
+      });
+    }
   }
 
   @override
   void dispose() {
+    _signalSub?.cancel();
     _callTimer?.cancel();
+    if (_inCall || _ringingOutgoing) {
+      rtcHangup();
+    }
     _pulseController.dispose();
     _targetController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  String _myCallerRole(AuthProvider auth) {
+    final mode = auth.effectiveAiRoleMode;
+    if (mode == 'admin') return 'Admin';
+    if (mode == 'manager') {
+      final uname = (auth.user?.username ?? '').toLowerCase();
+      final roleLower = auth.currentRole.toLowerCase();
+      if (uname == 'kythuat' || roleLower.contains('kỹ thuật')) {
+        return 'KyThuat';
+      }
+      return 'QuanLy';
+    }
+    return 'CuDan';
+  }
+
+  Future<void> _acceptIncomingSignal(Map<String, dynamic> pkt) async {
+    final auth = context.read<AuthProvider>();
+    final myRole = _myCallerRole(auth);
+    final myName = auth.user?.fullName ?? myRole;
+    final callId = (pkt['callId'] ?? '').toString();
+    final peerClientId = (pkt['fromClientId'] ?? '').toString();
+    final peerRole = (pkt['fromRole'] ?? 'CuDan').toString();
+    final peerName = (pkt['fromName'] ?? 'Người gọi SmartStay').toString();
+    final isVid = (pkt['callMode'] ?? 'Video').toString().toLowerCase() != 'thoại';
+
+    _callTimer?.cancel();
+    setState(() {
+      _activeCallId = callId;
+      _targetClientId = peerClientId;
+      _targetRole = peerRole;
+      _targetController.text = peerName;
+      _inCall = true;
+      _ringingOutgoing = false;
+      _connected = true;
+      _hasSavedCurrentCall = false;
+      _isVideo = isVid;
+      _camOn = isVid;
+      _micOn = true;
+      _elapsedSeconds = 0;
+      _statusNote = 'Đã nhận máy! Đang thiết lập WebRTC 2 chiều...';
+    });
+
+    await rtcPrepareLocalMedia(isVid, '$myName ($myRole)');
+    await rtcStartCalleePeer(jsonEncode({
+      'callId': callId,
+      'apiBase': ApiService.baseUrl,
+      'isVideo': isVid,
+      'fromClientId': ApiService.callClientId,
+      'fromName': myName,
+      'fromRole': myRole,
+      'peerClientId': peerClientId,
+      'peerRole': peerRole,
+    }));
+
+    await _api.postCallSignal({
+      'callId': callId,
+      'signalType': 'call_accepted',
+      'fromClientId': ApiService.callClientId,
+      'fromName': myName,
+      'fromRole': myRole,
+      'fromRoom': auth.user?.effectiveRoomCode ?? '',
+      'targetClientId': peerClientId,
+      'targetRole': peerRole,
+      'callMode': isVid ? 'Video' : 'Thoại',
+    });
+
+    _startElapsedTimer();
+  }
+
+  void _startElapsedTimer() {
+    _callTimer?.cancel();
+    _callTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _elapsedSeconds += 1;
+        _statusNote = _isVideo
+            ? 'Đang đàm thoại Video WebRTC 2 chiều'
+            : 'Đang đàm thoại Thoại WebRTC HD';
+      });
+    });
+  }
+
+  Future<void> _handleRemoteCallSignal(Map<String, dynamic> pkt) async {
+    if (!mounted) return;
+    final sigType = (pkt['signalType'] ?? '').toString();
+    final callId = (pkt['callId'] ?? '').toString();
+    if (_activeCallId.isEmpty || callId != _activeCallId) return;
+
+    if (sigType == 'call_accepted') {
+      final auth = context.read<AuthProvider>();
+      final myRole = _myCallerRole(auth);
+      final myName = auth.user?.fullName ?? myRole;
+      final peerClientId = (pkt['fromClientId'] ?? '').toString();
+      final peerRole = (pkt['fromRole'] ?? _targetRole).toString();
+      final peerName = (pkt['fromName'] ?? '').toString();
+
+      setState(() {
+        _ringingOutgoing = false;
+        _inCall = true;
+        _connected = true;
+        if (peerClientId.isNotEmpty) _targetClientId = peerClientId;
+        if (peerName.isNotEmpty) _targetController.text = peerName;
+        _statusNote = 'Người nhận đã nghe máy! Đang kết nối WebRTC...';
+      });
+      _startElapsedTimer();
+
+      await rtcStartCallerPeer(jsonEncode({
+        'callId': callId,
+        'apiBase': ApiService.baseUrl,
+        'isVideo': _isVideo,
+        'fromClientId': ApiService.callClientId,
+        'fromName': myName,
+        'fromRole': myRole,
+        'peerClientId': peerClientId,
+        'peerRole': peerRole,
+      }));
+    } else if (sigType == 'call_rejected') {
+      _callTimer?.cancel();
+      rtcHangup();
+      setState(() {
+        _ringingOutgoing = false;
+        _inCall = false;
+        _connected = false;
+        _statusNote = 'Người nhận đã từ chối cuộc gọi';
+      });
+      await _persistCallRecord(status: 'Từ chối', duration: 0);
+    } else if (sigType == 'call_ended') {
+      _callTimer?.cancel();
+      rtcHangup();
+      final wasConnected = _connected;
+      final dur = _elapsedSeconds;
+      setState(() {
+        _ringingOutgoing = false;
+        _inCall = false;
+        _connected = false;
+        _statusNote = 'Đối phương đã kết thúc cuộc gọi (${_formatDuration(dur)})';
+      });
+      if (wasConnected) {
+        Future.delayed(const Duration(milliseconds: 500), _loadRecentLogs);
+      }
+    }
   }
 
   Future<void> _loadRecentLogs() async {
@@ -144,61 +310,79 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
     return '$m:$s';
   }
 
-  void _startCall({required bool video}) {
+  Future<void> _startCall({required bool video}) async {
     _callTimer?.cancel();
+    final auth = context.read<AuthProvider>();
+    final myRole = _myCallerRole(auth);
+    final myName = auth.user?.fullName ?? 'Người dùng SmartStay';
+    final partnerName = _targetController.text.trim().isEmpty
+        ? 'Ban Quản Lý'
+        : _targetController.text.trim();
+    final callId =
+        'CALL-${DateTime.now().millisecondsSinceEpoch}-${_elapsedSeconds + 10}';
+
     setState(() {
+      _activeCallId = callId;
       _inCall = true;
+      _ringingOutgoing = true;
+      _connected = false;
+      _hasSavedCurrentCall = false;
       _isVideo = video;
       _camOn = video;
       _micOn = true;
       _elapsedSeconds = 0;
-      _statusNote = video
-          ? 'Đang kết nối Video HD SmartStay RTC...'
-          : 'Đang kết nối cuộc gọi Thoại SmartStay...';
+      _statusNote = 'Đang đổ chuông tới $_targetRole ($partnerName)...';
     });
 
-    _callTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() {
-        _elapsedSeconds += 1;
-        if (_elapsedSeconds >= 2) {
-          _statusNote = _isVideo
-              ? 'Đang đàm thoại Video trực tiếp (Mã hóa P2P)'
-              : 'Đang đàm thoại Thoại HD';
-        }
-      });
+    final hardwareOk = await rtcPrepareLocalMedia(video, '$myName ($myRole)');
+    if (!mounted) return;
+
+    await _api.postCallSignal({
+      'callId': callId,
+      'signalType': 'initiate_call',
+      'fromClientId': ApiService.callClientId,
+      'fromName': myName,
+      'fromRole': myRole,
+      'fromRoom': auth.user?.effectiveRoomCode ?? '',
+      'targetClientId': _targetClientId,
+      'targetRole': _targetRole,
+      'targetName': partnerName,
+      'callMode': video ? 'Video' : 'Thoại',
+    });
+
+    if (!mounted || !_ringingOutgoing) return;
+    setState(() {
+      _statusNote = hardwareOk
+          ? 'Đang đổ chuông • Mic/Camera đã sẵn sàng, chờ người nhận Chấp nhận...'
+          : 'Đang đổ chuông • Chờ thiết bị nhận bấm Chấp nhận (WebRTC Media dự phòng)';
     });
   }
 
-  Future<void> _endAndSaveCall() async {
-    if (!_inCall) return;
-    _callTimer?.cancel();
-    final duration = _elapsedSeconds > 0 ? _elapsedSeconds : 1;
+  Future<void> _persistCallRecord({
+    required String status,
+    required int duration,
+  }) async {
+    if (_hasSavedCurrentCall) return;
+    _hasSavedCurrentCall = true;
     final auth = context.read<AuthProvider>();
     final callerName = auth.user?.fullName ?? 'Người dùng SmartStay';
-    final callerRole = auth.isAdmin
-        ? (auth.currentRole == 'Quản trị viên' ? 'Admin' : 'QuanLy')
-        : 'CuDan';
+    final callerRole = _myCallerRole(auth);
     final partnerName = _targetController.text.trim().isEmpty
         ? 'Ban Quản Lý'
         : _targetController.text.trim();
     final note = _noteController.text.trim().isEmpty
-        ? 'Trao đổi ${_isVideo ? 'Video Call' : 'Thoại'} trực tiếp trên SmartStay App'
+        ? 'Cuộc gọi ${_isVideo ? 'Video Call' : 'Thoại'} WebRTC ($status)'
         : _noteController.text.trim();
 
-    setState(() {
-      _inCall = false;
-      _savingLog = true;
-      _statusNote = 'Đang lưu nhật ký cuộc gọi (${_formatDuration(duration)})...';
-    });
-
+    setState(() => _savingLog = true);
     final res = await _api.postSyncCallLog({
+      'CallId': _activeCallId.isEmpty ? null : _activeCallId,
       'NguoiGoi': '$callerName (${auth.currentRole})',
       'VaiTroNguoiGoi': callerRole,
       'NguoiNhan': partnerName,
       'VaiTroNguoiNhan': _targetRole,
       'LoaiCuocGoi': _isVideo ? 'Video' : 'Thoại',
-      'TrangThai': 'Hoàn thành',
+      'TrangThai': status,
       'ThoiLuongGiay': duration,
       'NoiDungTraoDoi': note,
     });
@@ -206,7 +390,6 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
     if (!mounted) return;
     setState(() {
       _savingLog = false;
-      _statusNote = 'Đã kết thúc & đồng bộ nhật ký (${_formatDuration(duration)})';
       if (res != null && res['cuocGois'] is List) {
         _callLogs = (res['cuocGois'] as List)
             .whereType<Map<String, dynamic>>()
@@ -217,11 +400,50 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
           'nguoiNhan': partnerName,
           'vaiTroNguoiNhan': _targetRole,
           'loaiCuocGoi': _isVideo ? 'Video' : 'Thoại',
+          'trangThai': status,
           'thoiLuongGiay': duration,
           'noiDungTraoDoi': note,
         });
       }
     });
+  }
+
+  Future<void> _endAndSaveCall() async {
+    if (!_inCall && !_ringingOutgoing) return;
+    _callTimer?.cancel();
+    final wasConnected = _connected;
+    final duration = wasConnected ? (_elapsedSeconds > 0 ? _elapsedSeconds : 1) : 0;
+    final auth = context.read<AuthProvider>();
+    final callerRole = _myCallerRole(auth);
+
+    rtcHangup();
+    setState(() {
+      _inCall = false;
+      _ringingOutgoing = false;
+      _connected = false;
+      _statusNote = wasConnected
+          ? 'Đã kết thúc & đồng bộ nhật ký (${_formatDuration(duration)})'
+          : 'Đã hủy cuộc gọi trước khi nghe máy';
+    });
+
+    if (_activeCallId.isNotEmpty) {
+      await _api.postCallSignal({
+        'callId': _activeCallId,
+        'signalType': 'call_ended',
+        'fromClientId': ApiService.callClientId,
+        'fromName': auth.user?.fullName ?? callerRole,
+        'fromRole': callerRole,
+        'targetClientId': _targetClientId,
+        'targetRole': _targetRole,
+        'callMode': _isVideo ? 'Video' : 'Thoại',
+        'payload': {'durationSeconds': duration},
+      });
+    }
+
+    await _persistCallRecord(
+      status: wasConnected ? 'Đã kết nối' : 'Hủy cuộc gọi',
+      duration: duration,
+    );
   }
 
   @override
@@ -293,6 +515,62 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
                     _buildVideoStage(),
                     const SizedBox(height: 12),
                     _buildCallControls(),
+                    if (_api.latestOnlinePeers.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Thiết bị đang trực tuyến (${_api.latestOnlinePeers.length}):',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                          color: Color(0xFF15803D),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: _api.latestOnlinePeers.map((peer) {
+                          final cid = (peer['clientId'] ?? '').toString();
+                          final pRole = (peer['role'] ?? 'CuDan').toString();
+                          final pName = (peer['displayName'] ?? pRole).toString();
+                          final isSelectedPeer = _targetClientId == cid && cid.isNotEmpty;
+                          return InkWell(
+                            onTap: _inCall
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _targetClientId = cid;
+                                      _targetRole = pRole;
+                                      _targetController.text = pName;
+                                    });
+                                  },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isSelectedPeer
+                                    ? const Color(0xFFDCFCE7)
+                                    : const Color(0xFFF0FDF4),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isSelectedPeer
+                                      ? const Color(0xFF16A34A)
+                                      : const Color(0xFF86EFAC),
+                                ),
+                              ),
+                              child: Text(
+                                '● $pName ($pRole)',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF166534),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     const Text(
                       'Chọn nhanh vai trò liên hệ:',
@@ -314,6 +592,7 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
                               ? null
                               : () {
                                   setState(() {
+                                    _targetClientId = '';
                                     _targetRole = preset.role;
                                     _targetController.text = preset.fullName;
                                   });
@@ -546,13 +825,19 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _inCall ? Colors.green.shade700 : Colors.blueGrey.shade700,
+                    color: _connected
+                        ? Colors.green.shade700
+                        : (_ringingOutgoing
+                            ? Colors.amber.shade800
+                            : Colors.blueGrey.shade700),
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(
-                    _inCall
-                        ? '${_isVideo ? 'VIDEO HD' : 'VOICE HD'} • ${_formatDuration(_elapsedSeconds)}'
-                        : (_savingLog ? 'ĐANG LƯU...' : 'SẴN SÀNG KẾT NỐI'),
+                    _connected
+                        ? '${_isVideo ? 'VIDEO WEBRTC' : 'VOICE WEBRTC'} • ${_formatDuration(_elapsedSeconds)}'
+                        : (_ringingOutgoing
+                            ? 'ĐANG ĐỔ CHUÔNG...'
+                            : (_savingLog ? 'ĐANG LƯU...' : 'SẴN SÀNG KẾT NỐI')),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 11.5,
@@ -635,7 +920,10 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
           ),
         ] else ...[
           OutlinedButton.icon(
-            onPressed: () => setState(() => _micOn = !_micOn),
+            onPressed: () {
+              setState(() => _micOn = !_micOn);
+              rtcSetMic(_micOn);
+            },
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(0, 44),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),
@@ -648,7 +936,10 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
           ),
           if (_isVideo)
             OutlinedButton.icon(
-              onPressed: () => setState(() => _camOn = !_camOn),
+              onPressed: () {
+                setState(() => _camOn = !_camOn);
+                rtcSetCam(_camOn);
+              },
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(0, 44),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),

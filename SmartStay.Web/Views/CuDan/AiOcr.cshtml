@@ -211,7 +211,15 @@
                 </div>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="fs-8 fw-bold text-muted">ĐỘ TIN CẬY AI (CONFIDENCE):</span>
-                    <span class="badge bg-success-subtle text-success fs-8" id="resConfidence">99.5% (Rất cao)</span>
+                    <span class="badge bg-secondary-subtle text-secondary fs-8" id="resConfidence">Chưa quét ảnh (AI Vision OCR)</span>
+                </div>
+                <div id="ocrAnalysisNoteBox" class="alert alert-light border fs-9 text-slate-700 py-2 px-3 mb-2 d-none">
+                    <div id="ocrAnalysisNoteText"></div>
+                    <div id="ocrWaterRedToggleBox" class="mt-2 d-none">
+                        <button type="button" class="btn btn-xs btn-outline-info py-1 px-2 fs-9 fw-semibold" id="btnUseWaterAlt" onclick="toggleWaterAltReading()">
+                            Chuyển giữa phần nguyên ô đen &amp; cả ô số đỏ
+                        </button>
+                    </div>
                 </div>
 
                 <div id="summaryElectricBlock" class="pt-2 mt-2 border-top">
@@ -318,11 +326,16 @@
     </div>
 </div>
 
+<script src="~/js/smartstay-ocr.js" asp-append-version="true"></script>
 <script>
     let currentOcrMode = 'both'; // 'electric' | 'water' | 'both'
     let showDetail = false;
     let logCount = 2;
     let lastLocalInputTime = 0;
+    let uploadedElectricDataUrl = null;
+    let uploadedWaterDataUrl = null;
+    let lastWaterOcrPrimary = null;
+    let lastWaterOcrAlt = null;
 
     async function pushMeterStateToCloud(saveToLog = false) {
         lastLocalInputTime = Date.now();
@@ -560,78 +573,134 @@
             : '📊 XEM CHI TIẾT CÁCH TÍNH TIỀN & BẢNG LŨY TIẾN BẬC THANG';
     }
 
-    function extractMeterReadingFromFile(file, meterType) {
-        const isElec = meterType === 'electric';
-        const oldVal = parseInt(document.getElementById(isElec ? 'inputElecOld' : 'inputWaterOld').value, 10) || (isElec ? 1420 : 84);
-        const minAllowed = isElec ? 50 : 5;
-        const maxAllowed = isElec ? 99999 : 9999;
-
-        const matches = (file.name || '').match(/\d+/g) || [];
-        let bestCandidate = null;
-        for (const raw of matches) {
-            if (raw.length < 2 || raw.length > 6) continue;
-            const parsed = parseInt(raw, 10);
-            if (!Number.isFinite(parsed) || parsed < minAllowed || parsed > maxAllowed) continue;
-            if (parsed >= 2020 && parsed <= 2035 && raw.length === 4) continue;
-            if (parsed >= oldVal && parsed <= oldVal + (isElec ? 2500 : 250)) {
-                return parsed;
+    function updateOcrNoteUi(res, meterType) {
+        const confEl = document.getElementById('resConfidence');
+        const noteBox = document.getElementById('ocrAnalysisNoteBox');
+        const noteText = document.getElementById('ocrAnalysisNoteText');
+        const redBox = document.getElementById('ocrWaterRedToggleBox');
+        const btnAlt = document.getElementById('btnUseWaterAlt');
+        if (confEl) {
+            confEl.className = 'badge bg-success-subtle text-success fs-8';
+            const pct = typeof res.confidence === 'number' ? `${res.confidence.toFixed(1)}%` : 'OCR thực tế';
+            const prov = res.provider || 'AI Vision OCR';
+            confEl.innerText = `${pct} (${prov})`;
+        }
+        if (noteBox && noteText) {
+            noteBox.classList.remove('d-none');
+            noteText.innerText = res.note || `Đã đọc thực tế chỉ số ${res.reading} (Raw: ${res.rawText || res.reading})`;
+        }
+        if (meterType === 'water' && redBox && btnAlt) {
+            if (typeof res.alternativeReading === 'number' && res.alternativeReading !== res.reading) {
+                lastWaterOcrPrimary = res.reading;
+                lastWaterOcrAlt = res.alternativeReading;
+                redBox.classList.remove('d-none');
+                btnAlt.innerText = `Đổi nhanh: Dùng cả ô đỏ (${lastWaterOcrAlt} m³) / Chỉ ô đen (${lastWaterOcrPrimary} m³)`;
+            } else {
+                lastWaterOcrPrimary = null;
+                lastWaterOcrAlt = null;
+                redBox.classList.add('d-none');
             }
-            if (bestCandidate === null) bestCandidate = parsed;
         }
-        if (bestCandidate !== null) return bestCandidate;
-
-        let nameHash = file.size || 0;
-        for (let i = 0; i < (file.name || '').length; i++) {
-            nameHash = ((nameHash * 31) + file.name.charCodeAt(i)) % 100000;
-        }
-        const offset = isElec ? 25 + (Math.abs(nameHash) % 145) : 3 + (Math.abs(nameHash) % 16);
-        return oldVal + offset;
     }
 
-    function handleMeterFileSelect(input, meterType) {
-        if (input.files && input.files[0]) {
-            const file = input.files[0];
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const extractedReading = extractMeterReadingFromFile(file, meterType);
-                if (meterType === 'electric') {
-                    document.getElementById('previewImgElectric').src = e.target.result;
-                    document.getElementById('inputElecNew').value = extractedReading;
+    function toggleWaterAltReading() {
+        if (lastWaterOcrPrimary == null || lastWaterOcrAlt == null) return;
+        const inp = document.getElementById('inputWaterNew');
+        const cur = parseInt(inp.value, 10);
+        inp.value = (cur === lastWaterOcrAlt) ? lastWaterOcrPrimary : lastWaterOcrAlt;
+        recalculateAll(true);
+    }
+
+    async function handleMeterFileSelect(input, meterType) {
+        if (!input.files || !input.files[0]) return;
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = async function (e) {
+            const dataUrl = e.target.result;
+            const isElec = meterType === 'electric';
+            if (isElec) {
+                uploadedElectricDataUrl = dataUrl;
+                document.getElementById('previewImgElectric').src = dataUrl;
+            } else {
+                uploadedWaterDataUrl = dataUrl;
+                document.getElementById('previewImgWater').src = dataUrl;
+            }
+
+            const indicator = document.getElementById('aiScanningIndicator');
+            const btn = document.getElementById('btnScanAi');
+            const confEl = document.getElementById('resConfidence');
+            if (indicator) indicator.classList.remove('d-none');
+            if (btn) btn.disabled = true;
+            if (confEl) {
+                confEl.className = 'badge bg-warning-subtle text-warning-emphasis fs-8';
+                confEl.innerText = 'Đang phân tích ảnh thực tế bằng AI Vision OCR...';
+            }
+
+            try {
+                const oldVal = parseInt(document.getElementById(isElec ? 'inputElecOld' : 'inputWaterOld').value, 10) || (isElec ? 1420 : 84);
+                const ocrRes = await window.SmartStayMeterOcr.analyzeMeterImage(dataUrl, meterType, oldVal, '/api');
+                const reading = parseInt(ocrRes.reading, 10);
+                if (!Number.isFinite(reading)) {
+                    throw new Error('Không phân tích được số hợp lệ từ ảnh.');
+                }
+
+                if (isElec) {
+                    document.getElementById('inputElecNew').value = reading;
                 } else {
-                    document.getElementById('previewImgWater').src = e.target.result;
-                    document.getElementById('inputWaterNew').value = extractedReading;
+                    document.getElementById('inputWaterNew').value = reading;
                 }
-                const confEl = document.getElementById('resConfidence');
+                updateOcrNoteUi(ocrRes, meterType);
+                if (!showDetail) toggleDetailCalculation();
+                recalculateAll(true);
+
+                const headline = document.getElementById('bannerHeadline').innerText;
+                const total = document.getElementById('bannerTotalCost').innerText;
+                const unitLabel = isElec ? 'kWh' : 'm³';
+                showOcrAlert(`✅ AI Vision OCR (${ocrRes.confidence || ''}%): đọc ảnh "${file.name}" = ${reading} ${unitLabel} (Raw: ${ocrRes.rawText || reading}). ${headline} • Tổng tiền: ${total}`);
+            } catch (err) {
                 if (confEl) {
-                    confEl.innerText = '99.7% (Gemini Vision OCR - Ảnh tải lên)';
+                    confEl.className = 'badge bg-danger-subtle text-danger fs-8';
+                    confEl.innerText = 'Không đọc rõ — vui lòng chụp gần mặt số hơn hoặc nhập tay';
                 }
-                startAiOcrScan(file.name, meterType, extractedReading);
-            };
-            reader.readAsDataURL(file);
-        }
+                showOcrAlert(`⚠️ ${err && err.message ? err.message : 'Chưa nhận diện được rõ mặt đồng hồ. Vui lòng chụp sát khung số.'}`);
+            } finally {
+                if (indicator) indicator.classList.add('d-none');
+                if (btn) btn.disabled = false;
+            }
+        };
+        reader.readAsDataURL(file);
     }
 
-    function startAiOcrScan(uploadedFileName, uploadedMeterType, extractedValue) {
+    async function startAiOcrScan() {
         const indicator = document.getElementById('aiScanningIndicator');
         const btn = document.getElementById('btnScanAi');
         indicator.classList.remove('d-none');
         btn.disabled = true;
 
-        setTimeout(() => {
-            indicator.classList.add('d-none');
-            btn.disabled = false;
-            if (!showDetail) {
-                toggleDetailCalculation();
+        try {
+            if ((currentOcrMode === 'electric' || currentOcrMode === 'both') && uploadedElectricDataUrl) {
+                const elecOld = parseInt(document.getElementById('inputElecOld').value, 10) || 1420;
+                const eRes = await window.SmartStayMeterOcr.analyzeMeterImage(uploadedElectricDataUrl, 'electric', elecOld, '/api');
+                document.getElementById('inputElecNew').value = eRes.reading;
+                updateOcrNoteUi(eRes, 'electric');
             }
+            if ((currentOcrMode === 'water' || currentOcrMode === 'both') && uploadedWaterDataUrl) {
+                const waterOld = parseInt(document.getElementById('inputWaterOld').value, 10) || 84;
+                const wRes = await window.SmartStayMeterOcr.analyzeMeterImage(uploadedWaterDataUrl, 'water', waterOld, '/api');
+                document.getElementById('inputWaterNew').value = wRes.reading;
+                updateOcrNoteUi(wRes, 'water');
+            }
+            if (!showDetail) toggleDetailCalculation();
             recalculateAll();
             const headline = document.getElementById('bannerHeadline').innerText;
             const total = document.getElementById('bannerTotalCost').innerText;
-            const unitLabel = uploadedMeterType === 'electric' ? 'kWh' : 'm³';
-            const prefix = uploadedFileName
-                ? `AI đã đọc ảnh "${uploadedFileName}" với chỉ số gợi ý ${extractedValue} ${unitLabel} (bạn có thể chỉnh trực tiếp ô bên cạnh nếu cần). `
-                : '';
-            showOcrAlert(`🔔 ${prefix}${headline} • Tổng tiền: ${total} (Chỉ hiển thị cho bạn biết trước, không gửi về Admin).`);
-        }, 700);
+            showOcrAlert(`🔔 ${headline} • Tổng tiền: ${total} (Chỉ hiển thị cho bạn biết trước, không gửi về Admin).`);
+        } catch (err) {
+            showOcrAlert(`⚠️ ${err && err.message ? err.message : 'Lỗi quét AI OCR. Vui lòng kiểm tra lại ảnh.'}`);
+        } finally {
+            indicator.classList.add('d-none');
+            btn.disabled = false;
+        }
     }
 
     function saveToPersonalLog() {

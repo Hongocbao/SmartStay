@@ -158,7 +158,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
   // State cho AI Camera OCR Tự Kiểm Tra Điện Nước Cá Nhân (/CuDan/AiOcr)
   // 'electric' = Chỉ tính Điện | 'water' = Chỉ tính Nước | 'both' = Tính cả Điện & Nước
   String _ocrMode = 'both';
-  String _ocrConfidence = '99.4% (Rất cao)';
+  String _ocrConfidence = 'Sẵn sàng quét AI Vision OCR';
   String? _uploadedElectricDataUrl;
   String? _uploadedWaterDataUrl;
   String _electricPhotoLabel = 'Mặt đồng hồ công tơ điện tử P.305';
@@ -1588,11 +1588,11 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
         _ocrMode = mode;
         _showRoiOverlay = true;
         if (mode == 'electric') {
-          _ocrConfidence = '99.6% (Đã nhận diện ảnh Điện)';
+          _ocrConfidence = 'Chế độ: Chỉ quét Công Tơ Điện (AI Vision)';
         } else if (mode == 'water') {
-          _ocrConfidence = '99.1% (Đã nhận diện ảnh Nước)';
+          _ocrConfidence = 'Chế độ: Chỉ quét Đồng Hồ Nước (AI Vision)';
         } else {
-          _ocrConfidence = '99.5% (Đã nhận diện cả Điện & Nước)';
+          _ocrConfidence = 'Chế độ: Quét cả Điện & Nước (AI Vision)';
         }
       });
       _pushResidentMeterToCloud(totalEstimatedCost: totalEstimatedCost);
@@ -1610,23 +1610,54 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       setState(() {
         _isScanningOcr = true;
         _showRoiOverlay = true;
+        _ocrConfidence = 'Đang phân tích ảnh thực tế bằng AI Vision OCR...';
       });
-      await Future.delayed(const Duration(milliseconds: 650));
+
+      final api = ApiService();
+      final notes = <String>[];
+      var scannedConfidence = '';
+
+      if (includeElectric && _uploadedElectricDataUrl != null) {
+        final elecOldVal = int.tryParse(_meterOldController.text.trim()) ?? 1420;
+        final eRes = await api.analyzeMeterOcr(
+          dataUrl: _uploadedElectricDataUrl!,
+          meterType: 'electric',
+          previousReading: elecOldVal,
+        );
+        if (eRes != null && eRes['reading'] is num) {
+          final r = (eRes['reading'] as num).toInt();
+          _meterNewController.text = '$r';
+          final conf = (eRes['confidence'] as num?)?.toStringAsFixed(1);
+          if (conf != null) scannedConfidence = '$conf% (${eRes['provider'] ?? 'AI Vision OCR'})';
+          if ((eRes['note'] ?? '').toString().isNotEmpty) notes.add(eRes['note'].toString());
+        }
+      }
+
+      if (includeWater && _uploadedWaterDataUrl != null) {
+        final waterOldVal = int.tryParse(_waterOldController.text.trim()) ?? 84;
+        final wRes = await api.analyzeMeterOcr(
+          dataUrl: _uploadedWaterDataUrl!,
+          meterType: 'water',
+          previousReading: waterOldVal,
+        );
+        if (wRes != null && wRes['reading'] is num) {
+          final r = (wRes['reading'] as num).toInt();
+          _waterNewController.text = '$r';
+          final conf = (wRes['confidence'] as num?)?.toStringAsFixed(1);
+          if (conf != null && scannedConfidence.isEmpty) {
+            scannedConfidence = '$conf% (${wRes['provider'] ?? 'AI Vision OCR'})';
+          }
+          if ((wRes['note'] ?? '').toString().isNotEmpty) notes.add(wRes['note'].toString());
+        }
+      }
+
       if (!mounted) return;
-      final hasCustomUpload =
-          _uploadedElectricDataUrl != null || _uploadedWaterDataUrl != null;
       setState(() {
         _isScanningOcr = false;
         _showCalculationDetail = true;
-        if (includeElectric && _meterNewController.text.trim().isEmpty) {
-          _meterNewController.text = '1540';
-        }
-        if (includeWater && _waterNewController.text.trim().isEmpty) {
-          _waterNewController.text = '92';
-        }
-        _ocrConfidence = hasCustomUpload
-            ? '99.7% (Gemini Vision OCR - Ảnh tải lên)'
-            : '99.7% (Gemini Vision OCR)';
+        _ocrConfidence = scannedConfidence.isNotEmpty
+            ? scannedConfidence
+            : 'Tính trực tiếp từ chỉ số đồng hồ hiện tại';
       });
 
       final updatedElecOld = double.tryParse(_meterOldController.text) ?? 1420;
@@ -2826,40 +2857,6 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
     }
   }
 
-  int _extractMeterReadingFromFile(
-    String fileName,
-    String meterType, {
-    int byteLength = 0,
-  }) {
-    final isElec = meterType == 'electric';
-    final oldVal = int.tryParse(
-          isElec ? _meterOldController.text : _waterOldController.text,
-        ) ??
-        (isElec ? 1420 : 84);
-    final minAllowed = isElec ? 50 : 5;
-    final maxAllowed = isElec ? 99999 : 9999;
-
-    final matches = RegExp(r'\d+').allMatches(fileName);
-    int? bestCandidate;
-    for (final m in matches) {
-      final raw = m.group(0) ?? '';
-      if (raw.length < 2 || raw.length > 6) continue;
-      final parsed = int.tryParse(raw);
-      if (parsed == null || parsed < minAllowed || parsed > maxAllowed) continue;
-      if (parsed >= 2020 && parsed <= 2035 && raw.length == 4) continue;
-      if (parsed >= oldVal && parsed <= oldVal + (isElec ? 2500 : 250)) {
-        return parsed;
-      }
-      bestCandidate ??= parsed;
-    }
-    if (bestCandidate != null) return bestCandidate;
-
-    final offset = isElec
-        ? 25 + ((fileName.hashCode.abs() + byteLength) % 145)
-        : 3 + ((fileName.hashCode.abs() + byteLength) % 16);
-    return oldVal + offset;
-  }
-
   Future<void> _handlePickMeterPhoto(String meterType) async {
     final picked = await pickImageFile();
     if (!mounted) return;
@@ -2869,15 +2866,15 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       return;
     }
 
+    final isElec = meterType == 'electric';
     final bytes = _decodeDataUrlBytes(picked.dataUrl);
-    final suggestedReading = _extractMeterReadingFromFile(
-      picked.fileName,
-      meterType,
-      byteLength: bytes?.length ?? picked.dataUrl.length,
-    );
+    final oldVal = int.tryParse(
+          isElec ? _meterOldController.text.trim() : _waterOldController.text.trim(),
+        ) ??
+        (isElec ? 1420 : 84);
 
     setState(() {
-      if (meterType == 'electric') {
+      if (isElec) {
         _uploadedElectricDataUrl = picked.dataUrl;
         _electricPhotoLabel = picked.fileName;
       } else {
@@ -2886,17 +2883,82 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       }
       _isScanningOcr = true;
       _showRoiOverlay = true;
+      _ocrConfidence = 'Đang phân tích ảnh "${picked.fileName}" bằng AI Vision OCR...';
     });
 
-    await Future.delayed(const Duration(milliseconds: 450));
+    final nav = Navigator.of(context, rootNavigator: true);
+    var loaderOpen = true;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            content: Row(
+              children: [
+                const CircularProgressIndicator(strokeWidth: 3),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    'AI Vision OCR đang đọc chỉ số thực tế trên ảnh "${picked.fileName}"...',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ).whenComplete(() {
+        loaderOpen = false;
+      }),
+    );
+
+    Map<String, dynamic>? ocrRes;
+    try {
+      ocrRes = await ApiService().analyzeMeterOcr(
+        dataUrl: picked.dataUrl,
+        meterType: meterType,
+        previousReading: oldVal,
+      );
+    } finally {
+      if (mounted && loaderOpen && nav.canPop()) {
+        nav.pop();
+      }
+    }
+
     if (!mounted) return;
     setState(() => _isScanningOcr = false);
+
+    final suggestedReading =
+        ocrRes != null && ocrRes['reading'] is num
+            ? (ocrRes['reading'] as num).toInt()
+            : null;
+    final altReading =
+        ocrRes != null && ocrRes['alternativeReading'] is num
+            ? (ocrRes['alternativeReading'] as num).toInt()
+            : null;
+    final confNum =
+        ocrRes != null && ocrRes['confidence'] is num
+            ? (ocrRes['confidence'] as num).toDouble()
+            : null;
+    final providerName = (ocrRes?['provider'] ?? 'AI Vision OCR').toString();
+    final confText = confNum != null
+        ? '${confNum.toStringAsFixed(1)}% ($providerName)'
+        : providerName;
+    final ocrNote = (ocrRes?['note'] ?? '').toString();
+    final ocrRawText = (ocrRes?['rawText'] ?? '').toString();
 
     await _showMeterOcrConfirmDialog(
       meterType: meterType,
       suggestedReading: suggestedReading,
+      alternativeReading: altReading,
+      ocrConfidenceLabel: confText,
+      ocrNote: ocrNote,
+      ocrRawText: ocrRawText,
       photoName: picked.fileName,
       imageBytes: bytes,
+      isUnreadableImage: suggestedReading == null,
     );
   }
 
@@ -2915,8 +2977,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       meterType: meterType,
       suggestedReading: curVal > oldVal ? curVal : oldVal + (isElec ? 120 : 8),
       photoName: isElec
-          ? 'Ảnh chụp mặt công tơ điện P.305'
-          : 'Ảnh chụp mặt đồng hồ nước P.305',
+          ? 'Mặt công tơ điện P.305'
+          : 'Mặt đồng hồ nước P.305',
       imageBytes: _decodeDataUrlBytes(
         isElec ? _uploadedElectricDataUrl : _uploadedWaterDataUrl,
       ),
@@ -2926,10 +2988,15 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
 
   Future<void> _showMeterOcrConfirmDialog({
     required String meterType,
-    required int suggestedReading,
+    required int? suggestedReading,
     required String photoName,
     required Uint8List? imageBytes,
+    int? alternativeReading,
+    String? ocrConfidenceLabel,
+    String? ocrNote,
+    String? ocrRawText,
     bool isDirectEntry = false,
+    bool isUnreadableImage = false,
   }) async {
     final isElec = meterType == 'electric';
     final unit = isElec ? 'kWh' : 'm³';
@@ -2939,19 +3006,28 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
           isElec ? _meterOldController.text : _waterOldController.text,
         ) ??
         (isElec ? 1420 : 84);
-    final confirmController =
-        TextEditingController(text: suggestedReading.toString());
+    final confirmController = TextEditingController(
+      text: suggestedReading?.toString() ?? '',
+    );
 
     await showDialog<void>(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (context, setDialogState) {
           final parsedNew = double.tryParse(confirmController.text.trim()) ??
-              suggestedReading.toDouble();
+              (suggestedReading?.toDouble() ?? oldVal);
           final used = parsedNew >= oldVal ? parsedNew - oldVal : 0.0;
           final cost = isElec
               ? TieredUtilityService.calculateElectricity(used).totalAmount
               : TieredUtilityService.calculateWater(used).totalAmount;
+
+          final statusMessage = isDirectEntry
+              ? 'Chưa chọn tệp ảnh từ thiết bị — bạn có thể kiểm tra hoặc nhập trực tiếp chỉ số trên mặt đồng hồ để tính tiền ngay.'
+              : isUnreadableImage
+                  ? 'Ảnh "$photoName" hơi mờ hoặc chưa lộ rõ dãy số đồng hồ. Vui lòng chụp sát khung số hơn hoặc nhập trực tiếp chỉ số bên dưới:'
+                  : (ocrNote != null && ocrNote.isNotEmpty
+                      ? '$ocrNote (${ocrConfidenceLabel ?? 'AI Vision OCR'})'
+                      : 'AI Vision OCR đã phân tích ảnh "$photoName"${ocrRawText != null && ocrRawText.isNotEmpty ? ' → Raw: "$ocrRawText"' : ''} (${ocrConfidenceLabel ?? 'AI Vision OCR'}). Vui lòng kiểm tra trước khi xác nhận:');
 
           return AlertDialog(
             title: Text(
@@ -2977,7 +3053,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                         : _buildDigitalMeterMockDisplay(
                             meterType: meterType,
                             readingValueText: confirmController.text.trim().isEmpty
-                                ? suggestedReading.toString()
+                                ? (suggestedReading?.toString() ?? '${oldVal.toInt()}')
                                 : confirmController.text.trim(),
                             unitLabel: unit,
                             photoLabel: photoName,
@@ -2992,32 +3068,77 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0FDF4),
+                      color: isUnreadableImage
+                          ? const Color(0xFFFEF2F2)
+                          : const Color(0xFFF0FDF4),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFBBF7D0)),
+                      border: Border.all(
+                        color: isUnreadableImage
+                            ? const Color(0xFFFECACA)
+                            : const Color(0xFFBBF7D0),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.auto_awesome_rounded,
+                        Icon(
+                          isUnreadableImage
+                              ? Icons.warning_amber_rounded
+                              : Icons.auto_awesome_rounded,
                           size: 16,
-                          color: Color(0xFF15803D),
+                          color: isUnreadableImage
+                              ? const Color(0xFFB91C1C)
+                              : const Color(0xFF15803D),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            isDirectEntry
-                                ? 'Chưa chọn tệp ảnh từ thiết bị — bạn có thể kiểm tra hoặc nhập trực tiếp chỉ số trên mặt đồng hồ để AI tính tiền ngay.'
-                                : 'AI Vision OCR đã quét ảnh "$photoName" (độ tin cậy 99.7%). Vui lòng kiểm tra và chỉnh nếu cần:',
-                            style: const TextStyle(
+                            statusMessage,
+                            style: TextStyle(
                               fontSize: 11.5,
-                              color: Color(0xFF166534),
+                              color: isUnreadableImage
+                                  ? const Color(0xFF991B1B)
+                                  : const Color(0xFF166534),
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
+                  if (alternativeReading != null &&
+                      suggestedReading != null &&
+                      alternativeReading != suggestedReading) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        ActionChip(
+                          avatar: const Icon(Icons.looks_4_rounded, size: 15),
+                          label: Text(
+                            'Phần nguyên: $suggestedReading $unit',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              confirmController.text = '$suggestedReading';
+                            });
+                          },
+                        ),
+                        ActionChip(
+                          avatar: const Icon(Icons.palette_rounded, size: 15, color: Color(0xFFDC2626)),
+                          label: Text(
+                            'Gồm cả ô đỏ: $alternativeReading',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          onPressed: () {
+                            setDialogState(() {
+                              confirmController.text = '$alternativeReading';
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   TextField(
                     controller: confirmController,
@@ -3082,7 +3203,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 ),
                 onPressed: () {
                   final rawText = confirmController.text.trim();
-                  final finalVal = int.tryParse(rawText) ?? suggestedReading;
+                  final finalVal = int.tryParse(rawText) ?? suggestedReading ?? oldVal.toInt();
                   setState(() {
                     _lastLocalMeterEdit = DateTime.now();
                     if (isElec) {
@@ -3092,9 +3213,11 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                     }
                     _showCalculationDetail = true;
                     _showRoiOverlay = true;
-                    _ocrConfidence = imageBytes != null
-                        ? '99.7% (Gemini Vision OCR - Ảnh tải lên)'
-                        : '99.5% (Chỉ số đồng hồ đã xác nhận)';
+                    _ocrConfidence = (ocrConfidenceLabel != null && ocrConfidenceLabel.isNotEmpty)
+                        ? ocrConfidenceLabel
+                        : (isDirectEntry
+                            ? 'Chỉ số đồng hồ đã xác nhận thủ công'
+                            : 'Đã xác nhận chỉ số từ ảnh');
                   });
 
                   final includeElectric =

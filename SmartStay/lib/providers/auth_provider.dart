@@ -84,14 +84,14 @@ class AuthProvider extends ChangeNotifier {
       userId: 1,
       username: 'admin',
       password: '123456',
-      fullName: 'Ban Quản Lý & Kỹ Thuật SmartStay',
-      role: 'Ban Quản lý & Kỹ thuật',
+      fullName: 'Nguyễn Hoàng Nam (Admin)',
+      role: 'Quản trị viên',
       roomCode: null,
       phone: '0909999888',
       email: 'admin@smartstay.vn',
     ),
     'quanly': const _FallbackAccount(
-      userId: 1,
+      userId: 2,
       username: 'quanly',
       password: '123456',
       fullName: 'Ban Quản Lý & Kỹ Thuật SmartStay',
@@ -101,7 +101,7 @@ class AuthProvider extends ChangeNotifier {
       email: 'quanly@smartstay.vn',
     ),
     'kythuat': const _FallbackAccount(
-      userId: 2,
+      userId: 3,
       username: 'kythuat',
       password: '123456',
       fullName: 'Kỹ Thuật & Vận Hành SmartStay',
@@ -137,6 +137,19 @@ class AuthProvider extends ChangeNotifier {
       currentRole == 'Kỹ thuật viên';
   bool get isTechnician => isAdmin;
   bool get isResident => currentRole == 'Cư dân';
+
+  /// Khóa cứng chế độ AI theo đúng Role thực tế của tài khoản đang đăng nhập
+  String get effectiveAiRoleMode {
+    final roleLower = currentRole.toLowerCase();
+    final userLower = (_user?.username ?? '').toLowerCase();
+    if (roleLower == 'quản trị viên' || roleLower == 'admin' || userLower == 'admin') {
+      return 'admin';
+    }
+    if (isAdmin) {
+      return 'manager';
+    }
+    return 'resident';
+  }
 
   AuthProvider();
 
@@ -307,7 +320,8 @@ class AuthProvider extends ChangeNotifier {
       _token = apiResult['token'] as String?;
       final rawRole = (apiResult['vaiTro'] as String?) ?? 'CuDan';
       final role = switch (rawRole) {
-        'Admin' || 'QuanLy' || 'Quản lý' || 'KyThuat' || 'Kỹ thuật' => 'Ban Quản lý & Kỹ thuật',
+        'Admin' => 'Quản trị viên',
+        'QuanLy' || 'Quản lý' || 'KyThuat' || 'Kỹ thuật' => 'Ban Quản lý & Kỹ thuật',
         _ => 'Cư dân',
       };
       final fullName = (apiResult['hoTen'] as String?) ?? cleanUser;
@@ -376,25 +390,30 @@ class AuthProvider extends ChangeNotifier {
 
     // Cho phép đăng nhập linh hoạt nếu chưa bật Backend và nhập mật khẩu mặc định 123456
     if (!_api.isConnectedToBackend && cleanPass.length >= 6) {
+      final isSystemAdmin = key == 'admin' || key.startsWith('admin.');
       final isManagementUser =
-          key.contains('admin') || key.contains('quanly') || key.contains('kythuat') || key.contains('tech');
-      final role = isManagementUser ? 'Ban Quản lý & Kỹ thuật' : 'Cư dân';
+          !isSystemAdmin && (key.contains('quanly') || key.contains('kythuat') || key.contains('tech'));
+      final role = isSystemAdmin
+          ? 'Quản trị viên'
+          : (isManagementUser ? 'Ban Quản lý & Kỹ thuật' : 'Cư dân');
       _token = 'offline-jwt-token-$cleanUser';
       _user = _applySavedProfile(
         UserModel(
-          userId: isManagementUser ? 1 : 105,
+          userId: isSystemAdmin ? 1 : (isManagementUser ? 2 : 105),
           username: cleanUser,
           email: '$cleanUser@smartstay.vn',
           phone: '0901234567',
-          fullName: isManagementUser ? 'Ban Quản Lý & Kỹ Thuật SmartStay' : 'Hồ Ngọc Bảo ($cleanUser)',
+          fullName: isSystemAdmin
+              ? 'Nguyễn Hoàng Nam (Admin)'
+              : (isManagementUser ? 'Ban Quản Lý & Kỹ Thuật SmartStay' : 'Hồ Ngọc Bảo ($cleanUser)'),
           role: role,
-          roomCode: isManagementUser ? null : 'P.305',
+          roomCode: (isSystemAdmin || isManagementUser) ? null : 'P.305',
           mustChangePassword: false,
           residentProfile:
-              isManagementUser ? null : _buildDefaultResidentProfile('P.305'),
+              (isSystemAdmin || isManagementUser) ? null : _buildDefaultResidentProfile('P.305'),
         ),
       );
-      _contract = isManagementUser
+      _contract = (isSystemAdmin || isManagementUser)
           ? null
           : _mock.contract.copyWith(
               roomCode: _user!.residentProfile?.roomCode ?? 'P.305',
