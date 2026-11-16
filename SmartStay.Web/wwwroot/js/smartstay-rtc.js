@@ -243,6 +243,32 @@
         } catch (_) { }
     };
 
+    var DEFAULT_ICE_SERVERS = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' },
+        {
+            urls: [
+                'turn:openrelay.metered.ca:80',
+                'turn:openrelay.metered.ca:443',
+                'turn:openrelay.metered.ca:443?transport=tcp'
+            ],
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: [
+                'turn:standard.relay.metered.ca:80',
+                'turn:standard.relay.metered.ca:80?transport=tcp',
+                'turn:standard.relay.metered.ca:443',
+                'turns:standard.relay.metered.ca:443?transport=tcp'
+            ],
+            username: 'e8dd65b92f64d0936f14a81b',
+            credential: '2/37530315284e5O'
+        }
+    ];
+
     SmartStayRtcManager.prototype.pollOnce = async function () {
         var self = this;
         if (!self.identity.clientId) return;
@@ -252,7 +278,8 @@
                 role: self.identity.role,
                 displayName: self.identity.displayName,
                 roomCode: self.identity.roomCode,
-                sinceSeq: String(self.lastSeq)
+                sinceSeq: String(self.lastSeq),
+                activeCallId: (self.activeCall && self.activeCall.callId) ? self.activeCall.callId : ''
             });
             var res = await fetch(self.signalUrl('/api/sync/call-signal/poll?' + q.toString()));
             if (!res.ok) return;
@@ -296,15 +323,30 @@
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             try {
                 var stream = await navigator.mediaDevices.getUserMedia({
-                    audio: true,
-                    video: !!isVideo
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    },
+                    video: isVideo ? {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    } : false
                 });
                 this.localStream = stream;
                 return { stream: stream, hardware: true };
             } catch (_) {
                 if (isVideo) {
                     try {
-                        var audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                        var audioOnly = await navigator.mediaDevices.getUserMedia({
+                            audio: {
+                                echoCancellation: true,
+                                noiseSuppression: true,
+                                autoGainControl: true
+                            },
+                            video: false
+                        });
                         var synthVideo = createSynthesizedStream(true, label);
                         synthVideo.getVideoTracks().forEach(function (vt) { audioOnly.addTrack(vt); });
                         this.localStream = audioOnly;
@@ -323,10 +365,8 @@
         if (self.pc) return self.pc;
 
         var config = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
+            iceServers: DEFAULT_ICE_SERVERS,
+            iceCandidatePoolSize: 4
         };
         var pc = new RTCPeerConnection(config);
         self.remoteStream = new MediaStream();
@@ -338,11 +378,17 @@
         }
 
         pc.ontrack = function (ev) {
-            var incoming = (ev.streams && ev.streams[0]) ? ev.streams[0] : null;
-            if (incoming) {
-                self.remoteStream = incoming;
+            if (!self.remoteStream) {
+                self.remoteStream = new MediaStream();
+            }
+            if (ev.streams && ev.streams[0]) {
+                ev.streams[0].getTracks().forEach(function (t) {
+                    var exists = self.remoteStream.getTracks().some(function (et) { return et.id === t.id; });
+                    if (!exists) self.remoteStream.addTrack(t);
+                });
             } else if (ev.track) {
-                self.remoteStream.addTrack(ev.track);
+                var existsTrack = self.remoteStream.getTracks().some(function (et) { return et.id === ev.track.id; });
+                if (!existsTrack) self.remoteStream.addTrack(ev.track);
             }
             if (self.callbacks.onRemoteStream) {
                 self.callbacks.onRemoteStream(self.remoteStream);
@@ -351,19 +397,35 @@
 
         pc.onicecandidate = function (ev) {
             if (ev.candidate) {
+                var candObj = ev.candidate.toJSON ? ev.candidate.toJSON() : {
+                    candidate: ev.candidate.candidate,
+                    sdpMid: ev.candidate.sdpMid,
+                    sdpMLineIndex: ev.candidate.sdpMLineIndex
+                };
                 self.sendSignal({
                     callId: callId,
                     signalType: 'webrtc_ice',
-                    targetClientId: peerClientId || '',
-                    targetRole: peerRole || '',
-                    payload: ev.candidate.toJSON ? ev.candidate.toJSON() : ev.candidate
+                    targetClientId: (self.activeCall && self.activeCall.peerClientId) || peerClientId || '',
+                    targetRole: (self.activeCall && self.activeCall.peerRole) || peerRole || '',
+                    payload: candObj
                 });
             }
         };
 
-        pc.onconnectionstatechange = function () {
+        pc.oniceconnectionstatechange = function () {
+            console.log('[SmartStay WebRTC] onIceConnectionState:', pc.iceConnectionState);
             if (self.callbacks.onPeerStateChange) {
-                self.callbacks.onPeerStateChange(pc.connectionState);
+                self.callbacks.onPeerStateChange(pc.connectionState, pc.iceConnectionState);
+            }
+            if (pc.iceConnectionState === 'failed' && typeof pc.restartIce === 'function') {
+                try { pc.restartIce(); } catch (_) { }
+            }
+        };
+
+        pc.onconnectionstatechange = function () {
+            console.log('[SmartStay WebRTC] onConnectionState:', pc.connectionState);
+            if (self.callbacks.onPeerStateChange) {
+                self.callbacks.onPeerStateChange(pc.connectionState, pc.iceConnectionState);
             }
         };
 
@@ -528,12 +590,16 @@
         if (pkt.signalType === 'call_accepted') {
             this.activeCall.peerClientId = pkt.fromClientId;
             this.activeCall.peerName = pkt.fromName || this.activeCall.peerName;
+            if (this.activeCall.status === 'connected' && this.pc) return;
             this.activeCall.status = 'connected';
             if (this.callbacks.onCallAccepted) this.callbacks.onCallAccepted(pkt);
 
             var pc = this.ensurePeerConnection(pkt.callId, pkt.fromClientId, pkt.fromRole);
             try {
-                var offer = await pc.createOffer();
+                var offer = await pc.createOffer({
+                    offerToReceiveAudio: true,
+                    offerToReceiveVideo: !!this.activeCall.isVideo
+                });
                 await pc.setLocalDescription(offer);
                 await this.sendSignal({
                     callId: pkt.callId,
@@ -547,9 +613,17 @@
         }
 
         if (pkt.signalType === 'webrtc_offer' && pkt.payload) {
+            if (this.activeCall) {
+                this.activeCall.peerClientId = pkt.fromClientId || this.activeCall.peerClientId;
+            }
             var pcCallee = this.ensurePeerConnection(pkt.callId, pkt.fromClientId, pkt.fromRole);
+            if (pcCallee.signalingState !== 'stable' && pcCallee.remoteDescription) return;
             try {
-                await pcCallee.setRemoteDescription(new RTCSessionDescription(pkt.payload));
+                var offerDesc = {
+                    type: pkt.payload.type || 'offer',
+                    sdp: pkt.payload.sdp
+                };
+                await pcCallee.setRemoteDescription(new RTCSessionDescription(offerDesc));
                 await this.flushPendingIce();
                 var answer = await pcCallee.createAnswer();
                 await pcCallee.setLocalDescription(answer);
@@ -565,20 +639,31 @@
         }
 
         if (pkt.signalType === 'webrtc_answer' && pkt.payload && this.pc) {
+            if (this.pc.signalingState === 'stable') return;
             try {
-                await this.pc.setRemoteDescription(new RTCSessionDescription(pkt.payload));
+                var answerDesc = {
+                    type: pkt.payload.type || 'answer',
+                    sdp: pkt.payload.sdp
+                };
+                await this.pc.setRemoteDescription(new RTCSessionDescription(answerDesc));
                 await this.flushPendingIce();
             } catch (_) { }
             return;
         }
 
         if (pkt.signalType === 'webrtc_ice' && pkt.payload) {
-            if (this.pc && this.pc.remoteDescription) {
+            var iceInit = {
+                candidate: pkt.payload.candidate,
+                sdpMid: pkt.payload.sdpMid !== undefined ? pkt.payload.sdpMid : null,
+                sdpMLineIndex: pkt.payload.sdpMLineIndex !== undefined ? Number(pkt.payload.sdpMLineIndex) : null
+            };
+            if (!iceInit.candidate) return;
+            if (this.pc && this.pc.remoteDescription && this.pc.remoteDescription.type) {
                 try {
-                    await this.pc.addIceCandidate(new RTCIceCandidate(pkt.payload));
+                    await this.pc.addIceCandidate(new RTCIceCandidate(iceInit));
                 } catch (_) { }
             } else {
-                this.pendingIce.push(pkt.payload);
+                this.pendingIce.push(iceInit);
             }
         }
     };

@@ -2357,6 +2357,32 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                           ),
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: totalEstimatedCost <= 0
+                              ? null
+                              : () => _showDynamicOcrVietQrModal(
+                                    amount: totalEstimatedCost,
+                                    elecUsed: elecConsumption,
+                                    waterUsed: waterConsumption,
+                                  ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4F46E5),
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(0, 44),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                          label: const Text(
+                            'Xuất Hóa Đơn & Mã VietQR Động (Tự động đối soát)',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -2954,6 +2980,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       suggestedReading: suggestedReading,
       alternativeReading: altReading,
       ocrConfidenceLabel: confText,
+      confidenceScore: confNum,
       ocrNote: ocrNote,
       ocrRawText: ocrRawText,
       photoName: picked.fileName,
@@ -2993,6 +3020,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
     required Uint8List? imageBytes,
     int? alternativeReading,
     String? ocrConfidenceLabel,
+    double? confidenceScore,
     String? ocrNote,
     String? ocrRawText,
     bool isDirectEntry = false,
@@ -3021,13 +3049,17 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
               ? TieredUtilityService.calculateElectricity(used).totalAmount
               : TieredUtilityService.calculateWater(used).totalAmount;
 
+          final isLowConfidence =
+              confidenceScore != null && confidenceScore < 80.0;
           final statusMessage = isDirectEntry
               ? 'Chưa chọn tệp ảnh từ thiết bị — bạn có thể kiểm tra hoặc nhập trực tiếp chỉ số trên mặt đồng hồ để tính tiền ngay.'
               : isUnreadableImage
                   ? 'Ảnh "$photoName" hơi mờ hoặc chưa lộ rõ dãy số đồng hồ. Vui lòng chụp sát khung số hơn hoặc nhập trực tiếp chỉ số bên dưới:'
-                  : (ocrNote != null && ocrNote.isNotEmpty
-                      ? '$ocrNote (${ocrConfidenceLabel ?? 'AI Vision OCR'})'
-                      : 'AI Vision OCR đã phân tích ảnh "$photoName"${ocrRawText != null && ocrRawText.isNotEmpty ? ' → Raw: "$ocrRawText"' : ''} (${ocrConfidenceLabel ?? 'AI Vision OCR'}). Vui lòng kiểm tra trước khi xác nhận:');
+                  : isLowConfidence
+                      ? 'Cảnh báo: Độ tin cậy OCR thấp (${confidenceScore.toStringAsFixed(1)}%). Vui lòng kiểm tra kỹ và chỉnh sửa lại chữ số bên dưới nếu bị mờ/lệch!'
+                      : (ocrNote != null && ocrNote.isNotEmpty
+                          ? '$ocrNote (${ocrConfidenceLabel ?? 'AI Vision OCR'})'
+                          : 'AI Vision OCR đã phân tích ảnh "$photoName"${ocrRawText != null && ocrRawText.isNotEmpty ? ' → Raw: "$ocrRawText"' : ''} (${ocrConfidenceLabel ?? 'AI Vision OCR'}). Vui lòng kiểm tra trước khi xác nhận:');
 
           return AlertDialog(
             title: Text(
@@ -3261,6 +3293,126 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       ),
     );
     confirmController.dispose();
+  }
+
+  Future<void> _showDynamicOcrVietQrModal({
+    required double amount,
+    required double elecUsed,
+    required double waterUsed,
+  }) async {
+    final auth = context.read<AuthProvider>();
+    final room = auth.user?.effectiveRoomCode ?? 'P.305';
+    final cleanRoom = room.replaceAll('.', '').toUpperCase();
+    final intAmount = amount.round();
+    final refCode = 'SSOCR$cleanRoom${DateTime.now().millisecondsSinceEpoch % 10000}';
+    final addInfo = Uri.encodeComponent('$refCode THANH TOAN DIEN NUOC');
+    final qrUrl =
+        'https://img.vietqr.io/image/MB-0389999888-compact2.png?amount=$intAmount&addInfo=$addInfo&accountName=SMARTSTAY%20CO%20LIVING';
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            const Icon(Icons.qr_code_2_rounded, color: Color(0xFF4F46E5)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'VietQR Động • $room',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFC7D2FE)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      AppFormatters.currency(amount),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF4F46E5),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Điện: ${elecUsed.toStringAsFixed(0)} kWh • Nước: ${waterUsed.toStringAsFixed(0)} m³',
+                      style: const TextStyle(fontSize: 11.5, color: Color(0xFF334155)),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Mã đối soát tự động: $refCode',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF15803D),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  qrUrl,
+                  width: 220,
+                  height: 250,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) => Container(
+                    width: 220,
+                    height: 180,
+                    color: const Color(0xFFF1F5F9),
+                    child: const Center(
+                      child: Text(
+                        'MB Bank • 0389999888\nQuét mã Napas247 khi có mạng',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Đóng'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _pushResidentMeterToCloud(totalEstimatedCost: amount);
+              if (mounted) {
+                _showMessage(
+                  '✅ Đã gửi yêu cầu đối soát VietQR ($refCode) kèm ảnh chỉ số công tơ!',
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF16A34A),
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.verified_rounded, size: 17),
+            label: const Text('Đã chuyển khoản & Đối soát'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDigitalMeterMockDisplay({

@@ -6,6 +6,7 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
 import 'api_response.dart';
+import 'webrtc_call_service.dart';
 
 Future<ApiResponse> sendApiRequest({
   required String method,
@@ -124,6 +125,8 @@ void rtcStopRingtone() {
 }
 
 Future<bool> rtcPrepareLocalMedia(bool isVideo, String label) async {
+  final dartOk = await WebRtcCallService().prepareLocalMedia(isVideo, label);
+  if (dartOk) return true;
   final rtc = _windowGlobalObj('SmartStayFlutterWebRTC');
   if (rtc == null) return false;
   try {
@@ -140,52 +143,31 @@ Future<bool> rtcPrepareLocalMedia(bool isVideo, String label) async {
 }
 
 Future<void> rtcStartCallerPeer(String metaJson) async {
-  final rtc = _windowGlobalObj('SmartStayFlutterWebRTC');
-  if (rtc == null) return;
-  try {
-    final promise = rtc.callMethod<JSPromise<JSAny?>>(
-      'startCallerPeer'.toJS,
-      metaJson.toJS,
-    );
-    await promise.toDart;
-  } catch (_) {}
+  await WebRtcCallService().startCallerPeer(metaJson);
 }
 
 Future<void> rtcStartCalleePeer(String metaJson) async {
-  final rtc = _windowGlobalObj('SmartStayFlutterWebRTC');
-  if (rtc == null) return;
-  try {
-    final promise = rtc.callMethod<JSPromise<JSAny?>>(
-      'startCalleePeer'.toJS,
-      metaJson.toJS,
-    );
-    await promise.toDart;
-  } catch (_) {}
+  await WebRtcCallService().startCalleePeer(metaJson);
 }
 
 Future<void> rtcHandleSignal(String packetJson) async {
-  final rtc = _windowGlobalObj('SmartStayFlutterWebRTC');
-  if (rtc == null) return;
-  try {
-    final promise = rtc.callMethod<JSPromise<JSAny?>>(
-      'handleRemoteSignal'.toJS,
-      packetJson.toJS,
-    );
-    await promise.toDart;
-  } catch (_) {}
+  await WebRtcCallService().handleRemoteSignal(packetJson);
 }
 
 void rtcSetMic(bool enabled) {
+  WebRtcCallService().setMicEnabled(enabled);
   final rtc = _windowGlobalObj('SmartStayFlutterWebRTC');
   rtc?.callMethod<JSAny?>('setMic'.toJS, enabled.toJS);
 }
 
 void rtcSetCam(bool enabled) {
+  WebRtcCallService().setCamEnabled(enabled);
   final rtc = _windowGlobalObj('SmartStayFlutterWebRTC');
   rtc?.callMethod<JSAny?>('setCam'.toJS, enabled.toJS);
 }
 
 void rtcHangup() {
+  unawaited(WebRtcCallService().hangup());
   final rtc = _windowGlobalObj('SmartStayFlutterWebRTC');
   rtc?.callMethod<JSAny?>('hangup'.toJS);
 }

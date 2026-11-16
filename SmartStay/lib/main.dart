@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'utils/provider_scope.dart';
+import 'theme/smartstay_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/invoice_provider.dart';
 import 'providers/ticket_provider.dart';
@@ -21,6 +22,7 @@ class SmartStayApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider<ThemeController>(create: (_) => ThemeController()),
         ChangeNotifierProvider<AuthProvider>(create: (_) => AuthProvider()),
         ChangeNotifierProvider<InvoiceProvider>(create: (_) => InvoiceProvider()),
         ChangeNotifierProvider<TicketProvider>(create: (_) => TicketProvider()),
@@ -28,34 +30,18 @@ class SmartStayApp extends StatelessWidget {
         ChangeNotifierProvider<AiChatProvider>(create: (_) => AiChatProvider()),
         ChangeNotifierProvider<AdminProvider>(create: (_) => AdminProvider()),
       ],
-      child: MaterialApp(
-        title: 'SmartStay - Quản Trị Hệ Sinh Thái Lưu Trú',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF2563EB),
-            primary: const Color(0xFF2563EB),
-            secondary: const Color(0xFF0284C7),
-            surface: Colors.white,
-          ),
-          scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-          fontFamily: 'Roboto',
-          appBarTheme: const AppBarTheme(
-            surfaceTintColor: Colors.transparent,
-            backgroundColor: Colors.white,
-          ),
-        ),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.dark,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF2563EB),
-            brightness: Brightness.dark,
-          ),
-        ),
-        themeMode: ThemeMode.light,
-        home: const AppRoot(),
+      child: Builder(
+        builder: (context) {
+          final themeCtrl = context.watch<ThemeController>();
+          return MaterialApp(
+            title: 'SmartStay - Quản Trị Hệ Sinh Thái Lưu Trú',
+            debugShowCheckedModeBanner: false,
+            theme: SmartStayTheme.light(),
+            darkTheme: SmartStayTheme.dark(),
+            themeMode: themeCtrl.mode,
+            home: const AppRoot(),
+          );
+        },
       ),
     );
   }

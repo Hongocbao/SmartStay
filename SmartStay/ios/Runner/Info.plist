@@ -49,6 +49,10 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>SmartStay cần quyền truy cập Camera để thực hiện cuộc gọi Video trực tiếp và quét công tơ điện nước.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SmartStay cần quyền truy cập Microphone để truyền âm thanh hai chiều khi gọi điện.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

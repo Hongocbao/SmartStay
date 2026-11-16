@@ -24,6 +24,22 @@ class ApiService {
 
   String? authToken;
   bool isConnectedToBackend = false;
+  bool sessionExpired = false;
+  String? lastErrorMessage;
+
+  final StreamController<String> _authEventController =
+      StreamController<String>.broadcast();
+  Stream<String> get authEventStream => _authEventController.stream;
+
+  void _handleUnauthorized(String endpoint) {
+    authToken = null;
+    sessionExpired = true;
+    lastErrorMessage = 'Phiên đăng nhập đã hết hạn (401). Vui lòng đăng nhập lại.';
+    debugPrint('ApiService 401 Unauthorized on $endpoint');
+    if (!_authEventController.isClosed) {
+      _authEventController.add('session_expired');
+    }
+  }
 
   static final String callClientId =
       'flt-${DateTime.now().millisecondsSinceEpoch % 1000000}-${DateTime.now().microsecond}';
@@ -31,19 +47,25 @@ class ApiService {
       StreamController<Map<String, dynamic>>.broadcast();
   final Set<int> _seenSignalSeqs = <int>{};
   int _lastCallSignalSeq = 0;
+  String _activeCallId = '';
   List<Map<String, dynamic>> latestOnlinePeers = <Map<String, dynamic>>[];
 
   Stream<Map<String, dynamic>> get callSignalStream =>
       _callSignalController.stream;
+
+  void setActiveCallSessionId(String callId) {
+    _activeCallId = callId;
+  }
 
   void resetCallSignalCursor() {
     _lastCallSignalSeq = 0;
     _seenSignalSeqs.clear();
   }
 
-  /// Helper thực hiện POST request an toàn đa nền tảng
+  /// Helper thực hiện POST request an toàn đa nền tảng (có xử lý 401 & timeout)
   Future<Map<String, dynamic>?> _post(String endpoint, Map<String, dynamic> body, {Duration? timeout}) async {
     try {
+      lastErrorMessage = null;
       final headers = <String, String>{'content-type': 'application/json'};
       if (authToken != null) {
         headers['authorization'] = 'Bearer $authToken';
@@ -56,42 +78,79 @@ class ApiService {
         timeout: timeout,
       );
 
+      if (response.statusCode == 401 && endpoint != '/auth/dang-nhap') {
+        isConnectedToBackend = true;
+        _handleUnauthorized(endpoint);
+        return null;
+      }
       if (response.statusCode >= 200 && response.statusCode < 300) {
         isConnectedToBackend = true;
+        sessionExpired = false;
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
       isConnectedToBackend = true;
+      lastErrorMessage = 'Lỗi máy chủ (${response.statusCode})';
+      return null;
+    } on TimeoutException catch (e) {
+      isConnectedToBackend = false;
+      lastErrorMessage = 'Kết nối quá thời gian chờ. Vui lòng thử lại.';
+      debugPrint('ApiService._post timeout on $endpoint: $e');
       return null;
     } catch (e) {
       isConnectedToBackend = false;
+      lastErrorMessage = 'Không thể kết nối đến máy chủ.';
       debugPrint('ApiService._post error on $endpoint: $e');
       return null;
     }
   }
 
-  /// Helper thực hiện GET request
-  Future<dynamic> _get(String endpoint) async {
-    try {
-      final headers = <String, String>{};
-      if (authToken != null) {
-        headers['authorization'] = 'Bearer $authToken';
-      }
-      final response = await sendApiRequest(
-        method: 'GET',
-        uri: Uri.parse('$baseUrl$endpoint'),
-        headers: headers,
-      );
+  /// Helper thực hiện GET request (tự động retry 1 lần khi timeout/mạng chập chờn & xử lý 401)
+  Future<dynamic> _get(String endpoint, {int maxRetries = 1}) async {
+    lastErrorMessage = null;
+    for (int attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        final headers = <String, String>{};
+        if (authToken != null) {
+          headers['authorization'] = 'Bearer $authToken';
+        }
+        final response = await sendApiRequest(
+          method: 'GET',
+          uri: Uri.parse('$baseUrl$endpoint'),
+          headers: headers,
+        );
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.statusCode == 401) {
+          isConnectedToBackend = true;
+          _handleUnauthorized(endpoint);
+          return null;
+        }
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          isConnectedToBackend = true;
+          sessionExpired = false;
+          return jsonDecode(response.body);
+        }
         isConnectedToBackend = true;
-        return jsonDecode(response.body);
+        lastErrorMessage = 'Lỗi máy chủ (${response.statusCode})';
+        return null;
+      } on TimeoutException {
+        isConnectedToBackend = false;
+        lastErrorMessage = 'Kết nối quá thời gian chờ.';
+        if (attempt < maxRetries) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          continue;
+        }
+        return null;
+      } catch (e) {
+        isConnectedToBackend = false;
+        lastErrorMessage = 'Mất kết nối mạng.';
+        if (attempt < maxRetries) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          continue;
+        }
+        return null;
       }
-      isConnectedToBackend = true;
-      return null;
-    } catch (e) {
-      isConnectedToBackend = false;
-      return null;
     }
+    return null;
   }
 
   /// Kiểm tra trạng thái Backend .NET 8 (Health Check)
@@ -274,6 +333,7 @@ class ApiService {
         'displayName': displayName,
         'roomCode': roomCode ?? '',
         'sinceSeq': '$_lastCallSignalSeq',
+        if (_activeCallId.isNotEmpty) 'activeCallId': _activeCallId,
       },
     ).query;
     final res = await _get('/sync/call-signal/poll?$query');

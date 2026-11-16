@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../theme/smartstay_theme.dart';
+import '../../widgets/smartstay_ui.dart';
+import '../../widgets/call_center_modal.dart';
 import '../../utils/provider_scope.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/admin_models.dart';
@@ -17,32 +20,73 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
   int _selectedFloor = 0; // 0 = Tất cả
   String _selectedStatus = 'Tất cả';
 
+  String _resolveEffectiveRoomState(RoomItemModel room, AdminProvider admin) {
+    if (room.status == 'Bảo trì' || room.status == 'Đang sửa chữa') {
+      return 'Đang sửa chữa';
+    }
+    final hasOverdue = admin.allInvoices.any(
+      (inv) =>
+          inv.roomCode.toUpperCase() == room.roomCode.toUpperCase() &&
+          !inv.isFullyPaid &&
+          inv.dueDate.isBefore(DateTime.now()),
+    );
+    if (hasOverdue) return 'Quá hạn thanh toán';
+    final expiringSoon = admin.contracts.any(
+      (c) =>
+          c.roomCode.toUpperCase() == room.roomCode.toUpperCase() &&
+          c.endDate.difference(DateTime.now()).inDays <= 30 &&
+          c.endDate.isAfter(DateTime.now().subtract(const Duration(days: 1))),
+    );
+    if (expiringSoon) return 'Sắp hết hạn HĐ';
+    return room.status;
+  }
+
   @override
   Widget build(BuildContext context) {
     final admin = context.watch<AdminProvider>();
     final allRooms = admin.rooms;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor =
+        isDark ? SmartStayColors.surfaceDark : SmartStayColors.surfaceLight;
+    final borderColor =
+        isDark ? SmartStayColors.borderDark : SmartStayColors.borderLight;
 
     final filteredRooms = allRooms.where((room) {
       final matchFloor = _selectedFloor == 0 || room.floor == _selectedFloor;
-      final matchStatus = _selectedStatus == 'Tất cả' || room.status == _selectedStatus;
+      final effState = _resolveEffectiveRoomState(room, admin);
+      final matchStatus = _selectedStatus == 'Tất cả' ||
+          effState == _selectedStatus ||
+          room.status == _selectedStatus;
       return matchFloor && matchStatus;
     }).toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
-          'Sơ Đồ Phòng Trực Quan (Room Matrix)',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A)),
+          'Bản Đồ Số Phòng Trực Quan',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Đồng bộ sơ đồ từ Cloud',
+            icon: const Icon(Icons.sync_rounded, color: SmartStayColors.primary),
+            onPressed: () async {
+              final ok = await admin.syncWithCloudSupabase();
+              if (!context.mounted) return;
+              showSmartStayToast(
+                context,
+                ok ? 'Đã đồng bộ trạng thái phòng Real-time!' : 'Đang dùng dữ liệu cục bộ.',
+                isSuccess: ok,
+              );
+            },
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ElevatedButton.icon(
               icon: const Icon(Icons.add_home_work_rounded, size: 16, color: Colors.white),
-              label: const Text('Thêm phòng mới', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
+              label: const Text('Thêm phòng', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
+                backgroundColor: SmartStayColors.primary,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
@@ -55,7 +99,7 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
         children: [
           // Floor Filter Bar
           Container(
-            color: Colors.white,
+            color: surfaceColor,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -77,9 +121,9 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
             ),
           ),
 
-          // Status Filter Bar
+          // Status Filter Bar (5 trạng thái trực quan)
           Container(
-            color: Colors.white,
+            color: surfaceColor,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -87,27 +131,51 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
                 children: [
                   _buildStatusChip('Tất cả', null),
                   const SizedBox(width: 8),
-                  _buildStatusChip('Đang ở', const Color(0xFF2563EB)),
-                  const SizedBox(width: 8),
                   _buildStatusChip('Trống', const Color(0xFF10B981)),
                   const SizedBox(width: 8),
-                  _buildStatusChip('Đã đặt', const Color(0xFFF59E0B)),
+                  _buildStatusChip('Đang ở', const Color(0xFF2563EB)),
                   const SizedBox(width: 8),
-                  _buildStatusChip('Bảo trì', const Color(0xFFEF4444)),
+                  _buildStatusChip('Sắp hết hạn HĐ', const Color(0xFFF59E0B)),
+                  const SizedBox(width: 8),
+                  _buildStatusChip('Quá hạn thanh toán', const Color(0xFF9333EA)),
+                  const SizedBox(width: 8),
+                  _buildStatusChip('Đang sửa chữa', const Color(0xFFEF4444)),
                 ],
               ),
             ),
           ),
 
-          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          Divider(height: 1, color: borderColor),
 
           // Rooms Grid
           Expanded(
-            child: filteredRooms.isEmpty
-                ? const Center(
-                    child: Text('Không tìm thấy phòng phù hợp bộ lọc.', style: TextStyle(color: Color(0xFF64748B))),
-                  )
-                : LayoutBuilder(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                final ok = await admin.syncWithCloudSupabase();
+                if (!context.mounted) return;
+                showSmartStayToast(
+                  context,
+                  ok ? 'Đã cập nhật bản đồ phòng!' : 'Không kết nối được Cloud.',
+                  isSuccess: ok,
+                );
+              },
+              child: filteredRooms.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SmartStayEmptyState(
+                          icon: Icons.apartment_rounded,
+                          title: 'Không có phòng phù hợp',
+                          subtitle: 'Thử chọn tầng khác hoặc đặt lại bộ lọc trạng thái phòng.',
+                          actionLabel: 'Hiện tất cả',
+                          onAction: () => setState(() {
+                            _selectedFloor = 0;
+                            _selectedStatus = 'Tất cả';
+                          }),
+                        ),
+                      ],
+                    )
+                  : LayoutBuilder(
                     builder: (context, constraints) {
                       final width = constraints.maxWidth;
                       final crossAxisCount = width >= 1050
@@ -129,6 +197,7 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
                       );
                     },
                   ),
+            ),
           ),
         ],
       ),
@@ -183,9 +252,11 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
   }
 
   Widget _buildRoomCard(RoomItemModel room, AdminProvider admin) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effectiveState = _resolveEffectiveRoomState(room, admin);
     Color statusColor;
     Color statusBgColor;
-    switch (room.status) {
+    switch (effectiveState) {
       case 'Đang ở':
         statusColor = const Color(0xFF2563EB);
         statusBgColor = const Color(0xFFEFF6FF);
@@ -194,9 +265,14 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
         statusColor = const Color(0xFF10B981);
         statusBgColor = const Color(0xFFF0FDF4);
         break;
+      case 'Sắp hết hạn HĐ':
       case 'Đã đặt':
         statusColor = const Color(0xFFF59E0B);
         statusBgColor = const Color(0xFFFFFBEB);
+        break;
+      case 'Quá hạn thanh toán':
+        statusColor = const Color(0xFF9333EA);
+        statusBgColor = const Color(0xFFFAF5FF);
         break;
       default:
         statusColor = const Color(0xFFEF4444);
@@ -204,7 +280,7 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
     }
 
     return Material(
-      color: Colors.white,
+      color: isDark ? SmartStayColors.surfaceDark : SmartStayColors.surfaceLight,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: () => _showRoomDetailsModal(context, room, admin),
@@ -214,8 +290,10 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: room.status == 'Đang ở' ? const Color(0xFFBFDBFE) : const Color(0xFFE2E8F0),
-              width: room.status == 'Đang ở' ? 1.5 : 1,
+              color: effectiveState != 'Trống'
+                  ? statusColor.withValues(alpha: 0.45)
+                  : (isDark ? SmartStayColors.borderDark : SmartStayColors.borderLight),
+              width: effectiveState != 'Trống' ? 1.5 : 1,
             ),
           ),
           child: Column(
@@ -225,19 +303,66 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    room.roomCode,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A)),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: statusBgColor, borderRadius: BorderRadius.circular(6)),
+                  Expanded(
                     child: Text(
-                      room.status,
-                      style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                      room.roomCode,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: isDark ? SmartStayColors.textPrimaryDark : SmartStayColors.textPrimaryLight,
+                      ),
                     ),
                   ),
+                  PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    iconSize: 18,
+                    tooltip: 'Thao tác nhanh 1 chạm',
+                    icon: Icon(
+                      Icons.more_vert_rounded,
+                      size: 18,
+                      color: isDark ? SmartStayColors.textSecondaryDark : SmartStayColors.textSecondaryLight,
+                    ),
+                    onSelected: (action) {
+                      if (action == 'detail') {
+                        _showRoomDetailsModal(context, room, admin);
+                      } else if (action == 'call') {
+                        showSmartStayCallModal(
+                          context,
+                          initialTargetRole: 'CuDan',
+                          initialTargetName: '${room.residentName ?? 'Cư dân'} (${room.roomCode})',
+                          initialVideo: true,
+                        );
+                      } else {
+                        admin.updateRoomStatus(room.roomId, action);
+                        showSmartStayToast(
+                          context,
+                          'Đã chuyển ${room.roomCode} sang "$action"',
+                          isSuccess: true,
+                        );
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'detail', child: Text('Xem chi tiết phòng')),
+                      PopupMenuItem(value: 'Đang ở', child: Text('Đặt: Đang ở')),
+                      PopupMenuItem(value: 'Trống', child: Text('Đặt: Phòng trống')),
+                      PopupMenuItem(value: 'Bảo trì', child: Text('Đặt: Đang sửa chữa')),
+                      PopupMenuItem(value: 'call', child: Text('Gọi Video cư dân')),
+                    ],
+                  ),
                 ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isDark ? statusColor.withValues(alpha: 0.2) : statusBgColor,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  effectiveState,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
               ),
               Text(
                 room.roomType,

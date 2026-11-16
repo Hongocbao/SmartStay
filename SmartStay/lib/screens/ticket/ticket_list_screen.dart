@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import '../../widgets/smartstay_ui.dart';
 import '../../models/ticket_model.dart';
 import '../../providers/ticket_provider.dart';
 import '../../utils/provider_scope.dart';
@@ -287,13 +288,9 @@ class TicketListScreen extends StatelessWidget {
     final tickets = ticketProv.tickets;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text('Báo cáo sự cố & Bảo trì'),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF0F172A),
-        elevation: 0,
         actions: [
           IconButton(
             tooltip: 'Báo sự cố mới',
@@ -323,25 +320,30 @@ class TicketListScreen extends StatelessWidget {
         icon: const Icon(Icons.add_a_photo_rounded),
         label: const Text('Báo sự cố mới', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-        itemCount: tickets.isEmpty ? 2 : tickets.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _buildVisualIncidentBanner(context);
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await ticketProv.syncTicketsFromCloud();
+          if (context.mounted) {
+            showSmartStayToast(context, 'Đã đồng bộ danh sách sự cố!', isSuccess: true);
           }
-          if (tickets.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 48),
-              child: Center(
-                child: Text(
-                  'Chưa có phiếu sự cố nào. Bấm "Chụp Ảnh / Quay Video Báo Sự Cố" ở trên để tạo phiếu mới.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
-                ),
-              ),
-            );
-          }
+        },
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+          itemCount: tickets.isEmpty ? 2 : tickets.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return _buildVisualIncidentBanner(context);
+            }
+            if (tickets.isEmpty) {
+              return SmartStayEmptyState(
+                icon: Icons.handyman_rounded,
+                title: 'Chưa có phiếu sự cố nào',
+                subtitle: 'Bấm "Chụp Ảnh / Quay Video Báo Sự Cố" ở trên để tạo phiếu mới.',
+                actionLabel: 'Đồng bộ lại',
+                onAction: ticketProv.syncTicketsFromCloud,
+              );
+            }
 
           final t = tickets[index - 1];
 
@@ -471,6 +473,7 @@ class TicketListScreen extends StatelessWidget {
             ),
           );
         },
+      ),
       ),
     );
   }

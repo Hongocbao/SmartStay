@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
@@ -151,7 +152,25 @@ class AuthProvider extends ChangeNotifier {
     return 'resident';
   }
 
-  AuthProvider();
+  StreamSubscription<String>? _authEventSub;
+
+  AuthProvider() {
+    _authEventSub = _api.authEventStream.listen((event) {
+      if (event == 'session_expired' && _user != null && _token != null) {
+        _user = null;
+        _contract = null;
+        _token = null;
+        _errorMessage = 'Phiên đăng nhập đã hết hạn (401). Vui lòng đăng nhập lại.';
+        notifyListeners();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authEventSub?.cancel();
+    super.dispose();
+  }
 
   final Map<String, UserModel> _savedUserProfiles = {};
   late final ResidentProfile _defaultResidentTemplate =

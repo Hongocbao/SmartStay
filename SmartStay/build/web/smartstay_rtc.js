@@ -140,8 +140,30 @@
         pc = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
-            ]
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun.cloudflare.com:3478' },
+                {
+                    urls: [
+                        'turn:openrelay.metered.ca:80',
+                        'turn:openrelay.metered.ca:443',
+                        'turn:openrelay.metered.ca:443?transport=tcp'
+                    ],
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: [
+                        'turn:standard.relay.metered.ca:80',
+                        'turn:standard.relay.metered.ca:80?transport=tcp',
+                        'turn:standard.relay.metered.ca:443',
+                        'turns:standard.relay.metered.ca:443?transport=tcp'
+                    ],
+                    username: 'e8dd65b92f64d0936f14a81b',
+                    credential: '2/37530315284e5O'
+                }
+            ],
+            iceCandidatePoolSize: 4
         });
         remoteStream = new MediaStream();
         if (localStream) {

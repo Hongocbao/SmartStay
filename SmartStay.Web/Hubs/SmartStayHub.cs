@@ -35,6 +35,7 @@ public static class CallSignalingEngine
     private static long _seqCounter = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     private static readonly ConcurrentQueue<CallSignalPacket> _signals = new();
     private static readonly ConcurrentDictionary<string, CallPresenceEntry> _presenceByClient = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, List<CallSignalPacket>> _sessionHandshakeCache = new(StringComparer.OrdinalIgnoreCase);
 
     public static string NormalizeRole(string? rawRole)
     {
@@ -122,25 +123,64 @@ public static class CallSignalingEngine
         }
 
         _signals.Enqueue(packet);
-        while (_signals.Count > 500)
+        while (_signals.Count > 2000)
         {
             _signals.TryDequeue(out _);
         }
+
+        if (!string.IsNullOrWhiteSpace(packet.CallId))
+        {
+            var list = _sessionHandshakeCache.GetOrAdd(packet.CallId, _ => new List<CallSignalPacket>());
+            lock (list)
+            {
+                list.Add(packet);
+                if (list.Count > 200)
+                {
+                    list.RemoveAt(0);
+                }
+            }
+            if (_sessionHandshakeCache.Count > 100)
+            {
+                var oldestKey = _sessionHandshakeCache.Keys.FirstOrDefault();
+                if (oldestKey != null) _sessionHandshakeCache.TryRemove(oldestKey, out _);
+            }
+        }
         return packet;
+    }
+
+    public static List<CallSignalPacket> GetSessionHandshakes(string callId, string? excludeClientId = null)
+    {
+        if (string.IsNullOrWhiteSpace(callId)) return new List<CallSignalPacket>();
+        if (_sessionHandshakeCache.TryGetValue(callId, out var list))
+        {
+            lock (list)
+            {
+                return list
+                    .Where(s => string.IsNullOrWhiteSpace(excludeClientId) || !string.Equals(s.FromClientId, excludeClientId, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(s => s.Seq)
+                    .ToList();
+            }
+        }
+        return new List<CallSignalPacket>();
     }
 
     public static List<CallSignalPacket> PollSignals(string clientId, string? myRole, long sinceSeq)
     {
         var normalizedMyRole = NormalizeRole(myRole);
+        var effectiveSince = sinceSeq <= 0
+            ? Math.Max(0, CurrentSeq - 50)
+            : sinceSeq;
+
         return _signals
-            .Where(s => s.Seq > sinceSeq)
+            .Where(s => s.Seq > effectiveSince)
+            .Where(s => sinceSeq > 0 || s.CreatedAt >= DateTime.UtcNow.AddSeconds(-45))
             .Where(s => !string.Equals(s.FromClientId, clientId, StringComparison.OrdinalIgnoreCase))
             .Where(s =>
                 (!string.IsNullOrWhiteSpace(s.TargetClientId) &&
                  string.Equals(s.TargetClientId, clientId, StringComparison.OrdinalIgnoreCase))
-                || (string.IsNullOrWhiteSpace(s.TargetClientId) &&
-                    !string.IsNullOrWhiteSpace(s.TargetRole) &&
-                    string.Equals(s.TargetRole, normalizedMyRole, StringComparison.OrdinalIgnoreCase)))
+                || (!string.IsNullOrWhiteSpace(s.TargetRole) &&
+                    string.Equals(s.TargetRole, normalizedMyRole, StringComparison.OrdinalIgnoreCase))
+                || (string.IsNullOrWhiteSpace(s.TargetClientId) && string.IsNullOrWhiteSpace(s.TargetRole)))
             .OrderBy(s => s.Seq)
             .ToList();
     }
@@ -157,14 +197,26 @@ public static class CallSignalingEngine
             _ => "ReceiveCallSignal"
         };
 
-        var targetProxy = !string.IsNullOrWhiteSpace(packet.TargetClientId)
-            ? clients.Group($"client_{packet.TargetClientId}")
-            : (!string.IsNullOrWhiteSpace(packet.TargetRole)
-                ? clients.Group($"role_{packet.TargetRole}")
-                : clients.All);
-
-        await targetProxy.SendAsync("ReceiveCallSignal", packet);
-        await targetProxy.SendAsync(eventName, packet);
+        if (!string.IsNullOrWhiteSpace(packet.TargetClientId))
+        {
+            await clients.Group($"client_{packet.TargetClientId}").SendAsync("ReceiveCallSignal", packet);
+            await clients.Group($"client_{packet.TargetClientId}").SendAsync(eventName, packet);
+            if (!string.IsNullOrWhiteSpace(packet.TargetRole))
+            {
+                await clients.Group($"role_{packet.TargetRole}").SendAsync("ReceiveCallSignal", packet);
+                await clients.Group($"role_{packet.TargetRole}").SendAsync(eventName, packet);
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(packet.TargetRole))
+        {
+            await clients.Group($"role_{packet.TargetRole}").SendAsync("ReceiveCallSignal", packet);
+            await clients.Group($"role_{packet.TargetRole}").SendAsync(eventName, packet);
+        }
+        else
+        {
+            await clients.All.SendAsync("ReceiveCallSignal", packet);
+            await clients.All.SendAsync(eventName, packet);
+        }
     }
 }
 

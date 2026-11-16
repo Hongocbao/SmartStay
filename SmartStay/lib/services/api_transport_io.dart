@@ -2,9 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
+
 import 'api_response.dart';
+import 'webrtc_call_service.dart';
 
 final Map<String, String> _memoryStorage = {};
+Timer? _nativeRingTimer;
 
 final HttpClient _localClient = HttpClient()
   ..connectionTimeout = const Duration(seconds: 5);
@@ -56,15 +60,38 @@ void writeLocalStorage(String key, String value) {
 
 String? readLocalStorage(String key) => _memoryStorage[key];
 
-void rtcStartRingtone() {}
-void rtcStopRingtone() {}
-Future<bool> rtcPrepareLocalMedia(bool isVideo, String label) async => false;
-Future<void> rtcStartCallerPeer(String metaJson) async {}
-Future<void> rtcStartCalleePeer(String metaJson) async {}
-Future<void> rtcHandleSignal(String packetJson) async {}
-void rtcSetMic(bool enabled) {}
-void rtcSetCam(bool enabled) {}
-void rtcHangup() {}
+void rtcStartRingtone() {
+  rtcStopRingtone();
+  SystemSound.play(SystemSoundType.alert);
+  HapticFeedback.vibrate();
+  _nativeRingTimer = Timer.periodic(const Duration(milliseconds: 1800), (_) {
+    SystemSound.play(SystemSoundType.alert);
+    HapticFeedback.vibrate();
+  });
+}
+
+void rtcStopRingtone() {
+  _nativeRingTimer?.cancel();
+  _nativeRingTimer = null;
+}
+
+Future<bool> rtcPrepareLocalMedia(bool isVideo, String label) =>
+    WebRtcCallService().prepareLocalMedia(isVideo, label);
+
+Future<void> rtcStartCallerPeer(String metaJson) =>
+    WebRtcCallService().startCallerPeer(metaJson);
+
+Future<void> rtcStartCalleePeer(String metaJson) =>
+    WebRtcCallService().startCalleePeer(metaJson);
+
+Future<void> rtcHandleSignal(String packetJson) =>
+    WebRtcCallService().handleRemoteSignal(packetJson);
+
+void rtcSetMic(bool enabled) => WebRtcCallService().setMicEnabled(enabled);
+
+void rtcSetCam(bool enabled) => WebRtcCallService().setCamEnabled(enabled);
+
+void rtcHangup() => unawaited(WebRtcCallService().hangup());
 
 Future<Map<String, dynamic>?> analyzeMeterImageOcr({
   required String dataUrl,

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../theme/smartstay_theme.dart';
+import '../../widgets/smartstay_ui.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/invoice_provider.dart';
@@ -24,21 +26,35 @@ class HomeScreen extends StatelessWidget {
     final invoiceProv = context.watch<InvoiceProvider>();
     final ticketProv = context.watch<TicketProvider>();
     final commProv = context.watch<CommunityProvider>();
+    final adminProv = context.read<AdminProvider>();
+    final themeCtrl = context.watch<ThemeController>();
 
     final user = auth.user;
     final profile = user?.residentProfile;
     final unpaidInvoice = invoiceProv.currentUnpaidInvoice;
     final activeTicket = ticketProv.activeTicket;
     final roomCode = profile?.roomCode ?? user?.roomCode ?? 'P.305';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? SmartStayColors.textPrimaryDark : SmartStayColors.textPrimaryLight;
+    final textSecondary = isDark ? SmartStayColors.textSecondaryDark : SmartStayColors.textSecondaryLight;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
             invoiceProv.loadInvoices();
             ticketProv.loadTickets();
             commProv.loadData();
+            final synced = await adminProv.syncWithCloudSupabase();
+            if (context.mounted) {
+              showSmartStayToast(
+                context,
+                synced
+                    ? 'Đã đồng bộ dữ liệu phòng $roomCode từ Cloud!'
+                    : 'Đã làm mới dữ liệu cục bộ phòng $roomCode.',
+                isSuccess: synced,
+              );
+            }
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -51,7 +67,7 @@ class HomeScreen extends StatelessWidget {
                   children: [
                     CircleAvatar(
                       radius: 24,
-                      backgroundColor: const Color(0xFF2563EB),
+                      backgroundColor: SmartStayColors.primary,
                       child: Text(
                         (user?.fullName.isNotEmpty == true)
                             ? user!.fullName.trim().split(' ').last[0]
@@ -74,10 +90,10 @@ class HomeScreen extends StatelessWidget {
                                 child: Text(
                                   'Xin chào, ${user?.fullName ?? "Cư dân"}',
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0F172A),
+                                    color: textPrimary,
                                   ),
                                 ),
                               ),
@@ -89,15 +105,17 @@ class HomeScreen extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEFF6FF),
+                              color: isDark
+                                  ? SmartStayColors.primary.withValues(alpha: 0.22)
+                                  : SmartStayColors.primaryLight,
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               '$roomCode - ${profile?.buildingName ?? "Tòa nhà A"}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF1D4ED8),
+                                color: isDark ? const Color(0xFFA5B4FC) : SmartStayColors.primaryDark,
                               ),
                             ),
                           ),
@@ -105,7 +123,17 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.notifications_none_rounded, size: 26),
+                      icon: Icon(
+                        themeCtrl.isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                        size: 22,
+                        color: themeCtrl.isDark ? Colors.amber : textSecondary,
+                      ),
+                      tooltip: themeCtrl.isDark ? 'Giao diện Sáng' : 'Giao diện Tối',
+                      onPressed: themeCtrl.toggle,
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.notifications_none_rounded, size: 26, color: textPrimary),
+                      tooltip: 'Thông báo & Nội quy',
                       onPressed: () {
                         onNavigateTab?.call(5); // Mở tab Bảng tin
                       },

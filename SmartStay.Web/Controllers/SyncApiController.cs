@@ -256,7 +256,7 @@ public class SyncApiController : ControllerBase
         });
     }
 
-    [AllowAnonymous]
+    [Authorize(Roles = "Admin,QuanLy,KyThuat")]
     [HttpPost("cap-nhat-phong")]
     public async Task<IActionResult> CapNhatTrangThaiPhong([FromBody] CapNhatPhongSyncDto req)
     {
@@ -510,7 +510,8 @@ public class SyncApiController : ControllerBase
         [FromQuery] string? role = "CuDan",
         [FromQuery] string? displayName = null,
         [FromQuery] string? roomCode = null,
-        [FromQuery] long sinceSeq = 0)
+        [FromQuery] long sinceSeq = 0,
+        [FromQuery] string? activeCallId = null)
     {
         if (string.IsNullOrWhiteSpace(clientId))
         {
@@ -518,15 +519,25 @@ public class SyncApiController : ControllerBase
         }
 
         CallSignalingEngine.UpsertPresence(clientId, role, displayName, roomCode);
-        var effectiveSince = sinceSeq <= 0 ? CallSignalingEngine.CurrentSeq : sinceSeq;
-        var items = sinceSeq <= 0
-            ? new List<CallSignalPacket>()
-            : CallSignalingEngine.PollSignals(clientId, role, effectiveSince);
+        var items = CallSignalingEngine.PollSignals(clientId, role, sinceSeq);
+        if (!string.IsNullOrWhiteSpace(activeCallId))
+        {
+            var sessionSignals = CallSignalingEngine.GetSessionHandshakes(activeCallId, clientId);
+            foreach (var sig in sessionSignals)
+            {
+                if (sig.Seq > sinceSeq && items.All(x => x.Seq != sig.Seq))
+                {
+                    items.Add(sig);
+                }
+            }
+            items = items.OrderBy(x => x.Seq).ToList();
+        }
+        var currentSeq = CallSignalingEngine.CurrentSeq;
 
         return Ok(new
         {
             success = true,
-            latestSeq = items.Count > 0 ? items.Max(x => x.Seq) : effectiveSince,
+            latestSeq = items.Count > 0 ? Math.Max(currentSeq, items.Max(x => x.Seq)) : currentSeq,
             signals = items,
             onlinePeers = CallSignalingEngine.GetOnlinePeers(clientId)
         });
@@ -543,7 +554,7 @@ public class SyncApiController : ControllerBase
         });
     }
 
-    [AllowAnonymous]
+    [Authorize(Roles = "Admin,QuanLy")]
     [HttpPost("thong-bao")]
     public async Task<IActionResult> DangThongBaoMoi([FromBody] DangThongBaoSyncDto req)
     {

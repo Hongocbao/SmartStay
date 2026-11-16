@@ -108,4 +108,5 @@ public class TroLyChatRequestDto
     public int? MaPhong { get; set; }
     public string? VaiTro { get; set; }
     public string? SoPhong { get; set; }
+    public string? ImageBase64 { get; set; }
 }

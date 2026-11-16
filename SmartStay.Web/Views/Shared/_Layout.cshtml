@@ -780,6 +780,7 @@
                         <div class="col-12 col-md-7">
                             <div class="ss-call-stage p-3 mb-3">
                                 <video id="ssCallRemoteVideo" class="ss-call-video-el d-none" autoplay playsinline></video>
+                                <audio id="ssCallRemoteAudio" autoplay></audio>
                                 <div id="ssCallAvatarRing" class="ss-call-avatar-ring mb-2">
                                     <i class="bi bi-headset"></i>
                                 </div>
@@ -1154,6 +1155,7 @@
             var statusBadge = document.getElementById('ssCallStatusBadge');
             var timerText = document.getElementById('ssCallTimerText');
             var remoteVideo = document.getElementById('ssCallRemoteVideo');
+            var remoteAudio = document.getElementById('ssCallRemoteAudio');
             var localVideo = document.getElementById('ssCallLocalVideo');
             var pipPlaceholder = document.getElementById('ssCallPipPlaceholder');
             var customTargetInput = document.getElementById('ssCallCustomTarget');
@@ -1197,6 +1199,9 @@
                 localVideo.classList.add('d-none');
                 remoteVideo.srcObject = null;
                 remoteVideo.classList.add('d-none');
+                if (remoteAudio) {
+                    remoteAudio.srcObject = null;
+                }
                 pipPlaceholder.classList.remove('d-none');
                 ringEl.classList.remove('calling');
                 micBtn.disabled = true;
@@ -1363,16 +1368,28 @@
                     },
                     onRemoteStream: function (stream) {
                         if (!stream) return;
+                        if (remoteAudio) {
+                            remoteAudio.srcObject = stream;
+                            remoteAudio.muted = false;
+                            remoteAudio.volume = 1.0;
+                            remoteAudio.play().catch(function () { });
+                        }
                         remoteVideo.srcObject = stream;
-                        remoteVideo.classList.remove('d-none');
+                        if (callState.isVideo || (stream.getVideoTracks && stream.getVideoTracks().length > 0)) {
+                            remoteVideo.classList.remove('d-none');
+                        }
+                        remoteVideo.muted = false;
+                        remoteVideo.volume = 1.0;
                         remoteVideo.play().catch(function () { });
                         timerText.innerText = 'Đang truyền luồng Âm thanh & Hình ảnh WebRTC 2 chiều!';
                     },
-                    onPeerStateChange: function (state) {
-                        if (state === 'connected') {
-                            timerText.innerText = 'Kết nối WebRTC Peer-to-Peer 2 chiều ổn định (Connected)';
-                        } else if (state === 'failed') {
-                            timerText.innerText = 'Cảnh báo: Không thiết lập được ICE WebRTC trực tiếp';
+                    onPeerStateChange: function (state, iceState) {
+                        if (state === 'connected' || iceState === 'connected' || iceState === 'completed') {
+                            timerText.innerText = 'Kết nối WebRTC Peer-to-Peer 2 chiều ổn định (' + (state || iceState) + ')';
+                        } else if (state === 'checking' || iceState === 'checking') {
+                            timerText.innerText = 'Đang đàm phán STUN/TURN ICE (' + (iceState || state) + ')...';
+                        } else if (state === 'failed' || iceState === 'failed') {
+                            timerText.innerText = 'Đang tự động khởi động lại ICE qua máy chủ TURN Relay...';
                         }
                     }
                 }

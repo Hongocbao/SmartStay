@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 import '../services/api_transport.dart';
+import '../services/webrtc_call_service.dart';
 import '../utils/provider_scope.dart';
 
 const _callPrimary = Color(0xFF4F46E5);
@@ -93,6 +96,7 @@ class _SmartStayCallDialog extends StatefulWidget {
 class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
     with SingleTickerProviderStateMixin {
   final ApiService _api = ApiService();
+  final WebRtcCallService _rtc = WebRtcCallService();
   late final AnimationController _pulseController;
   late final TextEditingController _targetController;
   final TextEditingController _noteController = TextEditingController();
@@ -105,6 +109,7 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
   late bool _isVideo;
   bool _micOn = true;
   bool _camOn = true;
+  bool _speakerOn = true;
   int _elapsedSeconds = 0;
   String _activeCallId = '';
   String _targetClientId = '';
@@ -128,6 +133,9 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
 
+    _rtc.addListener(_onRtcChanged);
+    unawaited(_rtc.ensureRenderersInitialized());
+
     _signalSub = _api.callSignalStream.listen(_handleRemoteCallSignal);
     _loadRecentLogs();
 
@@ -138,10 +146,19 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
     }
   }
 
+  void _onRtcChanged() {
+    if (!mounted) return;
+    setState(() {
+      _speakerOn = _rtc.speakerphoneOn;
+    });
+  }
+
   @override
   void dispose() {
+    _rtc.removeListener(_onRtcChanged);
     _signalSub?.cancel();
     _callTimer?.cancel();
+    _api.setActiveCallSessionId('');
     if (_inCall || _ringingOutgoing) {
       rtcHangup();
     }
@@ -176,6 +193,7 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
     final isVid = (pkt['callMode'] ?? 'Video').toString().toLowerCase() != 'thoại';
 
     _callTimer?.cancel();
+    _api.setActiveCallSessionId(callId);
     setState(() {
       _activeCallId = callId;
       _targetClientId = peerClientId;
@@ -223,11 +241,12 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
     _callTimer?.cancel();
     _callTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
+      final iceState = _rtc.iceConnectionStateLabel;
       setState(() {
         _elapsedSeconds += 1;
         _statusNote = _isVideo
-            ? 'Đang đàm thoại Video WebRTC 2 chiều'
-            : 'Đang đàm thoại Thoại WebRTC HD';
+            ? 'Đang đàm thoại Video WebRTC 2 chiều (ICE: $iceState)'
+            : 'Đang đàm thoại Thoại WebRTC HD (ICE: $iceState)';
       });
     });
   }
@@ -237,6 +256,13 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
     final sigType = (pkt['signalType'] ?? '').toString();
     final callId = (pkt['callId'] ?? '').toString();
     if (_activeCallId.isEmpty || callId != _activeCallId) return;
+
+    if (sigType == 'webrtc_offer' ||
+        sigType == 'webrtc_answer' ||
+        sigType == 'webrtc_ice') {
+      await rtcHandleSignal(jsonEncode(pkt));
+      return;
+    }
 
     if (sigType == 'call_accepted') {
       final auth = context.read<AuthProvider>();
@@ -268,6 +294,7 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
       }));
     } else if (sigType == 'call_rejected') {
       _callTimer?.cancel();
+      _api.setActiveCallSessionId('');
       rtcHangup();
       setState(() {
         _ringingOutgoing = false;
@@ -278,6 +305,7 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
       await _persistCallRecord(status: 'Từ chối', duration: 0);
     } else if (sigType == 'call_ended') {
       _callTimer?.cancel();
+      _api.setActiveCallSessionId('');
       rtcHangup();
       final wasConnected = _connected;
       final dur = _elapsedSeconds;
@@ -320,6 +348,7 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
         : _targetController.text.trim();
     final callId =
         'CALL-${DateTime.now().millisecondsSinceEpoch}-${_elapsedSeconds + 10}';
+    _api.setActiveCallSessionId(callId);
 
     setState(() {
       _activeCallId = callId;
@@ -411,6 +440,7 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
   Future<void> _endAndSaveCall() async {
     if (!_inCall && !_ringingOutgoing) return;
     _callTimer?.cancel();
+    _api.setActiveCallSessionId('');
     final wasConnected = _connected;
     final duration = wasConnected ? (_elapsedSeconds > 0 ? _elapsedSeconds : 1) : 0;
     final auth = context.read<AuthProvider>();
@@ -757,8 +787,21 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
   }
 
   Widget _buildVideoStage() {
+    final showRemoteVideo = _inCall &&
+        _isVideo &&
+        _rtc.isRenderersInitialized &&
+        _rtc.remoteRenderer.srcObject != null &&
+        _rtc.hasRemoteVideo;
+    final showLocalVideo = _inCall &&
+        _isVideo &&
+        _camOn &&
+        _rtc.isRenderersInitialized &&
+        _rtc.localRenderer.srcObject != null &&
+        _rtc.hasLocalVideo;
+
     return Container(
-      height: 200,
+      height: 245,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         gradient: const RadialGradient(
@@ -768,120 +811,203 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
         ),
       ),
       child: Stack(
+        fit: StackFit.expand,
         children: [
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (_, child) {
-                    final glow = _inCall ? (6 + _pulseController.value * 14) : 0.0;
-                    return Container(
-                      width: 68,
-                      height: 68,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF4F46E5), Color(0xFF2563EB)],
+          // 1. Remote Video / Audio Renderer (cũng chịu trách nhiệm phát âm thanh từ đối phương)
+          if (_inCall &&
+              _rtc.isRenderersInitialized &&
+              _rtc.remoteRenderer.srcObject != null)
+            Positioned.fill(
+              child: Opacity(
+                opacity: showRemoteVideo ? 1.0 : 0.01,
+                child: RTCVideoView(
+                  _rtc.remoteRenderer,
+                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                ),
+              ),
+            ),
+
+          // 2. Avatar & Trạng thái (hiển thị khi cuộc gọi thoại hoặc chưa có hình camera đối phương)
+          if (!showRemoteVideo)
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedBuilder(
+                    animation: _pulseController,
+                    builder: (_, child) {
+                      final glow =
+                          _inCall ? (6 + _pulseController.value * 14) : 0.0;
+                      return Container(
+                        width: 68,
+                        height: 68,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF4F46E5), Color(0xFF2563EB)],
+                          ),
+                          boxShadow: _inCall
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.blueAccent
+                                        .withValues(alpha: 0.55),
+                                    blurRadius: 16,
+                                    spreadRadius: glow / 2,
+                                  ),
+                                ]
+                              : null,
                         ),
-                        boxShadow: _inCall
-                            ? [
-                                BoxShadow(
-                                  color: Colors.blueAccent.withValues(alpha: 0.55),
-                                  blurRadius: 16,
-                                  spreadRadius: glow / 2,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Icon(
-                        _inCall && _isVideo && _camOn
-                            ? Icons.videocam_rounded
-                            : Icons.headset_mic_rounded,
+                        child: Icon(
+                          _inCall && _isVideo && _camOn
+                              ? Icons.videocam_rounded
+                              : Icons.headset_mic_rounded,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      _targetController.text.isEmpty
+                          ? 'Ban Quản Lý SmartStay'
+                          : _targetController.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
                         color: Colors.white,
-                        size: 32,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    _targetController.text.isEmpty
-                        ? 'Ban Quản Lý SmartStay'
-                        : _targetController.text,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
                     ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _connected
-                        ? Colors.green.shade700
-                        : (_ringingOutgoing
-                            ? Colors.amber.shade800
-                            : Colors.blueGrey.shade700),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                  child: Text(
-                    _connected
-                        ? '${_isVideo ? 'VIDEO WEBRTC' : 'VOICE WEBRTC'} • ${_formatDuration(_elapsedSeconds)}'
-                        : (_ringingOutgoing
-                            ? 'ĐANG ĐỔ CHUÔNG...'
-                            : (_savingLog ? 'ĐANG LƯU...' : 'SẴN SÀNG KẾT NỐI')),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                if (_statusNote != null) ...[
                   const SizedBox(height: 6),
-                  Text(
-                    _statusNote!,
-                    style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 11.5),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _connected
+                          ? Colors.green.shade700
+                          : (_ringingOutgoing
+                              ? Colors.amber.shade800
+                              : Colors.blueGrey.shade700),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      _connected
+                          ? '${_isVideo ? 'VIDEO WEBRTC' : 'VOICE WEBRTC'} • ${_formatDuration(_elapsedSeconds)}'
+                          : (_ringingOutgoing
+                              ? 'ĐANG ĐỔ CHUÔNG...'
+                              : (_savingLog
+                                  ? 'ĐANG LƯU...'
+                                  : 'SẴN SÀNG KẾT NỐI')),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (_statusNote != null) ...[
+                    const SizedBox(height: 6),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        _statusNote!,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.lightBlueAccent,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+          // 3. Thanh trạng thái nổi trên góc trái khi đang xem Video trực tiếp
+          if (showRemoteVideo)
+            Positioned(
+              left: 12,
+              top: 12,
+              right: 12,
+              child: Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.fiber_manual_record,
+                          color: Color(0xFF4ADE80),
+                          size: 12,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${_targetController.text} • ${_formatDuration(_elapsedSeconds)}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
+
+          // 4. Ô Picture-in-Picture (PiP) hiển thị Camera của chính bạn
           if (_isVideo && _camOn)
             Positioned(
               right: 12,
               bottom: 12,
               child: Container(
-                width: 84,
-                height: 58,
+                width: 104,
+                height: 76,
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: const Color(0xFF334155),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.white70, width: 1.5),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _inCall ? Icons.face_retouching_natural : Icons.videocam_outlined,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Cam của bạn',
-                      style: TextStyle(color: Colors.white70, fontSize: 10),
-                    ),
-                  ],
-                ),
+                child: showLocalVideo
+                    ? RTCVideoView(
+                        _rtc.localRenderer,
+                        mirror: true,
+                        objectFit:
+                            RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _inCall
+                                ? Icons.face_retouching_natural
+                                : Icons.videocam_outlined,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Cam của bạn',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 10),
+                          ),
+                        ],
+                      ),
               ),
             ),
         ],
@@ -934,7 +1060,22 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
             ),
             label: Text(_micOn ? 'Mic Bật' : 'Mic Tắt'),
           ),
-          if (_isVideo)
+          if (!kIsWeb)
+            OutlinedButton.icon(
+              onPressed: () async {
+                await _rtc.toggleSpeakerphone();
+              },
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 44),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),
+              ),
+              icon: Icon(
+                _speakerOn ? Icons.volume_up_rounded : Icons.phone_in_talk_rounded,
+                color: _speakerOn ? Colors.indigo : Colors.orange,
+              ),
+              label: Text(_speakerOn ? 'Loa ngoài' : 'Loa trong'),
+            ),
+          if (_isVideo) ...[
             OutlinedButton.icon(
               onPressed: () {
                 setState(() => _camOn = !_camOn);
@@ -950,6 +1091,17 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
               ),
               label: Text(_camOn ? 'Cam Bật' : 'Cam Tắt'),
             ),
+            if (!kIsWeb)
+              IconButton(
+                onPressed: _camOn ? () => _rtc.switchCamera() : null,
+                tooltip: 'Đổi camera trước/sau',
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(44, 44),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                icon: const Icon(Icons.cameraswitch_rounded, size: 20),
+              ),
+          ],
           ElevatedButton.icon(
             onPressed: _endAndSaveCall,
             style: ElevatedButton.styleFrom(

@@ -69,7 +69,7 @@ class _MainLayoutState extends State<MainLayout> {
     _realtimeSyncTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       _triggerRealtimeSync(silent: true);
     });
-    _callPollTimer = Timer.periodic(const Duration(milliseconds: 1400), (_) {
+    _callPollTimer = Timer.periodic(const Duration(milliseconds: 900), (_) {
       _pollIncomingCallSignals();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {

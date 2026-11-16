@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/smartstay_ui.dart';
 import '../../utils/provider_scope.dart';
 import '../../providers/ticket_provider.dart';
 import '../../providers/admin_provider.dart';
@@ -46,9 +47,6 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
   ) {
     if (ticket.status == targetStatus) return;
 
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.clearSnackBars();
-
     if (targetStatus == 'Đang sửa') {
       if (ticket.technicianName == null || ticket.technicianName!.trim().isEmpty) {
         ticketProvider.assignTechnician(
@@ -57,11 +55,9 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
         );
       }
       ticketProvider.startRepair(ticket.ticketId);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Đã chuyển ${ticket.ticketCode} sang Đang sửa & đồng bộ Kanban!'),
-          backgroundColor: const Color(0xFF4F46E5),
-        ),
+      showSmartStayToast(
+        context,
+        'Đã chuyển ${ticket.ticketCode} sang Đang sửa & đồng bộ Kanban!',
       );
     } else if (targetStatus == 'Hoàn thành') {
       ticketProvider.completeRepair(
@@ -69,11 +65,10 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
         materialCost: ticket.materialCost ?? 0.0,
         note: 'Đã hoàn thành & đồng bộ trên bảng Kanban',
       );
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Đã hoàn thành sự cố ${ticket.ticketCode}!'),
-          backgroundColor: const Color(0xFF10B981),
-        ),
+      showSmartStayToast(
+        context,
+        'Đã hoàn thành sự cố ${ticket.ticketCode}!',
+        isSuccess: true,
       );
     } else {
       ticketProvider.updateTicketStatus(
@@ -82,10 +77,9 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
         actorName: 'Quản lý vận hành',
         note: 'Chuyển trạng thái về Chờ xử lý trên Kanban',
       );
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Đã chuyển ${ticket.ticketCode} về cột Chờ xử lý!'),
-        ),
+      showSmartStayToast(
+        context,
+        'Đã chuyển ${ticket.ticketCode} về cột Chờ xử lý!',
       );
     }
   }
@@ -103,11 +97,10 @@ class _AdminKanbanScreenState extends State<AdminKanbanScreen> with SingleTicker
     final isWide = MediaQuery.sizeOf(context).width >= 768;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
           'Kanban Quản Lý & Kỹ Thuật Bảo Trì',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A)),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         actions: [
           IconButton(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../utils/provider_scope.dart';
+import '../../theme/smartstay_theme.dart';
+import '../../widgets/smartstay_ui.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/formatters.dart';
@@ -20,6 +22,8 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String _selectedBuilding = 'Tất cả tòa nhà';
+  int _selectedMonthIndex = 5;
+  bool _isRefreshing = false;
 
   static const List<({String month, double collected, double debt})> _sixMonthStats = [
     (month: 'T5', collected: 98.0, debt: 8.0),
@@ -30,29 +34,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     (month: 'T10', collected: 102.0, debt: 16.4),
   ];
 
+  Future<void> _refreshDashboard() async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+    try {
+      final ok = await context.read<AdminProvider>().syncWithCloudSupabase();
+      if (!mounted) return;
+      showSmartStayToast(
+        context,
+        ok
+            ? 'Đã đồng bộ dữ liệu Realtime từ Supabase & Web Admin!'
+            : 'Đang hiển thị dữ liệu cục bộ (Chưa kết nối được Cloud).',
+        isSuccess: ok,
+      );
+    } finally {
+      if (mounted) setState(() => _isRefreshing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final admin = context.watch<AdminProvider>();
     final auth = context.watch<AuthProvider>();
+    final themeCtrl = context.watch<ThemeController>();
     final summary = admin.summary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? SmartStayColors.surfaceDark : SmartStayColors.surfaceLight;
+    final borderColor = isDark ? SmartStayColors.borderDark : SmartStayColors.borderLight;
+    final textPrimary = isDark ? SmartStayColors.textPrimaryDark : SmartStayColors.textPrimaryLight;
+    final textSecondary = isDark ? SmartStayColors.textSecondaryDark : SmartStayColors.textSecondaryLight;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Bàn Điều Hành SmartStay',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Color(0xFF0F172A)),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: textPrimary),
             ),
             Text(
               'Vai trò: ${auth.currentRole} • ${auth.user?.fullName ?? ""}',
-              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+              style: TextStyle(fontSize: 11, color: textSecondary),
             ),
           ],
         ),
         actions: [
+          IconButton(
+            icon: Icon(
+              themeCtrl.isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              color: themeCtrl.isDark ? Colors.amber : SmartStayColors.textSecondaryLight,
+            ),
+            tooltip: themeCtrl.isDark ? 'Chuyển giao diện Sáng' : 'Chuyển giao diện Tối',
+            onPressed: themeCtrl.toggle,
+          ),
           IconButton(
             icon: const Icon(Icons.settings_suggest_rounded, color: Color(0xFF8B5CF6)),
             tooltip: 'Cấu hình Hệ thống & VietQR',
@@ -64,17 +99,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF2563EB)),
-            tooltip: 'Làm mới',
-            onPressed: () {},
+            icon: _isRefreshing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh_rounded, color: SmartStayColors.primary),
+            tooltip: 'Làm mới dữ liệu Cloud',
+            onPressed: _isRefreshing ? null : _refreshDashboard,
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: RefreshIndicator(
+        onRefresh: _refreshDashboard,
+        child: _isRefreshing && admin.rooms.isEmpty
+            ? const SingleChildScrollView(child: SmartStayDashboardSkeleton())
+            : SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
             // KPI Summary Cards
             LayoutBuilder(
               builder: (context, constraints) {
@@ -152,9 +198,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: surfaceColor,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: borderColor),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -162,18 +208,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Thống Kê Doanh Thu & Công Nợ (6 Tháng)',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textPrimary),
                             ),
-                            SizedBox(height: 2),
+                            const SizedBox(height: 2),
                             Text(
-                              'Đơn vị: Triệu đồng • Tiền phòng, điện nước & dịch vụ',
-                              style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                              'Đơn vị: Triệu đồng • Chạm cột để xem chi tiết tháng',
+                              style: TextStyle(fontSize: 11, color: textSecondary),
                             ),
                           ],
                         ),
@@ -181,15 +227,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
+                          color: isDark ? SmartStayColors.bgDark : SmartStayColors.bgLight,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFCBD5E1)),
+                          border: Border.all(color: borderColor),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: _selectedBuilding,
                             isDense: true,
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                            dropdownColor: surfaceColor,
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: textPrimary),
                             items: const [
                               DropdownMenuItem(value: 'Tất cả tòa nhà', child: Text('Tất cả tòa nhà')),
                               DropdownMenuItem(value: 'Tòa nhà A', child: Text('Tòa nhà A')),
@@ -204,63 +251,113 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Row(
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      _buildStatusLegend('Đã thu (triệu đ)', const Color(0xFF4F46E5)),
-                      const SizedBox(width: 16),
+                      _buildStatusLegend('Đã thu (triệu đ)', SmartStayColors.primary),
                       _buildStatusLegend('Công nợ (triệu đ)', const Color(0xFFF87171)),
+                      Builder(
+                        builder: (_) {
+                          final sel = _sixMonthStats[_selectedMonthIndex];
+                          final factor = _selectedBuilding == 'Tòa nhà B' ? 0.45 : (_selectedBuilding == 'Tòa nhà A' ? 0.65 : 1.0);
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: SmartStayColors.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: Text(
+                              '${sel.month}: Thu ${(sel.collected * factor).toStringAsFixed(1)}tr • Nợ ${(sel.debt * factor).toStringAsFixed(1)}tr',
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: SmartStayColors.primary,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
-                    height: 150,
+                    height: 154,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: _sixMonthStats.map((stat) {
+                      children: List.generate(_sixMonthStats.length, (idx) {
+                        final stat = _sixMonthStats[idx];
+                        final isSelected = idx == _selectedMonthIndex;
                         final factor = _selectedBuilding == 'Tòa nhà B' ? 0.45 : (_selectedBuilding == 'Tòa nhà A' ? 0.65 : 1.0);
                         final colVal = stat.collected * factor;
                         final debtVal = stat.debt * factor;
                         final colHeight = (colVal / 125.0) * 105.0;
                         final debtHeight = (debtVal / 125.0) * 105.0;
-                        return Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Text(
-                              '${colVal.toStringAsFixed(0)}tr',
-                              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
+                        return InkWell(
+                          onTap: () => setState(() => _selectedMonthIndex = idx),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? SmartStayColors.primary.withValues(alpha: 0.08)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            const SizedBox(height: 4),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                Container(
-                                  width: 14,
-                                  height: colHeight.clamp(8.0, 105.0),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF4F46E5),
-                                    borderRadius: BorderRadius.circular(4),
+                                Text(
+                                  '${colVal.toStringAsFixed(0)}tr',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSelected ? SmartStayColors.primary : textSecondary,
                                   ),
                                 ),
-                                const SizedBox(width: 4),
-                                Container(
-                                  width: 10,
-                                  height: debtHeight.clamp(4.0, 105.0),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF87171),
-                                    borderRadius: BorderRadius.circular(4),
+                                const SizedBox(height: 4),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    AnimatedContainer(
+                                      duration: const Duration(milliseconds: 300),
+                                      width: 14,
+                                      height: colHeight.clamp(8.0, 105.0),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? SmartStayColors.primary
+                                            : SmartStayColors.primary.withValues(alpha: 0.72),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    AnimatedContainer(
+                                      duration: const Duration(milliseconds: 300),
+                                      width: 10,
+                                      height: debtHeight.clamp(4.0, 105.0),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF87171),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  stat.month,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                    color: isSelected ? SmartStayColors.primary : textSecondary,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              stat.month,
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
-                            ),
-                          ],
+                          ),
                         );
-                      }).toList(),
+                      }),
                     ),
                   ),
                 ],
@@ -546,6 +643,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -557,15 +655,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     required Color color,
     required Color bgColor,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? SmartStayColors.surfaceDark : SmartStayColors.surfaceLight,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: isDark ? SmartStayColors.borderDark : SmartStayColors.borderLight,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -580,13 +681,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? SmartStayColors.textSecondaryDark : SmartStayColors.textSecondaryLight,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               Container(
                 padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(
+                  color: isDark ? color.withValues(alpha: 0.18) : bgColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Icon(icon, color: color, size: 16),
               ),
             ],
@@ -600,7 +708,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+            style: TextStyle(
+              fontSize: 10,
+              color: isDark ? SmartStayColors.textSecondaryDark : const Color(0xFF94A3B8),
+            ),
             overflow: TextOverflow.ellipsis,
           ),
         ],
