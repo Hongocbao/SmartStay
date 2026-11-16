@@ -207,6 +207,14 @@ _ = Task.Run(async () =>
                 var rlsScript = await File.ReadAllTextAsync(optionAPath);
                 await db.Database.ExecuteSqlRawAsync(rlsScript);
             }
+
+            // Đảm bảo các bảng lưu trữ bền vững (Chợ đồ cũ, Vé khách, Chia tiền, OCR, Cuộc gọi) & Storage bucket 'smartstay-media' tồn tại
+            var persistPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "database", "supabase_persistence_and_storage.sql"));
+            if (File.Exists(persistPath))
+            {
+                var persistScript = await File.ReadAllTextAsync(persistPath);
+                await db.Database.ExecuteSqlRawAsync(persistScript);
+            }
         }
     }
     catch (Exception ex)

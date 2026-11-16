@@ -13,6 +13,7 @@ import '../../services/tiered_utility_service.dart';
 import '../../utils/formatters.dart';
 import '../../utils/provider_scope.dart';
 import '../../widgets/call_center_modal.dart';
+import '../../widgets/smartstay_video_player_dialog.dart';
 
 class ResidentServicesScreen extends StatefulWidget {
   final int initialTab;
@@ -267,6 +268,92 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 estimatedCost: cost.toDouble(),
               ),
             );
+            changed = true;
+          }
+        }
+      }
+
+      final cloudMarket = snapshot['choDoCu'];
+      if (cloudMarket is List && cloudMarket.isNotEmpty) {
+        for (final raw in cloudMarket) {
+          if (raw is! Map) continue;
+          final maTin = (raw['maTin'] ?? raw['MaTin'] ?? '').toString().trim();
+          final title = (raw['tieuDe'] ?? raw['TieuDe'] ?? '').toString().trim();
+          if (title.isEmpty) continue;
+          final cat = (raw['danhMuc'] ?? raw['DanhMuc'] ?? 'electronics').toString();
+          final price = (raw['giaBan'] ?? raw['GiaBan'] ?? 0) as num;
+          final origPrice = (raw['giaGoc'] ?? raw['GiaGoc'] ?? 0) as num;
+          final room = (raw['kyHieuPhong'] ?? raw['KyHieuPhong'] ?? 'P.305').toString();
+          final seller = (raw['nguoiBan'] ?? raw['NguoiBan'] ?? 'Cư dân SmartStay').toString();
+          final badge = (raw['tinhTrang'] ?? raw['TinhTrang'] ?? 'Mới đăng').toString();
+          final desc = (raw['moTa'] ?? raw['MoTa'] ?? '').toString();
+          final imgUrl = (raw['hinhAnhUrl'] ?? raw['HinhAnhUrl'] ?? '').toString();
+          final vidUrl = (raw['videoUrl'] ?? raw['VideoUrl'] ?? '').toString();
+          final trangThai = (raw['trangThai'] ?? raw['TrangThai'] ?? 'Đang bán').toString();
+          final rating = (raw['soSaoTrungBinh'] ?? raw['SoSaoTrungBinh'] ?? 5.0) as num;
+          final rawReviews = raw['danhGias'] ?? raw['DanhGias'];
+          final parsedReviews = <_MarketReview>[];
+          if (rawReviews is List) {
+            for (final rr in rawReviews) {
+              if (rr is! Map) continue;
+              parsedReviews.add(
+                _MarketReview(
+                  reviewer: (rr['nguoiDanhGia'] ?? rr['NguoiDanhGia'] ?? 'Cư dân').toString(),
+                  room: (rr['kyHieuPhong'] ?? rr['KyHieuPhong'] ?? 'P.305').toString(),
+                  stars: ((rr['soSao'] ?? rr['SoSao'] ?? 5) as num).toInt(),
+                  comment: (rr['binhLuan'] ?? rr['BinhLuan'] ?? '').toString(),
+                  time: (rr['thoiGian'] ?? rr['ThoiGian'] ?? 'Vừa xong').toString(),
+                ),
+              );
+            }
+          }
+
+          if (trangThai == 'Đã giữ chỗ' && !_claimedListings.contains(title)) {
+            _claimedListings.add(title);
+            changed = true;
+          }
+
+          final existingIdx = _listings.indexWhere(
+            (x) => (x.id != null && x.id == maTin) || x.title == title,
+          );
+          final syncedItem = _MarketListing(
+            title,
+            cat == 'free'
+                ? 'Miễn phí 0đ'
+                : (cat == 'furniture' ? 'Nội thất' : 'Điện gia dụng'),
+            price.toInt(),
+            origPrice.toInt(),
+            room,
+            seller,
+            badge,
+            desc,
+            imgUrl.isNotEmpty ? imgUrl : _listings.first.imageUrl,
+            id: maTin.isNotEmpty ? maTin : null,
+            videoUrl: vidUrl.isNotEmpty ? vidUrl : null,
+            rating: rating.toDouble(),
+            reviews: parsedReviews,
+          );
+
+          if (existingIdx == -1) {
+            _listings.insert(0, syncedItem);
+            changed = true;
+          } else {
+            _listings[existingIdx] = syncedItem;
+          }
+        }
+      }
+
+      final cloudPasses = snapshot['veKhach'];
+      if (cloudPasses is List && cloudPasses.isNotEmpty) {
+        for (final rp in cloudPasses) {
+          if (rp is! Map) continue;
+          final name = (rp['tenKhach'] ?? rp['TenKhach'] ?? '').toString().trim();
+          final phone = (rp['soDienThoai'] ?? rp['SoDienThoai'] ?? '').toString();
+          final dur = (rp['hieuLucDen'] ?? rp['HieuLucDen'] ?? 'Trong ngày').toString();
+          final pin = (rp['maPin'] ?? rp['MaPin'] ?? '').toString().trim();
+          if (name.isEmpty || pin.isEmpty) continue;
+          if (!_passes.any((p) => p.pin == pin && p.name == name)) {
+            _passes.insert(0, _GuestPass(name, phone, dur, pin));
             changed = true;
           }
         }
@@ -1522,12 +1609,22 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 final name = _guestNameController.text.trim().isEmpty
                     ? 'Khách ghé thăm P.305'
                     : _guestNameController.text.trim();
+                final phone = _guestPhoneController.text.trim();
                 final pin = (1000 + DateTime.now().millisecondsSinceEpoch % 9000).toString();
+                final maVe = 'GP-${DateTime.now().millisecondsSinceEpoch % 90000}';
                 setState(() {
-                  _passes.insert(0, _GuestPass(name, _guestPhoneController.text.trim(), _guestDuration, pin));
+                  _passes.insert(0, _GuestPass(name, phone, _guestDuration, pin));
                 });
+                _supabase.syncGuestPass(
+                  maVe: maVe,
+                  roomCode: 'P.305',
+                  guestName: name,
+                  phone: phone,
+                  pin: pin,
+                  validUntil: _guestDuration,
+                );
                 Navigator.pop(dialogCtx);
-                _showMessage('Đã tạo thành công vé khách cho [$name] với mã PIN #$pin!');
+                _showMessage('Đã tạo & lưu vé khách cho [$name] với mã PIN #$pin lên Supabase!');
               },
             ),
           ],
@@ -4101,12 +4198,20 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                           ),
                           onPressed: _claimedListings.contains(item.title)
                               ? null
-                              : () {
+                              : () async {
+                                  final auth = context.read<AuthProvider>();
+                                  final claimer =
+                                      '${auth.user?.fullName ?? 'Cư dân'} (${auth.user?.effectiveRoomCode ?? 'P.305'})';
                                   setState(() => _claimedListings.add(item.title));
+                                  await _supabase.claimMarketplaceItem(
+                                    maTin: item.id ?? item.title,
+                                    claimerName: claimer,
+                                  );
+                                  if (!mounted) return;
                                   _showMessage(
                                     isFree
-                                        ? 'Đã đặt giữ chỗ nhận miễn phí "${item.title}" từ bạn ${item.sellerName}!'
-                                        : 'Đã đặt giữ chỗ & kết nối chat trực tiếp với ${item.sellerName}!',
+                                        ? 'Đã đặt giữ chỗ nhận miễn phí "${item.title}" từ bạn ${item.sellerName} (Đã lưu Supabase)!'
+                                        : 'Đã đặt giữ chỗ & lưu đơn "${item.title}" lên Supabase!',
                                   );
                                 },
                         ),
@@ -4212,68 +4317,10 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
   }
 
   Future<void> _showVideoPreviewDialog(String title, String videoUrl) async {
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            const Icon(Icons.play_circle_fill_rounded, color: Color(0xFFDC2626)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Video thực tế: $title',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              height: 170,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.videocam_rounded, color: Colors.lightBlueAccent, size: 42),
-                  SizedBox(height: 8),
-                  Text(
-                    'Video HD kiểm tra sản phẩm đã đồng bộ',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Sẵn sàng phát luồng media kiểm tra tình trạng thực tế',
-                    style: TextStyle(color: Colors.white70, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Nguồn Video: ${videoUrl.length > 52 ? '${videoUrl.substring(0, 52)}...' : videoUrl}',
-              style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Đóng'),
-          ),
-        ],
-      ),
+    await showSmartStayVideoPlayerDialog(
+      context,
+      title: title,
+      videoUrl: videoUrl,
     );
   }
 
@@ -4445,6 +4492,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
     String? pickedFileName;
     String? pickedVideoUrl;
     String? pickedVideoName;
+    bool uploadingVideo = false;
 
     await showDialog<void>(
       context: context,
@@ -4559,45 +4607,101 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                         ],
                       ),
                     ),
+                  if (uploadingVideo)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Đang tải Video thật lên Supabase Storage...',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
                       OutlinedButton.icon(
-                        onPressed: () async {
-                          final picked = await pickMediaFile(
-                            acceptVideo: true,
-                            useCamera: true,
-                          );
-                          if (picked == null || !dialogCtx.mounted) return;
-                          setDialogState(() {
-                            pickedVideoUrl = picked.dataUrl;
-                            pickedVideoName = picked.fileName;
-                          });
-                        },
+                        onPressed: uploadingVideo
+                            ? null
+                            : () async {
+                                final picked = await pickMediaFile(
+                                  acceptVideo: true,
+                                  useCamera: true,
+                                );
+                                if (picked == null || !dialogCtx.mounted) return;
+                                setDialogState(() {
+                                  uploadingVideo = true;
+                                  pickedVideoName = picked.fileName;
+                                });
+                                String? uploadedUrl;
+                                if (picked.bytes != null) {
+                                  uploadedUrl = await _supabase.uploadMediaBytes(
+                                    bytes: picked.bytes!,
+                                    fileName: picked.fileName,
+                                    contentType: picked.mimeType,
+                                    folder: 'marketplace-videos',
+                                  );
+                                }
+                                if (!dialogCtx.mounted) return;
+                                setDialogState(() {
+                                  uploadingVideo = false;
+                                  pickedVideoUrl = uploadedUrl ?? picked.dataUrl;
+                                });
+                              },
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 44),
                           side: const BorderSide(color: Color(0xFFDC2626)),
                         ),
-                        icon: const Icon(Icons.video_library_rounded, size: 17, color: Color(0xFFDC2626)),
+                        icon: const Icon(Icons.videocam_rounded, size: 17, color: Color(0xFFDC2626)),
                         label: const Text(
-                          'Tải / Quay Video',
+                          'Quay Video Camera',
                           style: TextStyle(fontSize: 12, color: Color(0xFFDC2626)),
                         ),
                       ),
                       OutlinedButton.icon(
-                        onPressed: () {
-                          setDialogState(() {
-                            pickedVideoUrl =
-                                'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
-                            pickedVideoName = 'Quay_kiem_tra_thuc_te.mp4';
-                          });
-                        },
+                        onPressed: uploadingVideo
+                            ? null
+                            : () async {
+                                final picked = await pickMediaFile(
+                                  acceptVideo: true,
+                                  useCamera: false,
+                                );
+                                if (picked == null || !dialogCtx.mounted) return;
+                                setDialogState(() {
+                                  uploadingVideo = true;
+                                  pickedVideoName = picked.fileName;
+                                });
+                                String? uploadedUrl;
+                                if (picked.bytes != null) {
+                                  uploadedUrl = await _supabase.uploadMediaBytes(
+                                    bytes: picked.bytes!,
+                                    fileName: picked.fileName,
+                                    contentType: picked.mimeType,
+                                    folder: 'marketplace-videos',
+                                  );
+                                }
+                                if (!dialogCtx.mounted) return;
+                                setDialogState(() {
+                                  uploadingVideo = false;
+                                  pickedVideoUrl = uploadedUrl ?? picked.dataUrl;
+                                });
+                              },
                         style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
-                        icon: const Icon(Icons.fiber_manual_record_rounded, size: 15, color: Colors.red),
+                        icon: const Icon(Icons.video_library_rounded, size: 17, color: Color(0xFF4F46E5)),
                         label: const Text(
-                          'Gắn Video mẫu (4s)',
-                          style: TextStyle(fontSize: 12),
+                          'Chọn Video từ máy',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF4F46E5)),
                         ),
                       ),
                     ],

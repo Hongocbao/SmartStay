@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using System.Data;
+using System.Net.Http.Headers;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -27,6 +30,16 @@ public class SyncApiController : ControllerBase
     private static readonly ConcurrentQueue<SyncResidentMeterLogItem> _residentMeterLogs = new();
     private static readonly ConcurrentDictionary<string, SyncMarketItem> _liveMarketItems = InitDefaultMarketItems();
     private static readonly ConcurrentQueue<SyncCallLogItem> _liveCallLogs = new();
+    private static readonly HttpClient _storageHttp = new() { Timeout = TimeSpan.FromSeconds(45) };
+    private readonly IConfiguration _config;
+
+    private static void AddDbParam(IDbCommand cmd, string name, object? value)
+    {
+        var p = cmd.CreateParameter();
+        p.ParameterName = name;
+        p.Value = value ?? DBNull.Value;
+        cmd.Parameters.Add(p);
+    }
 
     private static ConcurrentDictionary<string, SyncMarketItem> InitDefaultMarketItems()
     {
@@ -98,10 +111,11 @@ public class SyncApiController : ControllerBase
         return dict;
     }
 
-    public SyncApiController(SmartStayDbContext db, IHubContext<SmartStayHub> hubContext)
+    public SyncApiController(SmartStayDbContext db, IHubContext<SmartStayHub> hubContext, IConfiguration config)
     {
         _db = db;
         _hubContext = hubContext;
+        _config = config;
     }
 
     [AllowAnonymous]
@@ -111,6 +125,12 @@ public class SyncApiController : ControllerBase
         var roomsResult = new List<SyncRoomItem>(_liveRooms.Values);
         var ticketsResult = new List<SyncTicketItem>(_liveTickets.Values);
         var noticesResult = new List<SyncNoticeItem>(_liveNotices);
+        var marketItems = new Dictionary<string, SyncMarketItem>(_liveMarketItems, StringComparer.OrdinalIgnoreCase);
+        var guestPassesResult = new List<object>();
+        var splitBillsResult = new List<object>();
+        var callLogsResult = new List<SyncCallLogItem>(_liveCallLogs.Reverse().Take(20));
+        var meterLogsResult = new List<SyncResidentMeterLogItem>(_residentMeterLogs.Reverse().Take(15));
+        var latestMeter = _latestResidentMeter;
 
         try
         {
@@ -196,10 +216,176 @@ public class SyncApiController : ControllerBase
                     noticesResult.Add(n);
                 }
             }
+
+            // Đọc các bảng lưu trữ bền vững trên Supabase PostgreSQL
+            if (_db.Database.IsNpgsql())
+            {
+                var conn = _db.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+
+                // 1. Chợ đồ cũ
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"SELECT ""MaTin"", ""TieuDe"", ""DanhMuc"", ""GiaBan"", ""GiaGoc"", ""KyHieuPhong"", ""NguoiBan"", ""TinhTrang"", ""MoTa"", ""HinhAnhUrl"", ""VideoUrl"", ""TrangThai"", ""NguoiGiuCho"", ""SoSaoTrungBinh"", ""SoLuotDanhGia"", ""TaoLuc"" FROM ""ChoDoCuTin"" ORDER BY ""TaoLuc"" DESC LIMIT 50";
+                    using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
+                    {
+                        var maTin = r.GetString(0);
+                        marketItems[maTin] = new SyncMarketItem
+                        {
+                            MaTin = maTin,
+                            TieuDe = r.GetString(1),
+                            DanhMuc = r.GetString(2),
+                            GiaBan = r.GetDecimal(3),
+                            GiaGoc = r.GetDecimal(4),
+                            KyHieuPhong = r.GetString(5),
+                            NguoiBan = r.GetString(6),
+                            TinhTrang = r.GetString(7),
+                            MoTa = r.GetString(8),
+                            HinhAnhUrl = r.IsDBNull(9) ? null : r.GetString(9),
+                            VideoUrl = r.IsDBNull(10) ? null : r.GetString(10),
+                            TrangThai = r.IsDBNull(11) ? "Đang bán" : r.GetString(11),
+                            NguoiGiuCho = r.IsDBNull(12) ? null : r.GetString(12),
+                            SoSaoTrungBinh = r.GetDouble(13),
+                            SoLuotDanhGia = r.GetInt32(14),
+                            TaoLuc = r.GetDateTime(15),
+                            DanhGias = new List<SyncMarketReviewItem>()
+                        };
+                    }
+                }
+
+                // 2. Đánh giá Chợ đồ cũ
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"SELECT ""MaTin"", ""NguoiDanhGia"", ""KyHieuPhong"", ""SoSao"", ""BinhLuan"", ""ThoiGian"" FROM ""ChoDoCuDanhGia"" ORDER BY ""TaoLuc"" DESC LIMIT 100";
+                    using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
+                    {
+                        var maTin = r.GetString(0);
+                        if (marketItems.TryGetValue(maTin, out var item))
+                        {
+                            item.DanhGias.Add(new SyncMarketReviewItem
+                            {
+                                NguoiDanhGia = r.GetString(1),
+                                KyHieuPhong = r.GetString(2),
+                                SoSao = r.GetInt32(3),
+                                BinhLuan = r.GetString(4),
+                                ThoiGian = r.GetString(5)
+                            });
+                        }
+                    }
+                }
+
+                // 3. Vé khách vãng lai
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"SELECT ""MaVe"", ""KyHieuPhong"", ""TenKhach"", ""SoDienThoai"", ""MaPin"", ""HieuLucDen"", ""TrangThai"", ""TaoLuc"" FROM ""VeKhachVangLai"" ORDER BY ""TaoLuc"" DESC LIMIT 20";
+                    using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
+                    {
+                        guestPassesResult.Add(new
+                        {
+                            maVe = r.GetString(0),
+                            kyHieuPhong = r.GetString(1),
+                            tenKhach = r.GetString(2),
+                            soDienThoai = r.IsDBNull(3) ? "" : r.GetString(3),
+                            maPin = r.GetString(4),
+                            hieuLucDen = r.GetString(5),
+                            trangThai = r.GetString(6),
+                            taoLuc = r.GetDateTime(7)
+                        });
+                    }
+                }
+
+                // 4. Chia tiền phòng ở ghép
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"SELECT ""MaChia"", ""KyHieuPhong"", ""TieuDe"", ""TongTien"", ""SoThanhVien"", ""MoiNguoi"", ""TrangThai"", ""TaoLuc"" FROM ""ChiaTienPhong"" ORDER BY ""TaoLuc"" DESC LIMIT 20";
+                    using var r = await cmd.ExecuteReaderAsync();
+                    while (await r.ReadAsync())
+                    {
+                        splitBillsResult.Add(new
+                        {
+                            maChia = r.GetString(0),
+                            kyHieuPhong = r.GetString(1),
+                            tieuDe = r.GetString(2),
+                            tongTien = r.GetDecimal(3),
+                            soThanhVien = r.GetInt32(4),
+                            moiNguoi = r.GetDecimal(5),
+                            trangThai = r.GetString(6),
+                            taoLuc = r.GetDateTime(7)
+                        });
+                    }
+                }
+
+                // 5. Sổ tự kiểm tra OCR
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"SELECT ""KyHieuPhong"", ""CheDo"", ""DienKyTruoc"", ""DienMoiChup"", ""NuocKyTruoc"", ""NuocMoiChup"", ""TongTienTamTinh"", ""TomTatTieuThu"", ""NguonCapNhat"", ""TaoLuc"" FROM ""ChiSoTuKiemTra"" ORDER BY ""TaoLuc"" DESC LIMIT 15";
+                    using var r = await cmd.ExecuteReaderAsync();
+                    var dbLogs = new List<SyncResidentMeterLogItem>();
+                    var isFirst = true;
+                    while (await r.ReadAsync())
+                    {
+                        if (isFirst)
+                        {
+                            isFirst = false;
+                            latestMeter = new SyncResidentMeterState
+                            {
+                                KyHieuPhong = r.GetString(0),
+                                CheDo = r.GetString(1),
+                                DienKyTruoc = r.GetDouble(2),
+                                DienMoiChup = r.GetDouble(3),
+                                NuocKyTruoc = r.GetDouble(4),
+                                NuocMoiChup = r.GetDouble(5),
+                                TongTienTamTinh = r.GetDouble(6),
+                                NguonCapNhat = r.IsDBNull(8) ? "Supabase" : r.GetString(8),
+                                CapNhatLuc = r.GetDateTime(9)
+                            };
+                        }
+                        if (!r.IsDBNull(7) && !string.IsNullOrWhiteSpace(r.GetString(7)))
+                        {
+                            dbLogs.Add(new SyncResidentMeterLogItem
+                            {
+                                ThoiDiem = r.GetDateTime(9).ToLocalTime().ToString("dd/MM HH:mm"),
+                                CheDo = r.GetString(1) == "electric" ? "Chỉ tính Điện" : (r.GetString(1) == "water" ? "Chỉ tính Nước" : "Điện + Nước"),
+                                TomTatTieuThu = r.GetString(7),
+                                TongTienTamTinh = r.GetDouble(6)
+                            });
+                        }
+                    }
+                    if (dbLogs.Count > 0) meterLogsResult = dbLogs;
+                }
+
+                // 6. Nhật ký cuộc gọi
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"SELECT ""MaCuocGoi"", ""NguoiGoi"", ""VaiTroNguoiGoi"", ""NguoiNhan"", ""VaiTroNguoiNhan"", ""LoaiCuocGoi"", ""NoiDungTraoDoi"", ""ThoiLuongGiay"", ""TrangThai"", ""ThoiDiem"" FROM ""NhatKyCuocGoi"" ORDER BY ""ThoiDiem"" DESC LIMIT 20";
+                    using var r = await cmd.ExecuteReaderAsync();
+                    var dbCalls = new List<SyncCallLogItem>();
+                    while (await r.ReadAsync())
+                    {
+                        dbCalls.Add(new SyncCallLogItem
+                        {
+                            MaCuocGoi = r.GetString(0),
+                            NguoiGoi = r.GetString(1),
+                            VaiTroNguoiGoi = r.GetString(2),
+                            NguoiNhan = r.GetString(3),
+                            VaiTroNguoiNhan = r.GetString(4),
+                            LoaiCuocGoi = r.GetString(5),
+                            NoiDungTraoDoi = r.GetString(6),
+                            ThoiLuongGiay = r.GetInt32(7),
+                            TrangThai = r.GetString(8),
+                            ThoiDiem = r.GetDateTime(9)
+                        });
+                    }
+                    if (dbCalls.Count > 0) callLogsResult = dbCalls;
+                }
+            }
         }
         catch
         {
-            // Nếu DB đang khởi tạo, vẫn trả về bộ đệm Realtime trong RAM để Web & Android App đồng bộ tức thì
+            // Nếu DB đang khởi tạo, vẫn trả về bộ đệm Realtime để Web & Android App đồng bộ tức thì
         }
 
         return Ok(new
@@ -209,16 +395,18 @@ public class SyncApiController : ControllerBase
             phongs = roomsResult,
             suCos = ticketsResult.OrderByDescending(t => t.ThoiDiemTao).ToList(),
             thongBaos = noticesResult.OrderByDescending(n => n.ThoiDiemCongBo).ToList(),
-            chiSoCuDan = _latestResidentMeter,
-            soTheoDoiCuDan = _residentMeterLogs.Reverse().Take(15).ToList(),
-            choDoCu = _liveMarketItems.Values.OrderByDescending(m => m.TaoLuc).ToList(),
-            cuocGois = _liveCallLogs.Reverse().Take(20).ToList()
+            chiSoCuDan = latestMeter,
+            soTheoDoiCuDan = meterLogsResult,
+            choDoCu = marketItems.Values.OrderByDescending(m => m.TaoLuc).ToList(),
+            veKhach = guestPassesResult,
+            chiaTiens = splitBillsResult,
+            cuocGois = callLogsResult
         });
     }
 
     [AllowAnonymous]
     [HttpPost("chi-so-cu-dan")]
-    public IActionResult DongBoChiSoTuKiemTraCuDan([FromBody] SyncResidentMeterDto req)
+    public async Task<IActionResult> DongBoChiSoTuKiemTraCuDan([FromBody] SyncResidentMeterDto req)
     {
         _latestResidentMeter = new SyncResidentMeterState
         {
@@ -247,6 +435,28 @@ public class SyncApiController : ControllerBase
                 TongTienTamTinh = req.TongTienTamTinh
             });
         }
+
+        try
+        {
+            if (_db.Database.IsNpgsql())
+            {
+                var conn = _db.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"INSERT INTO ""ChiSoTuKiemTra"" (""KyHieuPhong"", ""CheDo"", ""DienKyTruoc"", ""DienMoiChup"", ""NuocKyTruoc"", ""NuocMoiChup"", ""TongTienTamTinh"", ""TomTatTieuThu"", ""NguonCapNhat"") VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8)";
+                AddDbParam(cmd, "@p0", _latestResidentMeter.KyHieuPhong);
+                AddDbParam(cmd, "@p1", _latestResidentMeter.CheDo);
+                AddDbParam(cmd, "@p2", _latestResidentMeter.DienKyTruoc);
+                AddDbParam(cmd, "@p3", _latestResidentMeter.DienMoiChup);
+                AddDbParam(cmd, "@p4", _latestResidentMeter.NuocKyTruoc);
+                AddDbParam(cmd, "@p5", _latestResidentMeter.NuocMoiChup);
+                AddDbParam(cmd, "@p6", _latestResidentMeter.TongTienTamTinh);
+                AddDbParam(cmd, "@p7", req.TomTatTieuThu);
+                AddDbParam(cmd, "@p8", _latestResidentMeter.NguonCapNhat);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+        catch { }
 
         return Ok(new
         {
@@ -348,10 +558,36 @@ public class SyncApiController : ControllerBase
         try
         {
             var existing = await _db.PhieuSuCos.FirstOrDefaultAsync(p => p.SoPhieuSuCo == item.SoPhieuSuCo);
-            if (existing != null && !string.IsNullOrWhiteSpace(req.TrangThai))
+            if (existing != null)
             {
-                existing.TrangThai = req.TrangThai.Trim();
+                if (!string.IsNullOrWhiteSpace(req.TrangThai)) existing.TrangThai = req.TrangThai.Trim();
+                if (!string.IsNullOrWhiteSpace(req.TieuDe)) existing.TieuDe = req.TieuDe.Trim();
+                if (!string.IsNullOrWhiteSpace(req.MoTa)) existing.MoTa = req.MoTa.Trim();
+                if (!string.IsNullOrWhiteSpace(req.UuTien)) existing.UuTien = req.UuTien.Trim();
                 await _db.SaveChangesAsync();
+            }
+            else
+            {
+                var room = await _db.Phongs.FirstOrDefaultAsync(p => p.KyHieuPhong == item.KyHieuPhong)
+                           ?? await _db.Phongs.FirstOrDefaultAsync();
+                var cuDan = await _db.CuDans.FirstOrDefaultAsync();
+                var danhMuc = await _db.DanhMucSuCos.FirstOrDefaultAsync();
+                if (room != null && cuDan != null && danhMuc != null)
+                {
+                    _db.PhieuSuCos.Add(new PhieuSuCo
+                    {
+                        SoPhieuSuCo = item.SoPhieuSuCo,
+                        MaPhong = room.MaPhong,
+                        MaCuDan = cuDan.MaCuDan,
+                        MaDanhMuc = danhMuc.MaDanhMuc,
+                        TieuDe = item.TieuDe,
+                        MoTa = item.MoTa,
+                        UuTien = item.UuTien,
+                        TrangThai = item.TrangThai,
+                        ThoiDiemTao = DateTime.UtcNow
+                    });
+                    await _db.SaveChangesAsync();
+                }
             }
         }
         catch { }
@@ -361,7 +597,7 @@ public class SyncApiController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("cho-do-cu")]
-    public IActionResult DongBoTinChoDoCu([FromBody] DangTinChoDoCuDto req)
+    public async Task<IActionResult> DongBoTinChoDoCu([FromBody] DangTinChoDoCuDto req)
     {
         if (string.IsNullOrWhiteSpace(req.TieuDe))
             return BadRequest(new { success = false, message = "Tiêu đề món đồ là bắt buộc." });
@@ -383,6 +619,8 @@ public class SyncApiController : ControllerBase
             MoTa = string.IsNullOrWhiteSpace(req.MoTa) ? "Còn mới tốt, liên hệ trao đổi trực tiếp tại sảnh tòa nhà." : req.MoTa.Trim(),
             HinhAnhUrl = req.HinhAnhUrl,
             VideoUrl = req.VideoUrl,
+            TrangThai = string.IsNullOrWhiteSpace(req.TrangThai) ? "Đang bán" : req.TrangThai.Trim(),
+            NguoiGiuCho = req.NguoiGiuCho,
             SoSaoTrungBinh = 5.0,
             SoLuotDanhGia = 0,
             TaoLuc = DateTime.UtcNow,
@@ -390,6 +628,45 @@ public class SyncApiController : ControllerBase
         };
 
         _liveMarketItems[id] = item;
+
+        try
+        {
+            if (_db.Database.IsNpgsql())
+            {
+                var conn = _db.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    INSERT INTO ""ChoDoCuTin"" (""MaTin"", ""TieuDe"", ""DanhMuc"", ""GiaBan"", ""GiaGoc"", ""KyHieuPhong"", ""NguoiBan"", ""TinhTrang"", ""MoTa"", ""HinhAnhUrl"", ""VideoUrl"", ""TrangThai"", ""NguoiGiuCho"", ""SoSaoTrungBinh"", ""SoLuotDanhGia"", ""TaoLuc"")
+                    VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10, @p11, @p12, @p13, @p14, @p15)
+                    ON CONFLICT (""MaTin"") DO UPDATE SET
+                        ""TieuDe"" = EXCLUDED.""TieuDe"",
+                        ""GiaBan"" = EXCLUDED.""GiaBan"",
+                        ""HinhAnhUrl"" = COALESCE(EXCLUDED.""HinhAnhUrl"", ""ChoDoCuTin"".""HinhAnhUrl""),
+                        ""VideoUrl"" = COALESCE(EXCLUDED.""VideoUrl"", ""ChoDoCuTin"".""VideoUrl""),
+                        ""TrangThai"" = EXCLUDED.""TrangThai"",
+                        ""NguoiGiuCho"" = EXCLUDED.""NguoiGiuCho"";";
+                AddDbParam(cmd, "@p0", item.MaTin);
+                AddDbParam(cmd, "@p1", item.TieuDe);
+                AddDbParam(cmd, "@p2", item.DanhMuc);
+                AddDbParam(cmd, "@p3", item.GiaBan);
+                AddDbParam(cmd, "@p4", item.GiaGoc);
+                AddDbParam(cmd, "@p5", item.KyHieuPhong);
+                AddDbParam(cmd, "@p6", item.NguoiBan);
+                AddDbParam(cmd, "@p7", item.TinhTrang);
+                AddDbParam(cmd, "@p8", item.MoTa);
+                AddDbParam(cmd, "@p9", item.HinhAnhUrl);
+                AddDbParam(cmd, "@p10", item.VideoUrl);
+                AddDbParam(cmd, "@p11", item.TrangThai);
+                AddDbParam(cmd, "@p12", item.NguoiGiuCho);
+                AddDbParam(cmd, "@p13", item.SoSaoTrungBinh);
+                AddDbParam(cmd, "@p14", item.SoLuotDanhGia);
+                AddDbParam(cmd, "@p15", item.TaoLuc);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+        catch { }
+
         return Ok(new
         {
             success = true,
@@ -399,8 +676,42 @@ public class SyncApiController : ControllerBase
     }
 
     [AllowAnonymous]
+    [HttpPost("cho-do-cu/giu-cho")]
+    public async Task<IActionResult> GiuChoTinChoDoCu([FromBody] GiuChoChoDoCuDto req)
+    {
+        if (string.IsNullOrWhiteSpace(req.MaTin))
+            return BadRequest(new { success = false, message = "Thiếu mã tin sản phẩm." });
+
+        var key = req.MaTin.Trim();
+        var claimer = string.IsNullOrWhiteSpace(req.NguoiGiuCho) ? "Cư dân SmartStay" : req.NguoiGiuCho.Trim();
+
+        if (_liveMarketItems.TryGetValue(key, out var item))
+        {
+            item.TrangThai = "Đã giữ chỗ";
+            item.NguoiGiuCho = claimer;
+        }
+
+        try
+        {
+            if (_db.Database.IsNpgsql())
+            {
+                var conn = _db.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"UPDATE ""ChoDoCuTin"" SET ""TrangThai"" = 'Đã giữ chỗ', ""NguoiGiuCho"" = @p1 WHERE ""MaTin"" = @p0";
+                AddDbParam(cmd, "@p0", key);
+                AddDbParam(cmd, "@p1", claimer);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+        catch { }
+
+        return Ok(new { success = true, maTin = key, trangThai = "Đã giữ chỗ", nguoiGiuCho = claimer });
+    }
+
+    [AllowAnonymous]
     [HttpPost("cho-do-cu/danh-gia")]
-    public IActionResult DanhGiaTinChoDoCu([FromBody] DanhGiaChoDoCuDto req)
+    public async Task<IActionResult> DanhGiaTinChoDoCu([FromBody] DanhGiaChoDoCuDto req)
     {
         if (string.IsNullOrWhiteSpace(req.MaTin) || string.IsNullOrWhiteSpace(req.BinhLuan))
             return BadRequest(new { success = false, message = "Thiếu mã tin hoặc nội dung bình luận." });
@@ -418,26 +729,178 @@ public class SyncApiController : ControllerBase
         });
 
         var stars = Math.Clamp(req.SoSao, 1, 5);
+        var reviewer = string.IsNullOrWhiteSpace(req.NguoiDanhGia) ? "Hồ Ngọc Bảo" : req.NguoiDanhGia.Trim();
+        var room = string.IsNullOrWhiteSpace(req.KyHieuPhong) ? "P.305" : req.KyHieuPhong.Trim();
+        var comment = req.BinhLuan.Trim();
+
         lock (item.DanhGias)
         {
             item.DanhGias.Insert(0, new SyncMarketReviewItem
             {
-                NguoiDanhGia = string.IsNullOrWhiteSpace(req.NguoiDanhGia) ? "Hồ Ngọc Bảo" : req.NguoiDanhGia.Trim(),
-                KyHieuPhong = string.IsNullOrWhiteSpace(req.KyHieuPhong) ? "P.305" : req.KyHieuPhong.Trim(),
+                NguoiDanhGia = reviewer,
+                KyHieuPhong = room,
                 SoSao = stars,
-                BinhLuan = req.BinhLuan.Trim(),
+                BinhLuan = comment,
                 ThoiGian = "Vừa xong"
             });
             item.SoLuotDanhGia = item.DanhGias.Count;
             item.SoSaoTrungBinh = Math.Round(item.DanhGias.Average(r => r.SoSao), 1);
         }
 
+        try
+        {
+            if (_db.Database.IsNpgsql())
+            {
+                var conn = _db.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"INSERT INTO ""ChoDoCuDanhGia"" (""MaTin"", ""NguoiDanhGia"", ""KyHieuPhong"", ""SoSao"", ""BinhLuan"", ""ThoiGian"") VALUES (@p0, @p1, @p2, @p3, @p4, 'Vừa xong')";
+                    AddDbParam(cmd, "@p0", key);
+                    AddDbParam(cmd, "@p1", reviewer);
+                    AddDbParam(cmd, "@p2", room);
+                    AddDbParam(cmd, "@p3", stars);
+                    AddDbParam(cmd, "@p4", comment);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+                using (var cmdUpd = conn.CreateCommand())
+                {
+                    cmdUpd.CommandText = @"UPDATE ""ChoDoCuTin"" SET ""SoSaoTrungBinh"" = @p1, ""SoLuotDanhGia"" = @p2 WHERE ""MaTin"" = @p0";
+                    AddDbParam(cmdUpd, "@p0", key);
+                    AddDbParam(cmdUpd, "@p1", item.SoSaoTrungBinh);
+                    AddDbParam(cmdUpd, "@p2", item.SoLuotDanhGia);
+                    await cmdUpd.ExecuteNonQueryAsync();
+                }
+            }
+        }
+        catch { }
+
         return Ok(new { success = true, item });
     }
 
     [AllowAnonymous]
+    [HttpPost("ve-khach")]
+    public async Task<IActionResult> TaoVeKhach([FromBody] VeKhachSyncDto req)
+    {
+        if (string.IsNullOrWhiteSpace(req.TenKhach))
+            return BadRequest(new { success = false, message = "Tên khách là bắt buộc." });
+
+        var maVe = string.IsNullOrWhiteSpace(req.MaVe) ? $"GP-{DateTime.UtcNow.Ticks % 9000 + 1000}" : req.MaVe.Trim();
+        var room = string.IsNullOrWhiteSpace(req.KyHieuPhong) ? "P.305" : req.KyHieuPhong.Trim();
+        var pin = string.IsNullOrWhiteSpace(req.MaPin) ? $"{DateTime.UtcNow.Millisecond % 900000 + 100000}" : req.MaPin.Trim();
+        var validUntil = string.IsNullOrWhiteSpace(req.HieuLucDen) ? "23:59 Hôm nay" : req.HieuLucDen.Trim();
+
+        try
+        {
+            if (_db.Database.IsNpgsql())
+            {
+                var conn = _db.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"INSERT INTO ""VeKhachVangLai"" (""MaVe"", ""KyHieuPhong"", ""TenKhach"", ""SoDienThoai"", ""MaPin"", ""HieuLucDen"", ""TrangThai"") VALUES (@p0, @p1, @p2, @p3, @p4, @p5, 'Đang hiệu lực') ON CONFLICT (""MaVe"") DO NOTHING";
+                AddDbParam(cmd, "@p0", maVe);
+                AddDbParam(cmd, "@p1", room);
+                AddDbParam(cmd, "@p2", req.TenKhach.Trim());
+                AddDbParam(cmd, "@p3", req.SoDienThoai ?? "");
+                AddDbParam(cmd, "@p4", pin);
+                AddDbParam(cmd, "@p5", validUntil);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+        catch { }
+
+        return Ok(new { success = true, maVe, maPin = pin });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("chia-tien")]
+    public async Task<IActionResult> LuuChiaTien([FromBody] ChiaTienSyncDto req)
+    {
+        if (string.IsNullOrWhiteSpace(req.TieuDe))
+            return BadRequest(new { success = false, message = "Tiêu đề khoản chia là bắt buộc." });
+
+        var maChia = string.IsNullOrWhiteSpace(req.MaChia) ? $"SPL-{DateTime.UtcNow.Ticks % 9000 + 1000}" : req.MaChia.Trim();
+        var room = string.IsNullOrWhiteSpace(req.KyHieuPhong) ? "P.305" : req.KyHieuPhong.Trim();
+        var members = Math.Max(1, req.SoThanhVien);
+        var perMember = Math.Round(req.TongTien / members, 0);
+
+        try
+        {
+            if (_db.Database.IsNpgsql())
+            {
+                var conn = _db.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"INSERT INTO ""ChiaTienPhong"" (""MaChia"", ""KyHieuPhong"", ""TieuDe"", ""TongTien"", ""SoThanhVien"", ""MoiNguoi"", ""TrangThai"") VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6) ON CONFLICT (""MaChia"") DO UPDATE SET ""TrangThai"" = EXCLUDED.""TrangThai""";
+                AddDbParam(cmd, "@p0", maChia);
+                AddDbParam(cmd, "@p1", room);
+                AddDbParam(cmd, "@p2", req.TieuDe.Trim());
+                AddDbParam(cmd, "@p3", req.TongTien);
+                AddDbParam(cmd, "@p4", members);
+                AddDbParam(cmd, "@p5", perMember);
+                AddDbParam(cmd, "@p6", string.IsNullOrWhiteSpace(req.TrangThai) ? "Chờ đóng" : req.TrangThai.Trim());
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+        catch { }
+
+        return Ok(new { success = true, maChia, moiNguoi = perMember });
+    }
+
+    [AllowAnonymous]
+    [HttpPost("upload-media")]
+    [RequestSizeLimit(52_428_800)]
+    public async Task<IActionResult> UploadMediaToSupabase([FromBody] UploadMediaSyncDto req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Base64Data))
+            return BadRequest(new { success = false, message = "Thiếu dữ liệu media." });
+
+        var raw = req.Base64Data.Trim();
+        var mimeType = string.IsNullOrWhiteSpace(req.ContentType) ? "application/octet-stream" : req.ContentType.Trim();
+        var dataMatch = Regex.Match(raw, @"^data:([^;]+);base64,(.+)$", RegexOptions.Singleline);
+        if (dataMatch.Success)
+        {
+            mimeType = dataMatch.Groups[1].Value;
+            raw = dataMatch.Groups[2].Value;
+        }
+
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(raw); }
+        catch { return BadRequest(new { success = false, message = "Dữ liệu Base64 không hợp lệ." }); }
+
+        var supabaseUrl = (_config["Supabase:Url"] ?? Environment.GetEnvironmentVariable("SUPABASE_URL") ?? "https://odasdzyuriucofavonjl.supabase.co").TrimEnd('/');
+        var supabaseKey = _config["Supabase:ServiceRoleKey"]
+                          ?? Environment.GetEnvironmentVariable("SUPABASE_SERVICE_ROLE_KEY")
+                          ?? _config["Supabase:AnonKey"]
+                          ?? Environment.GetEnvironmentVariable("SUPABASE_ANON_KEY")
+                          ?? "sb_publishable_GYfWQ4xJCkpgxjI2XBNVmg_6eWoUWP7";
+
+        var safeName = Regex.Replace(req.FileName ?? "media.bin", @"[^a-zA-Z0-9._-]", "_");
+        var folder = string.IsNullOrWhiteSpace(req.Folder) ? "marketplace" : Regex.Replace(req.Folder, @"[^a-zA-Z0-9_-]", "");
+        var objectPath = $"{folder}/{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{safeName}";
+        var uploadUrl = $"{supabaseUrl}/storage/v1/object/smartstay-media/{objectPath}";
+
+        using var msg = new HttpRequestMessage(HttpMethod.Post, uploadUrl);
+        msg.Headers.Add("apikey", supabaseKey);
+        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", supabaseKey);
+        msg.Headers.Add("x-upsert", "true");
+        msg.Content = new ByteArrayContent(bytes);
+        msg.Content.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
+
+        var resp = await _storageHttp.SendAsync(msg);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var errBody = await resp.Content.ReadAsStringAsync();
+            return StatusCode((int)resp.StatusCode, new { success = false, message = $"Supabase Storage error: {errBody}" });
+        }
+
+        var publicUrl = $"{supabaseUrl}/storage/v1/object/public/smartstay-media/{objectPath}";
+        return Ok(new { success = true, publicUrl });
+    }
+
+    [AllowAnonymous]
     [HttpPost("cuoc-goi")]
-    public IActionResult LuuCuocGoi([FromBody] LuuCuocGoiSyncDto req)
+    public async Task<IActionResult> LuuCuocGoi([FromBody] LuuCuocGoiSyncDto req)
     {
         var callCode = !string.IsNullOrWhiteSpace(req.CallId)
             ? req.CallId.Trim()
@@ -446,33 +909,60 @@ public class SyncApiController : ControllerBase
         var existing = _liveCallLogs.FirstOrDefault(c =>
             string.Equals(c.MaCuocGoi, callCode, StringComparison.OrdinalIgnoreCase));
 
+        SyncCallLogItem log;
         if (existing != null)
         {
             existing.ThoiLuongGiay = Math.Max(existing.ThoiLuongGiay, Math.Max(0, req.ThoiLuongGiay));
             if (!string.IsNullOrWhiteSpace(req.TrangThai)) existing.TrangThai = req.TrangThai.Trim();
             if (!string.IsNullOrWhiteSpace(req.NoiDungTraoDoi)) existing.NoiDungTraoDoi = req.NoiDungTraoDoi.Trim();
-            return Ok(new
+            log = existing;
+        }
+        else
+        {
+            log = new SyncCallLogItem
             {
-                success = true,
-                call = existing,
-                cuocGois = _liveCallLogs.Reverse().Take(20).ToList()
-            });
+                MaCuocGoi = callCode,
+                NguoiGoi = string.IsNullOrWhiteSpace(req.NguoiGoi) ? "Người dùng SmartStay" : req.NguoiGoi.Trim(),
+                VaiTroNguoiGoi = string.IsNullOrWhiteSpace(req.VaiTroNguoiGoi) ? "CuDan" : req.VaiTroNguoiGoi.Trim(),
+                NguoiNhan = string.IsNullOrWhiteSpace(req.NguoiNhan) ? "Ban Quản Lý Vận Hành" : req.NguoiNhan.Trim(),
+                VaiTroNguoiNhan = string.IsNullOrWhiteSpace(req.VaiTroNguoiNhan) ? "QuanLy" : req.VaiTroNguoiNhan.Trim(),
+                LoaiCuocGoi = string.IsNullOrWhiteSpace(req.LoaiCuocGoi) ? "Video" : req.LoaiCuocGoi.Trim(),
+                NoiDungTraoDoi = string.IsNullOrWhiteSpace(req.NoiDungTraoDoi) ? "Trao đổi trực tiếp trên hệ thống" : req.NoiDungTraoDoi.Trim(),
+                ThoiLuongGiay = Math.Max(0, req.ThoiLuongGiay),
+                TrangThai = string.IsNullOrWhiteSpace(req.TrangThai) ? "Đã kết nối" : req.TrangThai.Trim(),
+                ThoiDiem = DateTime.UtcNow
+            };
+            _liveCallLogs.Enqueue(log);
         }
 
-        var log = new SyncCallLogItem
+        try
         {
-            MaCuocGoi = callCode,
-            NguoiGoi = string.IsNullOrWhiteSpace(req.NguoiGoi) ? "Người dùng SmartStay" : req.NguoiGoi.Trim(),
-            VaiTroNguoiGoi = string.IsNullOrWhiteSpace(req.VaiTroNguoiGoi) ? "CuDan" : req.VaiTroNguoiGoi.Trim(),
-            NguoiNhan = string.IsNullOrWhiteSpace(req.NguoiNhan) ? "Ban Quản Lý Vận Hành" : req.NguoiNhan.Trim(),
-            VaiTroNguoiNhan = string.IsNullOrWhiteSpace(req.VaiTroNguoiNhan) ? "QuanLy" : req.VaiTroNguoiNhan.Trim(),
-            LoaiCuocGoi = string.IsNullOrWhiteSpace(req.LoaiCuocGoi) ? "Video" : req.LoaiCuocGoi.Trim(),
-            NoiDungTraoDoi = string.IsNullOrWhiteSpace(req.NoiDungTraoDoi) ? "Trao đổi trực tiếp trên hệ thống" : req.NoiDungTraoDoi.Trim(),
-            ThoiLuongGiay = Math.Max(0, req.ThoiLuongGiay),
-            TrangThai = string.IsNullOrWhiteSpace(req.TrangThai) ? "Đã kết nối" : req.TrangThai.Trim(),
-            ThoiDiem = DateTime.UtcNow
-        };
-        _liveCallLogs.Enqueue(log);
+            if (_db.Database.IsNpgsql())
+            {
+                var conn = _db.Database.GetDbConnection();
+                if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    INSERT INTO ""NhatKyCuocGoi"" (""MaCuocGoi"", ""NguoiGoi"", ""VaiTroNguoiGoi"", ""NguoiNhan"", ""VaiTroNguoiNhan"", ""LoaiCuocGoi"", ""NoiDungTraoDoi"", ""ThoiLuongGiay"", ""TrangThai"", ""ThoiDiem"")
+                    VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9)
+                    ON CONFLICT (""MaCuocGoi"") DO UPDATE SET
+                        ""ThoiLuongGiay"" = GREATEST(""NhatKyCuocGoi"".""ThoiLuongGiay"", EXCLUDED.""ThoiLuongGiay""),
+                        ""TrangThai"" = EXCLUDED.""TrangThai"",
+                        ""NoiDungTraoDoi"" = EXCLUDED.""NoiDungTraoDoi"";";
+                AddDbParam(cmd, "@p0", log.MaCuocGoi);
+                AddDbParam(cmd, "@p1", log.NguoiGoi);
+                AddDbParam(cmd, "@p2", log.VaiTroNguoiGoi);
+                AddDbParam(cmd, "@p3", log.NguoiNhan);
+                AddDbParam(cmd, "@p4", log.VaiTroNguoiNhan);
+                AddDbParam(cmd, "@p5", log.LoaiCuocGoi);
+                AddDbParam(cmd, "@p6", log.NoiDungTraoDoi);
+                AddDbParam(cmd, "@p7", log.ThoiLuongGiay);
+                AddDbParam(cmd, "@p8", log.TrangThai);
+                AddDbParam(cmd, "@p9", log.ThoiDiem);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+        catch { }
 
         return Ok(new
         {
@@ -716,6 +1206,8 @@ public class SyncMarketItem
     public string MoTa { get; set; } = string.Empty;
     public string? HinhAnhUrl { get; set; }
     public string? VideoUrl { get; set; }
+    public string TrangThai { get; set; } = "Đang bán";
+    public string? NguoiGiuCho { get; set; }
     public double SoSaoTrungBinh { get; set; } = 5.0;
     public int SoLuotDanhGia { get; set; }
     public DateTime TaoLuc { get; set; } = DateTime.UtcNow;
@@ -735,6 +1227,42 @@ public class DangTinChoDoCuDto
     public string? MoTa { get; set; }
     public string? HinhAnhUrl { get; set; }
     public string? VideoUrl { get; set; }
+    public string? TrangThai { get; set; }
+    public string? NguoiGiuCho { get; set; }
+}
+
+public class GiuChoChoDoCuDto
+{
+    public string MaTin { get; set; } = string.Empty;
+    public string? NguoiGiuCho { get; set; }
+}
+
+public class VeKhachSyncDto
+{
+    public string? MaVe { get; set; }
+    public string? KyHieuPhong { get; set; }
+    public string TenKhach { get; set; } = string.Empty;
+    public string? SoDienThoai { get; set; }
+    public string? MaPin { get; set; }
+    public string? HieuLucDen { get; set; }
+}
+
+public class ChiaTienSyncDto
+{
+    public string? MaChia { get; set; }
+    public string? KyHieuPhong { get; set; }
+    public string TieuDe { get; set; } = string.Empty;
+    public decimal TongTien { get; set; }
+    public int SoThanhVien { get; set; } = 3;
+    public string? TrangThai { get; set; }
+}
+
+public class UploadMediaSyncDto
+{
+    public string? FileName { get; set; }
+    public string? ContentType { get; set; }
+    public string Base64Data { get; set; } = string.Empty;
+    public string? Folder { get; set; }
 }
 
 public class DanhGiaChoDoCuDto

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'api_response.dart';
 import 'webrtc_call_service.dart';
@@ -48,11 +49,43 @@ Future<ApiResponse> sendApiRequest({
 Future<PickedImageFile?> pickMediaFile({
   bool acceptVideo = false,
   bool useCamera = false,
-}) async => null;
+}) async {
+  try {
+    final picker = ImagePicker();
+    final source = useCamera ? ImageSource.camera : ImageSource.gallery;
+    final XFile? file = acceptVideo
+        ? await picker.pickVideo(
+            source: source,
+            maxDuration: const Duration(seconds: 60),
+          )
+        : await picker.pickImage(
+            source: source,
+            imageQuality: 85,
+            maxWidth: 1600,
+          );
+    if (file == null) return null;
+    final bytes = await file.readAsBytes();
+    final lowerName = file.name.toLowerCase();
+    final mime = acceptVideo
+        ? (lowerName.endsWith('.webm') ? 'video/webm' : 'video/mp4')
+        : (lowerName.endsWith('.png') ? 'image/png' : 'image/jpeg');
+    final dataUrl = acceptVideo
+        ? file.path
+        : 'data:$mime;base64,${base64Encode(bytes)}';
+    return PickedImageFile(
+      fileName: file.name,
+      dataUrl: dataUrl,
+      bytes: bytes,
+      mimeType: mime,
+    );
+  } catch (_) {
+    return null;
+  }
+}
 
-Future<PickedImageFile?> pickImageFile() async => null;
+Future<PickedImageFile?> pickImageFile() => pickMediaFile(acceptVideo: false);
 
-Future<String?> pickImageDataUrl() async => null;
+Future<String?> pickImageDataUrl() async => (await pickImageFile())?.dataUrl;
 
 void writeLocalStorage(String key, String value) {
   _memoryStorage[key] = value;

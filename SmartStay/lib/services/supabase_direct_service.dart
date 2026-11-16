@@ -343,4 +343,112 @@ class SupabaseDirectService {
 
     await _postToSyncBases('/sync/chi-so-cu-dan', payload);
   }
+
+  /// Upload ảnh hoặc video thực tế lên Supabase Storage (`smartstay-media` public bucket)
+  /// và trả về URL công khai vĩnh viễn để không bị mất khi F5 / khởi động lại app.
+  Future<String?> uploadMediaBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
+    String folder = 'marketplace',
+  }) async {
+    final safeName = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    final b64 = base64Encode(bytes);
+    final payload = jsonEncode({
+      'FileName': safeName,
+      'ContentType': contentType,
+      'Base64Data': b64,
+      'Folder': folder,
+    });
+
+    for (final base in _syncApiBases) {
+      try {
+        final res = await sendApiRequest(
+          method: 'POST',
+          uri: Uri.parse('$base/sync/upload-media'),
+          headers: const {'Content-Type': 'application/json'},
+          body: payload,
+          timeout: const Duration(seconds: 45),
+        );
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          final decoded = jsonDecode(res.body);
+          if (decoded is Map &&
+              decoded['success'] == true &&
+              decoded['publicUrl'] != null) {
+            return decoded['publicUrl'].toString();
+          }
+        }
+      } catch (_) {
+        if (_isLocalBase(base)) _localSyncUnreachable = true;
+      }
+    }
+    return null;
+  }
+
+  /// Giữ chỗ / Đặt mua hoặc Xin nhận đồ trên Chợ Đồ Cũ (lưu bền vững xuống Supabase)
+  Future<bool> claimMarketplaceItem({
+    required String maTin,
+    required String claimerName,
+  }) async {
+    final payload = jsonEncode({
+      'MaTin': maTin,
+      'NguoiGiuCho': claimerName,
+    });
+    var ok = await _postToSyncBases('/sync/cho-do-cu/giu-cho', payload);
+
+    try {
+      final encodedId = Uri.encodeQueryComponent(maTin);
+      final res = await sendApiRequest(
+        method: 'PATCH',
+        uri: Uri.parse('$supabaseUrl/rest/v1/ChoDoCuTin?MaTin=eq.$encodedId'),
+        headers: _supabaseHeaders,
+        body: jsonEncode({
+          'TrangThai': 'Đã giữ chỗ',
+          'NguoiGiuCho': claimerName,
+        }),
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) ok = true;
+    } catch (_) {}
+    return ok;
+  }
+
+  /// Lưu Vé Khách Vãng Lai (IoT) bền vững xuống Supabase
+  Future<bool> syncGuestPass({
+    required String maVe,
+    required String roomCode,
+    required String guestName,
+    String? phone,
+    required String pin,
+    required String validUntil,
+  }) async {
+    final payload = jsonEncode({
+      'MaVe': maVe,
+      'KyHieuPhong': roomCode,
+      'TenKhach': guestName,
+      'SoDienThoai': phone ?? '',
+      'MaPin': pin,
+      'HieuLucDen': validUntil,
+    });
+    return _postToSyncBases('/sync/ve-khach', payload);
+  }
+
+  /// Lưu khoản Chia Tiền Phòng Ở Ghép bền vững xuống Supabase
+  Future<bool> syncSplitBill({
+    required String maChia,
+    required String roomCode,
+    required String title,
+    required double totalAmount,
+    required int memberCount,
+    String status = 'Chờ đóng',
+  }) async {
+    final payload = jsonEncode({
+      'MaChia': maChia,
+      'KyHieuPhong': roomCode,
+      'TieuDe': title,
+      'TongTien': totalAmount,
+      'SoThanhVien': memberCount,
+      'TrangThai': status,
+    });
+    return _postToSyncBases('/sync/chia-tien', payload);
+  }
 }

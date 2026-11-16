@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:html' as html;
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
+import 'dart:typed_data';
 
 import 'api_response.dart';
 import 'webrtc_call_service.dart';
@@ -61,9 +62,43 @@ Future<PickedImageFile?> pickMediaFile({
   if (files == null || files.isEmpty) return null;
 
   final file = files.first;
-  if (acceptVideo && file.size > 4500000) {
-    final objectUrl = html.Url.createObjectUrlFromBlob(file);
-    return PickedImageFile(fileName: file.name, dataUrl: objectUrl);
+  final mime = file.type.isNotEmpty
+      ? file.type
+      : (acceptVideo ? 'video/mp4' : 'image/jpeg');
+
+  if (acceptVideo) {
+    final completer = Completer<PickedImageFile?>();
+    final reader = html.FileReader();
+    reader.onLoadEnd.listen((_) {
+      if (!completer.isCompleted) {
+        Uint8List? rawBytes;
+        final res = reader.result;
+        if (res is ByteBuffer) {
+          rawBytes = res.asUint8List();
+        } else if (res is Uint8List) {
+          rawBytes = res;
+        }
+        final objectUrl = html.Url.createObjectUrlFromBlob(file);
+        completer.complete(
+          PickedImageFile(
+            fileName: file.name,
+            dataUrl: objectUrl,
+            bytes: rawBytes,
+            mimeType: mime,
+          ),
+        );
+      }
+    });
+    reader.onError.listen((_) {
+      if (!completer.isCompleted) {
+        final objectUrl = html.Url.createObjectUrlFromBlob(file);
+        completer.complete(
+          PickedImageFile(fileName: file.name, dataUrl: objectUrl, mimeType: mime),
+        );
+      }
+    });
+    reader.readAsArrayBuffer(file);
+    return completer.future;
   }
 
   final completer = Completer<PickedImageFile?>();
@@ -73,7 +108,11 @@ Future<PickedImageFile?> pickMediaFile({
       final result = reader.result;
       completer.complete(
         result is String
-            ? PickedImageFile(fileName: file.name, dataUrl: result)
+            ? PickedImageFile(
+                fileName: file.name,
+                dataUrl: result,
+                mimeType: mime,
+              )
             : null,
       );
     }
