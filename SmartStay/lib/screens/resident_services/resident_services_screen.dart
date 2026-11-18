@@ -571,10 +571,18 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
               children: [
                 OutlinedButton.icon(
                   icon: const Icon(Icons.refresh_rounded, size: 16),
-                  label: const Text('Tính lại tiền', style: TextStyle(fontSize: 12)),
+                  label: const Text('Tính lại & Lưu Cloud', style: TextStyle(fontSize: 12)),
                   onPressed: () {
                     setState(() {});
-                    _showMessage('Đã tính toán lại công thức chia tiền điện nước và tiền phòng theo quy chế Co-Living 2026.');
+                    _supabase.syncSplitBill(
+                      maChia: 'SPL-P305-T10',
+                      roomCode: 'P.305',
+                      title: 'Hóa đơn Co-Living Tháng 10/2026 (${_splitMethod.toUpperCase()})',
+                      totalAmount: total,
+                      memberCount: members,
+                      status: paidCount == members ? 'Đã thu đủ' : 'Đã thu $paidCount/$members',
+                    );
+                    _showMessage('Đã tính toán lại & đồng bộ bảng chia tiền phòng P.305 lên Supabase PostgreSQL!');
                   },
                 ),
                 ElevatedButton.icon(
@@ -4468,6 +4476,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
                 _showMessage('Đã gửi đánh giá $selectedStars sao & bình luận chi tiết!');
                 await ApiService().postSyncMarketplaceReview({
                   'MaTin': item.id ?? 'MKT-001',
+                  'MaPhong': 3,
+                  'MaCuDan': 1,
                   'TieuDeFallback': item.title,
                   'NguoiDanhGia': reviewer,
                   'KyHieuPhong': room,
@@ -4757,6 +4767,8 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
 
                   await ApiService().postSyncMarketplaceItem({
                     'MaTin': newId,
+                    'MaPhong': 3,
+                    'MaCuDanBan': 1,
                     'TieuDe': title,
                     'DanhMuc': _listingCategory == 'Tặng miễn phí'
                         ? 'free'

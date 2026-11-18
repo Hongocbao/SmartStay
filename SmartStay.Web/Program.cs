@@ -189,32 +189,37 @@ _ = Task.Run(async () =>
                 }
             }
 
+            var conn = db.Database.GetDbConnection();
+            if (conn.State != System.Data.ConnectionState.Open)
+            {
+                await conn.OpenAsync();
+            }
+
+            async Task ExecuteSqlFileSafeAsync(string filePath)
+            {
+                if (!File.Exists(filePath)) return;
+                var script = await File.ReadAllTextAsync(filePath);
+                using var cmd = conn.CreateCommand();
+                cmd.CommandTimeout = 120;
+                cmd.CommandText = script;
+                await cmd.ExecuteNonQueryAsync();
+            }
+
             if (needsSchemaSync)
             {
                 var sqlPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "database", "schema_postgresql_supabase.sql"));
-                if (File.Exists(sqlPath))
-                {
-                    var sqlScript = await File.ReadAllTextAsync(sqlPath);
-                    await db.Database.ExecuteSqlRawAsync(sqlScript);
-                    Console.WriteLine("[SmartStay] Đã đồng bộ thành công Schema & Seed Data lên Supabase PostgreSQL!");
-                }
+                await ExecuteSqlFileSafeAsync(sqlPath);
+                Console.WriteLine("[SmartStay] Đã đồng bộ thành công Schema & Seed Data lên Supabase PostgreSQL!");
             }
 
             // Áp dụng cấu hình Phương án A (Supabase Realtime + RLS) không phá hủy dữ liệu
             var optionAPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "database", "supabase_rls_and_realtime_option_a.sql"));
-            if (File.Exists(optionAPath))
-            {
-                var rlsScript = await File.ReadAllTextAsync(optionAPath);
-                await db.Database.ExecuteSqlRawAsync(rlsScript);
-            }
+            await ExecuteSqlFileSafeAsync(optionAPath);
 
-            // Đảm bảo các bảng lưu trữ bền vững (Chợ đồ cũ, Vé khách, Chia tiền, OCR, Cuộc gọi) & Storage bucket 'smartstay-media' tồn tại
+            // Đảm bảo các bảng lưu trữ bền vững (Chợ đồ cũ, Vé khách, Chia tiền, OCR, Cuộc gọi) & Khóa ngoại FK + Storage bucket 'smartstay-media' tồn tại
             var persistPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "database", "supabase_persistence_and_storage.sql"));
-            if (File.Exists(persistPath))
-            {
-                var persistScript = await File.ReadAllTextAsync(persistPath);
-                await db.Database.ExecuteSqlRawAsync(persistScript);
-            }
+            await ExecuteSqlFileSafeAsync(persistPath);
+            Console.WriteLine("[SmartStay] Đã chuẩn hóa toàn bộ bảng mở rộng, Foreign Keys & Supabase Storage!");
         }
     }
     catch (Exception ex)

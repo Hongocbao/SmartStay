@@ -443,7 +443,18 @@ public class SyncApiController : ControllerBase
                 var conn = _db.Database.GetDbConnection();
                 if (conn.State != ConnectionState.Open) await conn.OpenAsync();
                 using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"INSERT INTO ""ChiSoTuKiemTra"" (""KyHieuPhong"", ""CheDo"", ""DienKyTruoc"", ""DienMoiChup"", ""NuocKyTruoc"", ""NuocMoiChup"", ""TongTienTamTinh"", ""TomTatTieuThu"", ""NguonCapNhat"") VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8)";
+                cmd.CommandText = @"
+                    INSERT INTO ""ChiSoTuKiemTra"" (
+                        ""MaPhong"", ""MaCuDan"", ""MaChiSoChinhThuc"",
+                        ""KyHieuPhong"", ""CheDo"", ""DienKyTruoc"", ""DienMoiChup"",
+                        ""NuocKyTruoc"", ""NuocMoiChup"", ""TongTienTamTinh"",
+                        ""TomTatTieuThu"", ""NguonCapNhat"", ""TrangThaiDuyet""
+                    ) VALUES (
+                        COALESCE((SELECT p.""MaPhong"" FROM ""Phong"" p WHERE UPPER(p.""KyHieuPhong"") = UPPER(@p0) LIMIT 1), (SELECT p.""MaPhong"" FROM ""Phong"" p ORDER BY p.""MaPhong"" LIMIT 1)),
+                        (SELECT c.""MaCuDan"" FROM ""CuDan"" c ORDER BY c.""MaCuDan"" LIMIT 1),
+                        (SELECT cs.""MaChiSo"" FROM ""ChiSoSuDung"" cs ORDER BY cs.""MaChiSo"" DESC LIMIT 1),
+                        @p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, 'Đã đồng bộ quản lý'
+                    )";
                 AddDbParam(cmd, "@p0", _latestResidentMeter.KyHieuPhong);
                 AddDbParam(cmd, "@p1", _latestResidentMeter.CheDo);
                 AddDbParam(cmd, "@p2", _latestResidentMeter.DienKyTruoc);
@@ -463,6 +474,78 @@ public class SyncApiController : ControllerBase
             success = true,
             chiSoCuDan = _latestResidentMeter,
             soTheoDoiCuDan = _residentMeterLogs.Reverse().Take(15).ToList()
+        });
+    }
+
+    [Authorize(Roles = "Admin,QuanLy,KyThuat")]
+    [HttpPost("duyet-chi-so-cu-dan")]
+    public async Task<IActionResult> DuyetChiSoCuDanSangHoaDon([FromBody] SyncResidentMeterDto req)
+    {
+        var roomCode = string.IsNullOrWhiteSpace(req.KyHieuPhong) ? _latestResidentMeter.KyHieuPhong : req.KyHieuPhong.Trim();
+        var elecOld = req.DienKyTruoc > 0 ? (decimal)req.DienKyTruoc : (decimal)_latestResidentMeter.DienKyTruoc;
+        var elecNew = req.DienMoiChup > 0 ? (decimal)req.DienMoiChup : (decimal)_latestResidentMeter.DienMoiChup;
+        long? maChiSo = null;
+
+        try
+        {
+            var room = await _db.Phongs.FirstOrDefaultAsync(p => p.KyHieuPhong == roomCode)
+                       ?? await _db.Phongs.FirstOrDefaultAsync();
+            var dichVuDien = await _db.DichVus.FirstOrDefaultAsync(d => d.MaDichVu == 1)
+                             ?? await _db.DichVus.FirstOrDefaultAsync();
+            var user = await _db.NguoiDungs.FirstOrDefaultAsync();
+
+            if (room != null && dichVuDien != null && user != null)
+            {
+                var kyTinh = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+                var existingReading = await _db.ChiSoSuDungs.FirstOrDefaultAsync(
+                    cs => cs.MaPhong == room.MaPhong && cs.MaDichVu == dichVuDien.MaDichVu && cs.KyTinhTien == kyTinh);
+
+                if (existingReading != null)
+                {
+                    existingReading.ChiSoTruoc = elecOld;
+                    existingReading.ChiSoHienTai = elecNew;
+                    await _db.SaveChangesAsync();
+                    maChiSo = existingReading.MaChiSo;
+                }
+                else
+                {
+                    var fresh = new ChiSoSuDung
+                    {
+                        MaPhong = room.MaPhong,
+                        MaDichVu = dichVuDien.MaDichVu,
+                        KyTinhTien = kyTinh,
+                        LoaiGhiChiSo = "OCR",
+                        ChiSoTruoc = elecOld,
+                        ChiSoHienTai = elecNew,
+                        NgayGhiChiSo = DateOnly.FromDateTime(DateTime.UtcNow),
+                        GhiChu = "Đồng bộ & duyệt từ chỉ số OCR cư dân",
+                        NguoiGhiNhan = user.MaNguoiDung
+                    };
+                    _db.ChiSoSuDungs.Add(fresh);
+                    await _db.SaveChangesAsync();
+                    maChiSo = fresh.MaChiSo;
+                }
+
+                if (_db.Database.IsNpgsql() && maChiSo.HasValue)
+                {
+                    var conn = _db.Database.GetDbConnection();
+                    if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"UPDATE ""ChiSoTuKiemTra"" SET ""MaChiSoChinhThuc"" = @p0, ""TrangThaiDuyet"" = 'Đã duyệt chính thức' WHERE UPPER(""KyHieuPhong"") = UPPER(@p1)";
+                    AddDbParam(cmd, "@p0", maChiSo.Value);
+                    AddDbParam(cmd, "@p1", roomCode);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+            }
+        }
+        catch { }
+
+        return Ok(new
+        {
+            success = true,
+            kyHieuPhong = roomCode,
+            maChiSoChinhThuc = maChiSo,
+            trangThaiDuyet = "Đã duyệt chính thức"
         });
     }
 
@@ -637,8 +720,19 @@ public class SyncApiController : ControllerBase
                 if (conn.State != ConnectionState.Open) await conn.OpenAsync();
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = @"
-                    INSERT INTO ""ChoDoCuTin"" (""MaTin"", ""TieuDe"", ""DanhMuc"", ""GiaBan"", ""GiaGoc"", ""KyHieuPhong"", ""NguoiBan"", ""TinhTrang"", ""MoTa"", ""HinhAnhUrl"", ""VideoUrl"", ""TrangThai"", ""NguoiGiuCho"", ""SoSaoTrungBinh"", ""SoLuotDanhGia"", ""TaoLuc"")
-                    VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10, @p11, @p12, @p13, @p14, @p15)
+                    INSERT INTO ""ChoDoCuTin"" (
+                        ""MaTin"", ""MaPhong"", ""MaCuDanBan"",
+                        ""TieuDe"", ""DanhMuc"", ""GiaBan"", ""GiaGoc"",
+                        ""KyHieuPhong"", ""NguoiBan"", ""TinhTrang"", ""MoTa"",
+                        ""HinhAnhUrl"", ""VideoUrl"", ""TrangThai"", ""NguoiGiuCho"",
+                        ""SoSaoTrungBinh"", ""SoLuotDanhGia"", ""TaoLuc""
+                    )
+                    VALUES (
+                        @p0,
+                        COALESCE((SELECT p.""MaPhong"" FROM ""Phong"" p WHERE UPPER(p.""KyHieuPhong"") = UPPER(@p5) LIMIT 1), (SELECT p.""MaPhong"" FROM ""Phong"" p ORDER BY p.""MaPhong"" LIMIT 1)),
+                        (SELECT c.""MaCuDan"" FROM ""CuDan"" c ORDER BY c.""MaCuDan"" LIMIT 1),
+                        @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10, @p11, @p12, @p13, @p14, @p15
+                    )
                     ON CONFLICT (""MaTin"") DO UPDATE SET
                         ""TieuDe"" = EXCLUDED.""TieuDe"",
                         ""GiaBan"" = EXCLUDED.""GiaBan"",
@@ -698,7 +792,12 @@ public class SyncApiController : ControllerBase
                 var conn = _db.Database.GetDbConnection();
                 if (conn.State != ConnectionState.Open) await conn.OpenAsync();
                 using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"UPDATE ""ChoDoCuTin"" SET ""TrangThai"" = 'Đã giữ chỗ', ""NguoiGiuCho"" = @p1 WHERE ""MaTin"" = @p0";
+                cmd.CommandText = @"
+                    UPDATE ""ChoDoCuTin""
+                    SET ""TrangThai"" = 'Đã giữ chỗ',
+                        ""NguoiGiuCho"" = @p1,
+                        ""MaCuDanGiuCho"" = COALESCE(""MaCuDanGiuCho"", (SELECT c.""MaCuDan"" FROM ""CuDan"" c ORDER BY c.""MaCuDan"" DESC LIMIT 1))
+                    WHERE ""MaTin"" = @p0 OR ""TieuDe"" = @p0";
                 AddDbParam(cmd, "@p0", key);
                 AddDbParam(cmd, "@p1", claimer);
                 await cmd.ExecuteNonQueryAsync();
@@ -753,9 +852,33 @@ public class SyncApiController : ControllerBase
             {
                 var conn = _db.Database.GetDbConnection();
                 if (conn.State != ConnectionState.Open) await conn.OpenAsync();
+                // Đảm bảo MaTin tồn tại trong ChoDoCuTin để thỏa mãn FK_ChoDoCuDanhGia_ChoDoCuTin
+                using (var cmdEnsure = conn.CreateCommand())
+                {
+                    cmdEnsure.CommandText = @"
+                        INSERT INTO ""ChoDoCuTin"" (""MaTin"", ""MaPhong"", ""MaCuDanBan"", ""TieuDe"", ""DanhMuc"", ""GiaBan"", ""GiaGoc"", ""KyHieuPhong"", ""NguoiBan"", ""TinhTrang"", ""MoTa"")
+                        VALUES (
+                            @p0,
+                            COALESCE((SELECT p.""MaPhong"" FROM ""Phong"" p WHERE UPPER(p.""KyHieuPhong"") = UPPER(@p2) LIMIT 1), (SELECT p.""MaPhong"" FROM ""Phong"" p ORDER BY p.""MaPhong"" LIMIT 1)),
+                            (SELECT c.""MaCuDan"" FROM ""CuDan"" c ORDER BY c.""MaCuDan"" LIMIT 1),
+                            @p1, 'electronics', 50000, 100000, @p2, 'Cư dân SmartStay', 'Đã xác minh', 'Sản phẩm Chợ Cư Dân'
+                        )
+                        ON CONFLICT (""MaTin"") DO NOTHING";
+                    AddDbParam(cmdEnsure, "@p0", key);
+                    AddDbParam(cmdEnsure, "@p1", item.TieuDe);
+                    AddDbParam(cmdEnsure, "@p2", room);
+                    await cmdEnsure.ExecuteNonQueryAsync();
+                }
                 using (var cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = @"INSERT INTO ""ChoDoCuDanhGia"" (""MaTin"", ""NguoiDanhGia"", ""KyHieuPhong"", ""SoSao"", ""BinhLuan"", ""ThoiGian"") VALUES (@p0, @p1, @p2, @p3, @p4, 'Vừa xong')";
+                    cmd.CommandText = @"
+                        INSERT INTO ""ChoDoCuDanhGia"" (""MaTin"", ""MaPhong"", ""MaCuDan"", ""NguoiDanhGia"", ""KyHieuPhong"", ""SoSao"", ""BinhLuan"", ""ThoiGian"")
+                        VALUES (
+                            @p0,
+                            COALESCE((SELECT p.""MaPhong"" FROM ""Phong"" p WHERE UPPER(p.""KyHieuPhong"") = UPPER(@p2) LIMIT 1), (SELECT p.""MaPhong"" FROM ""Phong"" p ORDER BY p.""MaPhong"" LIMIT 1)),
+                            (SELECT c.""MaCuDan"" FROM ""CuDan"" c ORDER BY c.""MaCuDan"" LIMIT 1),
+                            @p1, @p2, @p3, @p4, 'Vừa xong'
+                        )";
                     AddDbParam(cmd, "@p0", key);
                     AddDbParam(cmd, "@p1", reviewer);
                     AddDbParam(cmd, "@p2", room);
@@ -797,7 +920,14 @@ public class SyncApiController : ControllerBase
                 var conn = _db.Database.GetDbConnection();
                 if (conn.State != ConnectionState.Open) await conn.OpenAsync();
                 using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"INSERT INTO ""VeKhachVangLai"" (""MaVe"", ""KyHieuPhong"", ""TenKhach"", ""SoDienThoai"", ""MaPin"", ""HieuLucDen"", ""TrangThai"") VALUES (@p0, @p1, @p2, @p3, @p4, @p5, 'Đang hiệu lực') ON CONFLICT (""MaVe"") DO NOTHING";
+                cmd.CommandText = @"
+                    INSERT INTO ""VeKhachVangLai"" (""MaVe"", ""MaPhong"", ""MaCuDan"", ""KyHieuPhong"", ""TenKhach"", ""SoDienThoai"", ""MaPin"", ""HieuLucDen"", ""TrangThai"")
+                    VALUES (
+                        @p0,
+                        COALESCE((SELECT p.""MaPhong"" FROM ""Phong"" p WHERE UPPER(p.""KyHieuPhong"") = UPPER(@p1) LIMIT 1), (SELECT p.""MaPhong"" FROM ""Phong"" p ORDER BY p.""MaPhong"" LIMIT 1)),
+                        (SELECT c.""MaCuDan"" FROM ""CuDan"" c ORDER BY c.""MaCuDan"" LIMIT 1),
+                        @p1, @p2, @p3, @p4, @p5, 'Đang hiệu lực'
+                    ) ON CONFLICT (""MaVe"") DO NOTHING";
                 AddDbParam(cmd, "@p0", maVe);
                 AddDbParam(cmd, "@p1", room);
                 AddDbParam(cmd, "@p2", req.TenKhach.Trim());
@@ -831,7 +961,15 @@ public class SyncApiController : ControllerBase
                 var conn = _db.Database.GetDbConnection();
                 if (conn.State != ConnectionState.Open) await conn.OpenAsync();
                 using var cmd = conn.CreateCommand();
-                cmd.CommandText = @"INSERT INTO ""ChiaTienPhong"" (""MaChia"", ""KyHieuPhong"", ""TieuDe"", ""TongTien"", ""SoThanhVien"", ""MoiNguoi"", ""TrangThai"") VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6) ON CONFLICT (""MaChia"") DO UPDATE SET ""TrangThai"" = EXCLUDED.""TrangThai""";
+                cmd.CommandText = @"
+                    INSERT INTO ""ChiaTienPhong"" (""MaChia"", ""MaPhong"", ""MaHoaDon"", ""MaCuDanTao"", ""KyHieuPhong"", ""TieuDe"", ""TongTien"", ""SoThanhVien"", ""MoiNguoi"", ""TrangThai"")
+                    VALUES (
+                        @p0,
+                        COALESCE((SELECT p.""MaPhong"" FROM ""Phong"" p WHERE UPPER(p.""KyHieuPhong"") = UPPER(@p1) LIMIT 1), (SELECT p.""MaPhong"" FROM ""Phong"" p ORDER BY p.""MaPhong"" LIMIT 1)),
+                        (SELECT h.""MaHoaDon"" FROM ""HoaDon"" h ORDER BY h.""MaHoaDon"" DESC LIMIT 1),
+                        (SELECT c.""MaCuDan"" FROM ""CuDan"" c ORDER BY c.""MaCuDan"" LIMIT 1),
+                        @p1, @p2, @p3, @p4, @p5, @p6
+                    ) ON CONFLICT (""MaChia"") DO UPDATE SET ""TrangThai"" = EXCLUDED.""TrangThai""";
                 AddDbParam(cmd, "@p0", maChia);
                 AddDbParam(cmd, "@p1", room);
                 AddDbParam(cmd, "@p2", req.TieuDe.Trim());
@@ -943,8 +1081,19 @@ public class SyncApiController : ControllerBase
                 if (conn.State != ConnectionState.Open) await conn.OpenAsync();
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = @"
-                    INSERT INTO ""NhatKyCuocGoi"" (""MaCuocGoi"", ""NguoiGoi"", ""VaiTroNguoiGoi"", ""NguoiNhan"", ""VaiTroNguoiNhan"", ""LoaiCuocGoi"", ""NoiDungTraoDoi"", ""ThoiLuongGiay"", ""TrangThai"", ""ThoiDiem"")
-                    VALUES (@p0, @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9)
+                    INSERT INTO ""NhatKyCuocGoi"" (
+                        ""MaCuocGoi"", ""MaNguoiGoi"", ""MaNguoiNhan"", ""MaCuDan"", ""MaPhong"",
+                        ""NguoiGoi"", ""VaiTroNguoiGoi"", ""NguoiNhan"", ""VaiTroNguoiNhan"",
+                        ""LoaiCuocGoi"", ""NoiDungTraoDoi"", ""ThoiLuongGiay"", ""TrangThai"", ""ThoiDiem""
+                    )
+                    VALUES (
+                        @p0,
+                        (SELECT u.""MaNguoiDung"" FROM ""NguoiDung"" u ORDER BY u.""MaNguoiDung"" LIMIT 1),
+                        (SELECT u.""MaNguoiDung"" FROM ""NguoiDung"" u ORDER BY u.""MaNguoiDung"" DESC LIMIT 1),
+                        (SELECT c.""MaCuDan"" FROM ""CuDan"" c ORDER BY c.""MaCuDan"" LIMIT 1),
+                        (SELECT p.""MaPhong"" FROM ""Phong"" p ORDER BY p.""MaPhong"" LIMIT 1),
+                        @p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9
+                    )
                     ON CONFLICT (""MaCuocGoi"") DO UPDATE SET
                         ""ThoiLuongGiay"" = GREATEST(""NhatKyCuocGoi"".""ThoiLuongGiay"", EXCLUDED.""ThoiLuongGiay""),
                         ""TrangThai"" = EXCLUDED.""TrangThai"",
@@ -1171,6 +1320,8 @@ public class SyncResidentMeterLogItem
 
 public class SyncResidentMeterDto
 {
+    public int? MaPhong { get; set; }
+    public int? MaCuDan { get; set; }
     public string? KyHieuPhong { get; set; }
     public string? CheDo { get; set; }
     public double DienKyTruoc { get; set; }
@@ -1186,6 +1337,8 @@ public class SyncResidentMeterDto
 
 public class SyncMarketReviewItem
 {
+    public int? MaCuDan { get; set; }
+    public int? MaPhong { get; set; }
     public string NguoiDanhGia { get; set; } = string.Empty;
     public string KyHieuPhong { get; set; } = "P.305";
     public int SoSao { get; set; } = 5;
@@ -1196,6 +1349,9 @@ public class SyncMarketReviewItem
 public class SyncMarketItem
 {
     public string MaTin { get; set; } = string.Empty;
+    public int? MaPhong { get; set; }
+    public int? MaCuDanBan { get; set; }
+    public int? MaCuDanGiuCho { get; set; }
     public string TieuDe { get; set; } = string.Empty;
     public string DanhMuc { get; set; } = "electronics";
     public decimal GiaBan { get; set; }
@@ -1217,6 +1373,8 @@ public class SyncMarketItem
 public class DangTinChoDoCuDto
 {
     public string? MaTin { get; set; }
+    public int? MaPhong { get; set; }
+    public int? MaCuDanBan { get; set; }
     public string TieuDe { get; set; } = string.Empty;
     public string? DanhMuc { get; set; }
     public decimal GiaBan { get; set; }
@@ -1234,12 +1392,15 @@ public class DangTinChoDoCuDto
 public class GiuChoChoDoCuDto
 {
     public string MaTin { get; set; } = string.Empty;
+    public int? MaCuDanGiuCho { get; set; }
     public string? NguoiGiuCho { get; set; }
 }
 
 public class VeKhachSyncDto
 {
     public string? MaVe { get; set; }
+    public int? MaPhong { get; set; }
+    public int? MaCuDan { get; set; }
     public string? KyHieuPhong { get; set; }
     public string TenKhach { get; set; } = string.Empty;
     public string? SoDienThoai { get; set; }
@@ -1250,6 +1411,9 @@ public class VeKhachSyncDto
 public class ChiaTienSyncDto
 {
     public string? MaChia { get; set; }
+    public int? MaPhong { get; set; }
+    public int? MaHoaDon { get; set; }
+    public int? MaCuDanTao { get; set; }
     public string? KyHieuPhong { get; set; }
     public string TieuDe { get; set; } = string.Empty;
     public decimal TongTien { get; set; }
@@ -1268,6 +1432,8 @@ public class UploadMediaSyncDto
 public class DanhGiaChoDoCuDto
 {
     public string MaTin { get; set; } = string.Empty;
+    public int? MaPhong { get; set; }
+    public int? MaCuDan { get; set; }
     public string? TieuDeFallback { get; set; }
     public string? NguoiDanhGia { get; set; }
     public string? KyHieuPhong { get; set; }
@@ -1278,6 +1444,10 @@ public class DanhGiaChoDoCuDto
 public class SyncCallLogItem
 {
     public string MaCuocGoi { get; set; } = string.Empty;
+    public int? MaNguoiGoi { get; set; }
+    public int? MaNguoiNhan { get; set; }
+    public int? MaCuDan { get; set; }
+    public int? MaPhong { get; set; }
     public string NguoiGoi { get; set; } = string.Empty;
     public string VaiTroNguoiGoi { get; set; } = "CuDan";
     public string NguoiNhan { get; set; } = string.Empty;
@@ -1292,6 +1462,10 @@ public class SyncCallLogItem
 public class LuuCuocGoiSyncDto
 {
     public string? CallId { get; set; }
+    public int? MaNguoiGoi { get; set; }
+    public int? MaNguoiNhan { get; set; }
+    public int? MaCuDan { get; set; }
+    public int? MaPhong { get; set; }
     public string? NguoiGoi { get; set; }
     public string? VaiTroNguoiGoi { get; set; }
     public string? NguoiNhan { get; set; }

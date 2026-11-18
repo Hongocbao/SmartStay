@@ -314,7 +314,7 @@ class SupabaseDirectService {
   }
 
   /// Đồng bộ Chỉ số công tơ tự kiểm tra cá nhân của cư dân giữa Giả lập Android <-> Web Cư Dân trên Render
-  /// (Chỉ đồng bộ giữa các thiết bị của cư dân, KHÔNG tạo hóa đơn Admin)
+  /// (Kèm khóa ngoại MaPhong, MaCuDan)
   Future<void> syncResidentMeterCheck({
     required String mode,
     required double elecOld,
@@ -322,12 +322,16 @@ class SupabaseDirectService {
     required double waterOld,
     required double waterNew,
     required double totalEstimatedCost,
+    int maPhong = 3,
+    int maCuDan = 1,
     String? consumptionSummary,
     String? dateLabel,
     bool saveToPersonalLog = false,
   }) async {
     final sourceLabel = kIsWeb ? 'Web Cư Dân (Render)' : 'App Android Cư Dân';
     final payload = jsonEncode({
+      'MaPhong': maPhong,
+      'MaCuDan': maCuDan,
       'KyHieuPhong': 'P.305',
       'CheDo': mode,
       'DienKyTruoc': elecOld,
@@ -342,6 +346,27 @@ class SupabaseDirectService {
     });
 
     await _postToSyncBases('/sync/chi-so-cu-dan', payload);
+
+    try {
+      await sendApiRequest(
+        method: 'POST',
+        uri: Uri.parse('$supabaseUrl/rest/v1/ChiSoTuKiemTra'),
+        headers: _supabaseHeaders,
+        body: jsonEncode({
+          'MaPhong': maPhong,
+          'MaCuDan': maCuDan,
+          'KyHieuPhong': 'P.305',
+          'CheDo': mode,
+          'DienKyTruoc': elecOld,
+          'DienMoiChup': elecNew,
+          'NuocKyTruoc': waterOld,
+          'NuocMoiChup': waterNew,
+          'TongTienTamTinh': totalEstimatedCost,
+          'TomTatTieuThu': consumptionSummary ?? '',
+          'NguonCapNhat': sourceLabel,
+        }),
+      );
+    } catch (_) {}
   }
 
   /// Upload ảnh hoặc video thực tế lên Supabase Storage (`smartstay-media` public bucket)
@@ -385,13 +410,15 @@ class SupabaseDirectService {
     return null;
   }
 
-  /// Giữ chỗ / Đặt mua hoặc Xin nhận đồ trên Chợ Đồ Cũ (lưu bền vững xuống Supabase)
+  /// Giữ chỗ / Đặt mua hoặc Xin nhận đồ trên Chợ Đồ Cũ (lưu bền vững xuống Supabase kèm MaCuDanGiuCho)
   Future<bool> claimMarketplaceItem({
     required String maTin,
     required String claimerName,
+    int maCuDanGiuCho = 1,
   }) async {
     final payload = jsonEncode({
       'MaTin': maTin,
+      'MaCuDanGiuCho': maCuDanGiuCho,
       'NguoiGiuCho': claimerName,
     });
     var ok = await _postToSyncBases('/sync/cho-do-cu/giu-cho', payload);
@@ -404,6 +431,7 @@ class SupabaseDirectService {
         headers: _supabaseHeaders,
         body: jsonEncode({
           'TrangThai': 'Đã giữ chỗ',
+          'MaCuDanGiuCho': maCuDanGiuCho,
           'NguoiGiuCho': claimerName,
         }),
       );
@@ -412,43 +440,77 @@ class SupabaseDirectService {
     return ok;
   }
 
-  /// Lưu Vé Khách Vãng Lai (IoT) bền vững xuống Supabase
+  /// Lưu Vé Khách Vãng Lai (IoT) bền vững xuống Supabase kèm khóa ngoại MaPhong, MaCuDan
   Future<bool> syncGuestPass({
     required String maVe,
     required String roomCode,
     required String guestName,
+    int maPhong = 3,
+    int maCuDan = 1,
     String? phone,
     required String pin,
     required String validUntil,
   }) async {
     final payload = jsonEncode({
       'MaVe': maVe,
+      'MaPhong': maPhong,
+      'MaCuDan': maCuDan,
       'KyHieuPhong': roomCode,
       'TenKhach': guestName,
       'SoDienThoai': phone ?? '',
       'MaPin': pin,
       'HieuLucDen': validUntil,
     });
-    return _postToSyncBases('/sync/ve-khach', payload);
+    var ok = await _postToSyncBases('/sync/ve-khach', payload);
+    try {
+      final res = await sendApiRequest(
+        method: 'POST',
+        uri: Uri.parse('$supabaseUrl/rest/v1/VeKhachVangLai'),
+        headers: _supabaseHeaders,
+        body: payload,
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) ok = true;
+    } catch (_) {}
+    return ok;
   }
 
-  /// Lưu khoản Chia Tiền Phòng Ở Ghép bền vững xuống Supabase
+  /// Lưu khoản Chia Tiền Phòng Ở Ghép bền vững xuống Supabase kèm khóa ngoại MaPhong, MaHoaDon, MaCuDanTao
   Future<bool> syncSplitBill({
     required String maChia,
     required String roomCode,
     required String title,
     required double totalAmount,
     required int memberCount,
+    int maPhong = 3,
+    int maHoaDon = 1,
+    int maCuDanTao = 1,
     String status = 'Chờ đóng',
   }) async {
     final payload = jsonEncode({
       'MaChia': maChia,
+      'MaPhong': maPhong,
+      'MaHoaDon': maHoaDon,
+      'MaCuDanTao': maCuDanTao,
       'KyHieuPhong': roomCode,
       'TieuDe': title,
       'TongTien': totalAmount,
       'SoThanhVien': memberCount,
+      'MoiNguoi': (totalAmount / (memberCount > 0 ? memberCount : 1)).round(),
       'TrangThai': status,
     });
-    return _postToSyncBases('/sync/chia-tien', payload);
+    var ok = await _postToSyncBases('/sync/chia-tien', payload);
+    try {
+      final res = await sendApiRequest(
+        method: 'POST',
+        uri: Uri.parse('$supabaseUrl/rest/v1/ChiaTienPhong'),
+        headers: {
+          ..._supabaseHeaders,
+          'Prefer': 'resolution=merge-duplicates,return=representation',
+        },
+        body: payload,
+      );
+      if (res.statusCode >= 200 && res.statusCode < 300) ok = true;
+    } catch (_) {}
+    return ok;
   }
 }

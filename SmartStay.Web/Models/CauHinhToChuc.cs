@@ -28,4 +28,12 @@ public partial class CauHinhToChuc
     public string? MauHopDong { get; set; }
 
     public string? MauHoaDon { get; set; }
+
+    public int? MaToaNhaMacDinh { get; set; }
+
+    public int? NguoiCapNhat { get; set; }
+
+    public virtual ToaNha? MaToaNhaMacDinhNavigation { get; set; }
+
+    public virtual NguoiDung? NguoiCapNhatNavigation { get; set; }
 }

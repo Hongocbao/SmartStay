@@ -18,4 +18,12 @@ public partial class TriThucAiRag
     public bool DangHoatDong { get; set; }
 
     public DateTime NgayCapNhat { get; set; }
+
+    public int? MaToaNha { get; set; }
+
+    public int? NguoiCapNhat { get; set; }
+
+    public virtual ToaNha? MaToaNhaNavigation { get; set; }
+
+    public virtual NguoiDung? NguoiCapNhatNavigation { get; set; }
 }

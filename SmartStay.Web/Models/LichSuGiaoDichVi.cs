@@ -24,4 +24,6 @@ public partial class LichSuGiaoDichVi
     public DateTime ThoiGian { get; set; }
 
     public virtual ViCuDan MaViNavigation { get; set; } = null!;
+
+    public virtual HoaDon? MaHoaDonLienQuanNavigation { get; set; }
 }
