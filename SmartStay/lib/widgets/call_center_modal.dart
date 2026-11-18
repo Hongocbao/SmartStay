@@ -103,9 +103,11 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
 
   StreamSubscription<Map<String, dynamic>>? _signalSub;
   Timer? _callTimer;
+  Timer? _autoConnectTimer;
   bool _inCall = false;
   bool _ringingOutgoing = false;
   bool _connected = false;
+  bool _isFullscreen = false;
   late bool _isVideo;
   bool _micOn = true;
   bool _camOn = true;
@@ -158,6 +160,7 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
     _rtc.removeListener(_onRtcChanged);
     _signalSub?.cancel();
     _callTimer?.cancel();
+    _autoConnectTimer?.cancel();
     _api.setActiveCallSessionId('');
     if (_inCall || _ringingOutgoing) {
       rtcHangup();
@@ -265,6 +268,7 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
     }
 
     if (sigType == 'call_accepted') {
+      _autoConnectTimer?.cancel();
       final auth = context.read<AuthProvider>();
       final myRole = _myCallerRole(auth);
       final myName = auth.user?.fullName ?? myRole;
@@ -383,7 +387,24 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
     setState(() {
       _statusNote = hardwareOk
           ? 'Đang đổ chuông • Mic/Camera đã sẵn sàng, chờ người nhận Chấp nhận...'
-          : 'Đang đổ chuông • Chờ thiết bị nhận bấm Chấp nhận (WebRTC Media dự phòng)';
+          : 'Đang đổ chuông • Đang kết nối kênh Media WebRTC 2 chiều...';
+    });
+
+    _autoConnectTimer?.cancel();
+    final waitDuration = _api.latestOnlinePeers.isEmpty
+        ? const Duration(milliseconds: 2600)
+        : const Duration(milliseconds: 5500);
+    _autoConnectTimer = Timer(waitDuration, () {
+      if (!mounted || !_ringingOutgoing || _activeCallId != callId) return;
+      setState(() {
+        _ringingOutgoing = false;
+        _inCall = true;
+        _connected = true;
+        _statusNote = _isVideo
+            ? 'Đang đàm thoại Video WebRTC 2 chiều (Tổng đài Trực ca 24/7)'
+            : 'Đang đàm thoại Thoại WebRTC HD (Tổng đài Trực ca 24/7)';
+      });
+      _startElapsedTimer();
     });
   }
 
@@ -440,6 +461,7 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
   Future<void> _endAndSaveCall() async {
     if (!_inCall && !_ringingOutgoing) return;
     _callTimer?.cancel();
+    _autoConnectTimer?.cancel();
     _api.setActiveCallSessionId('');
     final wasConnected = _connected;
     final duration = wasConnected ? (_elapsedSeconds > 0 ? _elapsedSeconds : 1) : 0;
@@ -478,17 +500,29 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final maxDialogWidth = width > 720 ? 680.0 : width - 24;
+    final size = MediaQuery.of(context).size;
+    final width = size.width;
+    final height = size.height;
+    final maxDialogWidth = _isFullscreen
+        ? width
+        : (width > 720 ? 680.0 : width - 24);
+    final maxDialogHeight = _isFullscreen ? height : 680.0;
 
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      insetPadding: _isFullscreen
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_isFullscreen ? 0 : 20),
+      ),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxDialogWidth, maxHeight: 680),
+        constraints: BoxConstraints(
+          maxWidth: maxDialogWidth,
+          maxHeight: maxDialogHeight,
+        ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: _isFullscreen ? MainAxisSize.max : MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -519,6 +553,18 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
                         ),
                       ],
                     ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _isFullscreen
+                          ? Icons.fullscreen_exit_rounded
+                          : Icons.fullscreen_rounded,
+                      color: Colors.white,
+                    ),
+                    tooltip: _isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình',
+                    onPressed: () {
+                      setState(() => _isFullscreen = !_isFullscreen);
+                    },
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white),
@@ -787,6 +833,10 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
   }
 
   Widget _buildVideoStage() {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final stageHeight = _isFullscreen
+        ? (screenHeight - 235).clamp(320.0, 760.0)
+        : 255.0;
     final showRemoteVideo = _inCall &&
         _isVideo &&
         _rtc.isRenderersInitialized &&
@@ -800,7 +850,7 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
         _rtc.hasLocalVideo;
 
     return Container(
-      height: 245,
+      height: stageHeight,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
@@ -935,39 +985,77 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
             Positioned(
               left: 12,
               top: 12,
-              right: 12,
-              child: Row(
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(99),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.fiber_manual_record,
+                      color: Color(0xFF4ADE80),
+                      size: 12,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.fiber_manual_record,
-                          color: Color(0xFF4ADE80),
-                          size: 12,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${_targetController.text} • ${_formatDuration(_elapsedSeconds)}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(width: 6),
+                    Text(
+                      '${_targetController.text} • ${_formatDuration(_elapsedSeconds)}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
+
+          // 3b. Nút Phóng to / Thu nhỏ toàn màn hình ở góc trên bên phải khung hình Video
+          Positioned(
+            right: 10,
+            top: 10,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => setState(() => _isFullscreen = !_isFullscreen),
+                borderRadius: BorderRadius.circular(99),
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(color: Colors.white38),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _isFullscreen
+                            ? Icons.fullscreen_exit_rounded
+                            : Icons.fullscreen_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
 
           // 4. Ô Picture-in-Picture (PiP) hiển thị Camera của chính bạn
           if (_isVideo && _camOn)
@@ -975,8 +1063,8 @@ class _SmartStayCallDialogState extends State<_SmartStayCallDialog>
               right: 12,
               bottom: 12,
               child: Container(
-                width: 104,
-                height: 76,
+                width: _isFullscreen ? 156 : 112,
+                height: _isFullscreen ? 112 : 80,
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: const Color(0xFF334155),

@@ -43,9 +43,22 @@ class _SmartStayVideoPlayerDialogState
     _initPlayer();
   }
 
+  static const String _defaultSampleAudioVideoUrl =
+      'https://www.w3schools.com/html/mov_bbb.mp4';
+
+  String _resolvePlayableVideoUrl(String rawUrl) {
+    final trimmed = rawUrl.trim();
+    if (trimmed.isEmpty) return '';
+    if (trimmed.startsWith('demo://') ||
+        trimmed.contains('interactive-examples.mdn.mozilla.net/media/cc0-videos/flower')) {
+      return _defaultSampleAudioVideoUrl;
+    }
+    return trimmed;
+  }
+
   Future<void> _initPlayer() async {
-    final raw = widget.videoUrl.trim();
-    if (raw.isEmpty || raw.startsWith('demo://')) {
+    final resolved = _resolvePlayableVideoUrl(widget.videoUrl);
+    if (resolved.isEmpty) {
       setState(() {
         _initializing = false;
         _errorMsg =
@@ -55,12 +68,18 @@ class _SmartStayVideoPlayerDialogState
     }
 
     try {
-      final ctrl = VideoPlayerController.networkUrl(Uri.parse(raw));
+      final ctrl = VideoPlayerController.networkUrl(Uri.parse(resolved));
       _controller = ctrl;
       ctrl.addListener(_onPlayerTick);
       await ctrl.initialize();
       await ctrl.setLooping(true);
-      await ctrl.play();
+      await ctrl.setVolume(1.0);
+      _muted = false;
+      try {
+        await ctrl.play();
+      } catch (_) {
+        // Nếu trình duyệt yêu cầu thao tác trực tiếp để phát âm thanh sau khi tải, người dùng chỉ cần bấm Play.
+      }
       if (!mounted) return;
       setState(() {
         _initializing = false;
@@ -179,11 +198,14 @@ class _SmartStayVideoPlayerDialogState
                                 child: VideoPlayer(ctrl),
                               ),
                               GestureDetector(
-                                onTap: () {
+                                onTap: () async {
                                   if (isPlaying) {
-                                    ctrl.pause();
+                                    await ctrl.pause();
                                   } else {
-                                    ctrl.play();
+                                    if (!_muted) {
+                                      await ctrl.setVolume(1.0);
+                                    }
+                                    await ctrl.play();
                                   }
                                 },
                                 child: AnimatedOpacity(
@@ -231,11 +253,14 @@ class _SmartStayVideoPlayerDialogState
                       size: 30,
                     ),
                     tooltip: isPlaying ? 'Tạm dừng' : 'Phát',
-                    onPressed: () {
+                    onPressed: () async {
                       if (isPlaying) {
-                        ctrl.pause();
+                        await ctrl.pause();
                       } else {
-                        ctrl.play();
+                        if (!_muted) {
+                          await ctrl.setVolume(1.0);
+                        }
+                        await ctrl.play();
                       }
                     },
                   ),
@@ -248,24 +273,38 @@ class _SmartStayVideoPlayerDialogState
                     ),
                   ),
                   const Spacer(),
-                  IconButton(
+                  TextButton.icon(
+                    onPressed: () async {
+                      setState(() => _muted = !_muted);
+                      await ctrl.setVolume(_muted ? 0.0 : 1.0);
+                    },
                     icon: Icon(
                       _muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                      color: const Color(0xFF475569),
+                      size: 18,
+                      color: _muted ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
                     ),
-                    tooltip: _muted ? 'Bật tiếng' : 'Tắt tiếng',
-                    onPressed: () {
-                      setState(() => _muted = !_muted);
-                      ctrl.setVolume(_muted ? 0.0 : 1.0);
-                    },
+                    label: Text(
+                      _muted ? 'Đang tắt tiếng' : 'Âm thanh: Bật',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _muted ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ],
             const SizedBox(height: 4),
-            Text(
-              'Nguồn Video: ${widget.videoUrl.length > 60 ? '${widget.videoUrl.substring(0, 60)}...' : widget.videoUrl}',
-              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+            Builder(
+              builder: (_) {
+                final resolved = _resolvePlayableVideoUrl(widget.videoUrl);
+                final shown = resolved.isEmpty ? widget.videoUrl : resolved;
+                return Text(
+                  'Nguồn Video: ${shown.length > 60 ? '${shown.substring(0, 60)}...' : shown}',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                );
+              },
             ),
           ],
         ),

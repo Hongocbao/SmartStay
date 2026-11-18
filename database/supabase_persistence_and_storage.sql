@@ -178,10 +178,15 @@ ALTER TABLE IF EXISTS "PhieuDatGiuCho" ADD COLUMN IF NOT EXISTS "MaCuDan" INT NU
 -- 4. Seed 3 tin mặc định vào "ChoDoCuTin" & đồng bộ dữ liệu mồ côi trước khi gắn FK
 INSERT INTO "ChoDoCuTin" ("MaTin", "TieuDe", "DanhMuc", "GiaBan", "GiaGoc", "KyHieuPhong", "NguoiBan", "TinhTrang", "MoTa", "HinhAnhUrl", "VideoUrl", "TrangThai", "SoSaoTrungBinh", "SoLuotDanhGia")
 VALUES
-    ('MKT-001', 'Quạt đứng Senko 3 tốc độ gió có hẹn giờ', 'electronics', 120000, 350000, 'P.305', 'Hồ Ngọc Bảo (P.305)', 'Còn rất mới 95%', 'Dùng được 4 tháng, chạy êm ru, có remote điều khiển. Pass lại do phòng đã có máy lạnh.', 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80', 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', 'Đang bán', 4.9, 2),
+    ('MKT-001', 'Quạt đứng Senko 3 tốc độ gió có hẹn giờ', 'electronics', 120000, 350000, 'P.305', 'Hồ Ngọc Bảo (P.305)', 'Còn rất mới 95%', 'Dùng được 4 tháng, chạy êm ru, có remote điều khiển. Pass lại do phòng đã có máy lạnh.', 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80', 'https://www.w3schools.com/html/mov_bbb.mp4', 'Đang bán', 4.9, 2),
     ('MKT-002', 'Combo 5 cuốn giáo trình Cấu trúc dữ liệu & Giải thuật', 'free', 0, 0, 'P.201', 'Nguyễn Dương Bảo (P.201)', 'TẶNG MIỄN PHÍ 0Đ', 'Mình đã học xong môn, tặng lại cho các bạn khóa dưới cần ôn thi cuối kỳ.', 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=600&q=80', NULL, 'Đang bán', 5.0, 1),
-    ('MKT-003', 'Ấm đun nước siêu tốc Sunhouse Inox 1.8L', 'electronics', 70000, 180000, 'P.401', 'Trần Hoàng Gia Bảo (P.401)', 'Inox 304', 'Đun sôi siêu nhanh trong 3 phút, tự ngắt điện an toàn khi sôi, còn nguyên hộp.', 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=600&q=80', 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', 'Đang bán', 4.8, 1)
+    ('MKT-003', 'Ấm đun nước siêu tốc Sunhouse Inox 1.8L', 'electronics', 70000, 180000, 'P.401', 'Trần Hoàng Gia Bảo (P.401)', 'Inox 304', 'Đun sôi siêu nhanh trong 3 phút, tự ngắt điện an toàn khi sôi, còn nguyên hộp.', 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=600&q=80', 'https://www.w3schools.com/html/mov_bbb.mp4', 'Đang bán', 4.8, 1)
 ON CONFLICT ("MaTin") DO NOTHING;
+
+-- Tự động nâng cấp link mẫu cũ (flower.mp4 không có âm thanh hoặc demo://) sang video MP4 có âm thanh thực tế
+UPDATE "ChoDoCuTin"
+SET "VideoUrl" = 'https://www.w3schools.com/html/mov_bbb.mp4'
+WHERE "VideoUrl" LIKE '%flower.mp4%' OR "VideoUrl" LIKE 'demo://%';
 
 -- Đảm bảo mọi MaTin đang có trong ChoDoCuDanhGia đều tồn tại trong ChoDoCuTin trước khi tạo FK
 INSERT INTO "ChoDoCuTin" ("MaTin", "TieuDe", "DanhMuc", "GiaBan", "GiaGoc", "KyHieuPhong", "NguoiBan", "TinhTrang", "MoTa")

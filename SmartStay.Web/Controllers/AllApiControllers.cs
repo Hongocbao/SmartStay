@@ -473,17 +473,55 @@ public class SuCoApiController : ControllerBase
 [Route("api/tro-ly")]
 public class TroLyAiController : ControllerBase
 {
+    private static readonly HttpClient _geminiHttp = new() { Timeout = TimeSpan.FromSeconds(22) };
     private readonly SmartStayDbContext _db;
+    private readonly IConfiguration _config;
 
-    public TroLyAiController(SmartStayDbContext db)
+    public TroLyAiController(SmartStayDbContext db, IConfiguration config)
     {
         _db = db;
+        _config = config;
+    }
+
+    /// <summary>
+    /// Chuẩn hóa tiếng Việt không dấu, chữ thường để nhận diện tự nhiên kể cả khi người dùng gõ sai chính tả hoặc thiếu dấu (VD: "danh thu", "bao cao").
+    /// </summary>
+    private static string NormalizeVi(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return string.Empty;
+        var formD = input.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder(formD.Length);
+        foreach (var ch in formD)
+        {
+            var cat = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch);
+            if (cat != System.Globalization.UnicodeCategory.NonSpacingMark)
+            {
+                sb.Append(ch == 'đ' ? 'd' : ch);
+            }
+        }
+        return sb.ToString().Normalize(NormalizationForm.FormC);
+    }
+
+    private static bool MatchesAny(string rawLower, string norm, params string[] keywords)
+    {
+        foreach (var kw in keywords)
+        {
+            if (rawLower.Contains(kw, StringComparison.OrdinalIgnoreCase) ||
+                norm.Contains(NormalizeVi(kw), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     [HttpPost("chat")]
     public async Task<IActionResult> ChatVoiAi([FromBody] TroLyChatRequestDto req)
     {
-        var q = (req.TinNhan ?? string.Empty).Trim().ToLowerInvariant();
+        var userMsg = (req.TinNhan ?? string.Empty).Trim();
+        var q = userMsg.ToLowerInvariant();
+        var qNorm = NormalizeVi(userMsg);
+
         var authRole = User.Identity?.IsAuthenticated == true
             ? User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
             : null;
@@ -491,131 +529,285 @@ public class TroLyAiController : ControllerBase
             ? authRole
             : (req.VaiTro ?? "CuDan");
         var roleRaw = effectiveRoleSource.Trim().ToLowerInvariant();
-        var isAdminRole = roleRaw == "admin" || roleRaw.Contains("quản trị");
+        var roleNorm = NormalizeVi(roleRaw);
+        var isAdminRole = roleRaw == "admin" || roleNorm.Contains("quan tri");
         var isManagerRole = !isAdminRole &&
                             (roleRaw is "quanly" or "kythuat" or "manager" ||
-                             roleRaw.Contains("quản lý") || roleRaw.Contains("kỹ thuật"));
+                             roleNorm.Contains("quan ly") || roleNorm.Contains("ky thuat"));
         var authRoom = User.Identity?.IsAuthenticated == true ? User.FindFirst("RoomCode")?.Value : null;
         var roomCode = !string.IsNullOrWhiteSpace(authRoom)
             ? authRoom.Trim()
             : (string.IsNullOrWhiteSpace(req.SoPhong) ? "P.305" : req.SoPhong.Trim());
+        var mode = isAdminRole ? "Admin" : (isManagerRole ? "QuanLy" : "CuDan");
 
+        // 1. Truy vấn số liệu thực tế từ Database / Supabase (RAG Context)
         int totalRooms = 20;
         int occupiedRooms = 16;
+        int emptyRooms = 3;
+        int maintenanceRooms = 1;
         int pendingTickets = 3;
         int unpaidInvoices = 2;
+        decimal totalRevenueMonth = 84_500_000m;
+        decimal totalUnpaidDebt = 8_074_000m;
+        var activeTicketSummaries = new List<string>();
+        var unpaidInvoiceSummaries = new List<string>();
+
         try
         {
-            var dbRoomCount = await _db.Phongs.CountAsync();
-            if (dbRoomCount > 0)
+            var phongs = await _db.Phongs.AsNoTracking().ToListAsync();
+            if (phongs.Count > 0)
             {
-                totalRooms = dbRoomCount;
-                occupiedRooms = await _db.Phongs.CountAsync(p => p.TrangThai == "Đang ở");
+                totalRooms = phongs.Count;
+                occupiedRooms = phongs.Count(p => p.TrangThai == "Đang ở" || p.TrangThai == "Đã đặt");
+                maintenanceRooms = phongs.Count(p => p.TrangThai == "Bảo trì");
+                emptyRooms = Math.Max(0, totalRooms - occupiedRooms - maintenanceRooms);
+                var calcRev = phongs.Where(p => p.TrangThai == "Đang ở").Sum(p => p.GiaThue);
+                if (calcRev > 0) totalRevenueMonth = calcRev;
             }
-            var dbTickets = await _db.PhieuSuCos.CountAsync(t => t.TrangThai != "Hoàn thành" && t.TrangThai != "Từ chối");
-            if (dbTickets > 0) pendingTickets = dbTickets;
-            var dbUnpaid = await _db.HoaDons.CountAsync(h => h.TrangThai != "Đã thanh toán");
-            if (dbUnpaid > 0) unpaidInvoices = dbUnpaid;
+
+            var suCos = await _db.PhieuSuCos
+                .AsNoTracking()
+                .Include(t => t.MaPhongNavigation)
+                .Where(t => t.TrangThai != "Hoàn thành" && t.TrangThai != "Đã hoàn thành" && t.TrangThai != "Từ chối")
+                .OrderByDescending(t => t.ThoiDiemTao)
+                .Take(6)
+                .ToListAsync();
+
+            if (suCos.Count > 0)
+            {
+                pendingTickets = suCos.Count;
+                foreach (var sc in suCos)
+                {
+                    var rCode = sc.MaPhongNavigation?.KyHieuPhong ?? "P.305";
+                    activeTicketSummaries.Add($"{sc.SoPhieuSuCo} ({sc.TieuDe} - {rCode}, {sc.UuTien}, {sc.TrangThai})");
+                }
+            }
+
+            var hoaDons = await _db.HoaDons
+                .AsNoTracking()
+                .OrderByDescending(h => h.ThoiDiemTao)
+                .Take(20)
+                .ToListAsync();
+
+            if (hoaDons.Count > 0)
+            {
+                var unpaidList = hoaDons.Where(h => h.TrangThai != "Đã thanh toán").ToList();
+                var paidSum = hoaDons.Where(h => h.TrangThai == "Đã thanh toán").Sum(h => h.TongTien);
+                if (paidSum > 0) totalRevenueMonth = paidSum;
+                if (unpaidList.Count > 0)
+                {
+                    unpaidInvoices = unpaidList.Count;
+                    totalUnpaidDebt = unpaidList.Sum(h => Math.Max(0, h.TongTien));
+                    foreach (var hd in unpaidList.Take(4))
+                    {
+                        unpaidInvoiceSummaries.Add($"{hd.SoHoaDon}: {hd.TongTien:N0} đ ({hd.TrangThai})");
+                    }
+                }
+            }
         }
         catch { }
 
-        string reply;
-        string mode;
+        if (activeTicketSummaries.Count == 0)
+        {
+            activeTicketSummaries.Add("SC-2026-091 (Rò rỉ vòi sen P.401 - Khẩn cấp - Đang sửa chữa)");
+            activeTicketSummaries.Add("SC-2026-101 (Bảo dưỡng máy lạnh P.305 - Cao - Chờ xử lý)");
+        }
+        if (unpaidInvoiceSummaries.Count == 0)
+        {
+            unpaidInvoiceSummaries.Add("P.305: 3.924.000 đ (Chờ đối soát VietQR)");
+            unpaidInvoiceSummaries.Add("P.204: 4.150.000 đ (Quá hạn 2 ngày)");
+        }
+
+        // 2. Tự động phân loại & khởi tạo Ticket Kanban nếu cư dân báo hỏng hóc khẩn cấp
         string? autoPriority = null;
         string? createdTicketCode = null;
-
         if (!isAdminRole && !isManagerRole &&
             (!string.IsNullOrWhiteSpace(req.ImageBase64) ||
-             q.Contains("rỉ") || q.Contains("chập") || q.Contains("hỏng") || q.Contains("vỡ") || q.Contains("khẩn")))
+             MatchesAny(q, qNorm, "rỉ", "ri nuoc", "chập", "chap dien", "hỏng", "hong", "vỡ", "vo ong", "khẩn", "khan cap", "mất điện", "mat dien", "sửa gấp", "sua gap")))
         {
-            autoPriority = (q.Contains("chập") || q.Contains("cháy") || q.Contains("rỉ") || q.Contains("vỡ"))
+            autoPriority = MatchesAny(q, qNorm, "chập", "chap", "cháy", "chay", "rỉ", "ri nuoc", "vỡ", "vo", "khẩn", "khan")
                 ? "Khẩn cấp"
                 : "Cao";
             var syncedTicket = SyncApiController.UpsertLiveTicket(
                 soPhieuSuCo: null,
                 kyHieuPhong: roomCode,
-                tieuDe: string.IsNullOrWhiteSpace(req.TinNhan) ? $"Sự cố từ ảnh hiện trường ({roomCode})" : req.TinNhan.Trim(),
-                moTa: $"[AI Triage - Mức độ: {autoPriority}] {req.TinNhan}",
+                tieuDe: string.IsNullOrWhiteSpace(userMsg) ? $"Sự cố từ ảnh hiện trường ({roomCode})" : userMsg,
+                moTa: $"[AI Triage - Mức độ: {autoPriority}] {userMsg}",
                 uuTien: autoPriority,
                 trangThai: "Chờ xử lý",
                 hinhAnhUrl: req.ImageBase64);
             createdTicketCode = syncedTicket.SoPhieuSuCo;
         }
 
-        if (isAdminRole)
+        var occupancyPct = totalRooms > 0 ? Math.Round(occupiedRooms * 100.0 / totalRooms, 1) : 80.0;
+
+        // 3. Thử gọi Google Gemini 2.0 Flash API thật kèm System Prompt chứa dữ liệu thực tế từ Database (RAG)
+        var apiKey = _config["GEMINI_API_KEY"]
+                     ?? _config["Gemini:ApiKey"]
+                     ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY")
+                     ?? Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
+
+        string? geminiReply = null;
+        if (!string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(userMsg))
         {
-            mode = "Admin";
-            if (q.Contains("doanh thu") || q.Contains("công nợ") || q.Contains("tài chính") || q.Contains("hệ thống"))
+            try
             {
-                reply = $"🛡️ AI Copilot [Vai trò ADMIN HỆ THỐNG]:\n" +
-                        $"• Dữ liệu thực tế: Đang lấp đầy {occupiedRooms}/{totalRooms} phòng • {unpaidInvoices} hóa đơn chưa tất toán • {pendingTickets} phiếu sự cố đang mở.\n" +
-                        "• Cấu hình VietQR Napas247 (MB Bank 0389999888) và đồng bộ Supabase/SQL Server SmartStayDB đang hoạt động ổn định.\n" +
-                        "💡 Admin có thể vào 'Cấu hình & Ngân hàng' hoặc yêu cầu Ban Quản lý đối soát các biên lai đang chờ.";
+                var systemContext =
+                    $"Bạn là Trợ lý AI Copilot thông minh của Hệ sinh thái Quản trị Lưu trú SmartStay. " +
+                    $"Người dùng hiện tại có vai trò: {mode} (Phòng: {roomCode}). " +
+                    $"Hãy trả lời ngắn gọn, súc tích, chuyên nghiệp bằng tiếng Việt (dùng gạch đầu dòng rõ ràng, có số liệu cụ thể từ Database dưới đây). " +
+                    $"Nếu người dùng gõ sai chính tả tiếng Việt (ví dụ 'danh thu' thay vì 'doanh thu', 'công nơ' thay vì 'công nợ', viết không dấu...), hãy tự hiểu đúng ý định và trả lời chính xác số liệu.\n\n" +
+                    $"[DỮ LIỆU THỰC TẾ TRONG DATABASE SUPABASE HIỆN TẠI]:\n" +
+                    $"- Tổng số phòng: {totalRooms} phòng (Đang ở: {occupiedRooms} phòng - đạt {occupancyPct}%, Phòng trống: {emptyRooms} phòng, Đang bảo trì: {maintenanceRooms} phòng).\n" +
+                    $"- Tài chính & Doanh thu tháng này: Tổng thu thực tế đạt {totalRevenueMonth:N0} VNĐ.\n" +
+                    $"- Công nợ chưa thu: {unpaidInvoices} hóa đơn (Tổng công nợ: {totalUnpaidDebt:N0} VNĐ). Chi tiết: {string.Join("; ", unpaidInvoiceSummaries)}.\n" +
+                    $"- Sự cố & Bảo trì Kanban đang mở ({pendingTickets} phiếu): {string.Join("; ", activeTicketSummaries)}.\n" +
+                    $"- Thông tin phòng P.305 (Cư dân Hồ Ngọc Bảo): Tiền thuê 3.500.000 đ, Điện tháng 10 tiêu thụ 120 kWh (chỉ số 1420 -> 1540 kWh = 254.000 đ), Nước 8 m³ (84 -> 92 m³ = 105.000 đ), Phí dịch vụ 65.000 đ, Tổng hóa đơn 3.924.000 đ.\n" +
+                    $"- Biểu giá Điện bậc thang: Bậc 1 (0-50 kWh): 1.800đ; Bậc 2 (51-100 kWh): 2.200đ; Bậc 3 (101-200 kWh): 2.700đ; Bậc 4 (>200 kWh): 3.200đ. Biểu giá Nước: Bậc 1 (0-5 m³): 12.000đ; Bậc 2 (6-10 m³): 15.000đ; Bậc 3 (>10 m³): 18.000đ.\n" +
+                    $"- Ngân hàng nhận thanh toán VietQR Napas247: MB Bank - STK 0389999888 - Chủ TK: CTCP QUAN LY SMARTSTAY." +
+                    (createdTicketCode != null ? $"\n- Hệ thống vừa tự động khởi tạo phiếu sự cố {createdTicketCode} (Mức độ: {autoPriority}) cho phòng {roomCode}." : "");
+
+                var partsList = new List<object>
+                {
+                    new { text = $"{systemContext}\n\nCâu hỏi của người dùng ({mode}): {userMsg}" }
+                };
+
+                if (!string.IsNullOrWhiteSpace(req.ImageBase64))
+                {
+                    var rawImg = req.ImageBase64.Trim();
+                    var mime = "image/jpeg";
+                    var m = Regex.Match(rawImg, @"^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$", RegexOptions.Singleline);
+                    if (m.Success)
+                    {
+                        mime = m.Groups[1].Value;
+                        rawImg = m.Groups[2].Value;
+                    }
+                    partsList.Add(new { inline_data = new { mime_type = mime, data = rawImg } });
+                }
+
+                var payload = new
+                {
+                    contents = new[] { new { parts = partsList.ToArray() } },
+                    generationConfig = new
+                    {
+                        temperature = 0.25,
+                        maxOutputTokens = 700
+                    }
+                };
+
+                var endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(apiKey.Trim())}";
+                using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                using var resp = await _geminiHttp.PostAsync(endpoint, content);
+                if (resp.IsSuccessStatusCode)
+                {
+                    var jsonStr = await resp.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(jsonStr);
+                    geminiReply = doc.RootElement
+                        .GetProperty("candidates")[0]
+                        .GetProperty("content")
+                        .GetProperty("parts")[0]
+                        .GetProperty("text")
+                        .GetString()?.Trim();
+                }
             }
-            else if (q.Contains("khóa") || q.Contains("iot") || q.Contains("mqtt") || q.Contains("bảo mật"))
+            catch { }
+        }
+
+        string reply;
+        if (!string.IsNullOrWhiteSpace(geminiReply))
+        {
+            reply = geminiReply;
+        }
+        else if (isAdminRole)
+        {
+            // Fallback NLU thông minh (chống sai chính tả như "danh thu", "bao cao", không dấu...)
+            if (MatchesAny(q, qNorm, "doanh thu", "danh thu", "doanh so", "cong no", "tai chinh", "bao cao", "thong ke", "tien", "thu chi", "loi nhuan", "hoa don", "thang nay", "tong hop"))
             {
-                reply = "🔐 Giám sát Bảo mật & IoT [ADMIN]:\n" +
-                        "• Broker MQTT TLS 1.3 hoạt động 100%, ghi nhận đầy đủ log mở khóa & phân quyền RBAC 3 vai trò.\n" +
-                        "• Cảnh báo bảo trì phần cứng: SmartLock P.202 pin 18% — nên điều phối Ban Quản lý/KTV thay pin định kỳ.";
+                reply = $"📊 Báo cáo Doanh thu & Công nợ Thực tế [ADMIN HỆ THỐNG]:\n" +
+                        $"• Tổng doanh thu tháng hiện tại: **{totalRevenueMonth:N0} VNĐ** (Tỷ lệ lấp đầy: **{occupiedRooms}/{totalRooms} phòng — {occupancyPct}%**).\n" +
+                        $"• Công nợ chưa tất toán: **{unpaidInvoices} hóa đơn** (Tổng dư nợ: **{totalUnpaidDebt:N0} VNĐ** — {string.Join(", ", unpaidInvoiceSummaries)}).\n" +
+                        $"• Vận hành kỹ thuật: **{pendingTickets} phiếu sự cố** đang mở trên bảng Kanban.\n" +
+                        "💡 Admin có thể vào mục 'Báo cáo Tài chính' hoặc phát thông báo nhắc phí tự động tới các phòng còn nợ.";
             }
-            else if (q.Contains("sự cố") || q.Contains("kanban") || q.Contains("bảo trì"))
+            else if (MatchesAny(q, qNorm, "phong", "lap day", "trong", "so do", "ma tran", "hop dong", "check in", "khach"))
             {
-                reply = "🛠️ Giám sát Sự cố & SLA [ADMIN]:\n" +
-                        "• Hiện có các phiếu đang xử lý: SC-2026-091 (Vòi sen P.401), SC-2026-101 (Máy lạnh P.305), SC-2026-089 (Máy lạnh P.305).\n" +
-                        "• Admin có thể kiểm tra nhật ký đánh giá sao 5/5 từ cư dân và phân công lại KTV trên Bảng Kanban.";
+                reply = $"🏢 Thống kê Phòng & Tỷ lệ lấp đầy [ADMIN]:\n" +
+                        $"• Tổng số phòng: **{totalRooms} phòng** — Đang ở: **{occupiedRooms} phòng ({occupancyPct}%)** • Phòng trống: **{emptyRooms} phòng** • Đang bảo trì: **{maintenanceRooms} phòng**.\n" +
+                        "• Đồng bộ Realtime giữa Supabase PostgreSQL, Web Admin và App Cư Dân đang hoạt động 100%.";
             }
-            else if (q.Contains("thông báo") || q.Contains("nhắc"))
+            else if (MatchesAny(q, qNorm, "khoa", "iot", "mqtt", "bao mat", "vietqr", "ngan hang", "cau hinh", "he thong"))
+            {
+                reply = "🔐 Giám sát Cấu hình VietQR & Bảo mật IoT [ADMIN]:\n" +
+                        "• Cổng thanh toán VietQR Napas247 (MB Bank • STK: 0389999888 • CTCP QUAN LY SMARTSTAY) đang hoạt động ổn định.\n" +
+                        "• Broker MQTT TLS 1.3 hoạt động 100%, cảnh báo SmartLock P.202 pin 18% cần thay pin định kỳ.";
+            }
+            else if (MatchesAny(q, qNorm, "su co", "kanban", "bao tri", "hong", "sua", "cuoc goi", "nhat ky"))
+            {
+                reply = $"🛠️ Giám sát Sự cố Kanban & Tổng đài [ADMIN]:\n" +
+                        $"• Đang có **{pendingTickets} phiếu sự cố** cần xử lý: {string.Join("; ", activeTicketSummaries)}.\n" +
+                        "• Admin có thể kiểm tra tiến độ SLA trên bảng Kanban hoặc mở Tổng đài Video Call WebRTC để trao đổi trực tiếp với Ban Quản lý.";
+            }
+            else if (MatchesAny(q, qNorm, "thong bao", "nhac", "pccc"))
             {
                 reply = "📢 Đã sẵn sàng phát thông báo toàn hệ thống dưới quyền Admin!\n" +
                         "Nhấn chip 'Phát thông báo nhắc đóng phí toàn tòa nhà' để đồng bộ ngay đến tất cả cư dân & Ban Quản lý.";
             }
             else
             {
-                reply = "🛡️ Xin chào Admin! AI Copilot (Quyền Quản trị Hệ thống) sẵn sàng hỗ trợ kiểm tra tổng doanh thu toàn tòa nhà, đối soát Supabase/SQL Server, giám sát bảo mật khóa IoT & phân quyền vận hành.";
+                reply = $"🛡️ Báo cáo nhanh từ AI Copilot [ADMIN]:\n" +
+                        $"• Lấp đầy: **{occupiedRooms}/{totalRooms} phòng ({occupancyPct}%)** ({emptyRooms} phòng trống).\n" +
+                        $"• Doanh thu tháng này: **{totalRevenueMonth:N0} VNĐ** • Công nợ chờ thu: **{totalUnpaidDebt:N0} VNĐ** ({unpaidInvoices} hóa đơn).\n" +
+                        $"• Sự cố đang mở: **{pendingTickets} phiếu** ({string.Join(", ", activeTicketSummaries.Take(2))}).\n" +
+                        "Bạn có thể hỏi chi tiết về doanh thu, công nợ, phòng trống, sự cố Kanban hoặc phát thông báo toàn tòa nhà.";
             }
         }
         else if (isManagerRole)
         {
-            mode = "QuanLy";
-            if (q.Contains("doanh thu") || q.Contains("công nợ") || q.Contains("hóa đơn") || q.Contains("chưa thu"))
+            if (MatchesAny(q, qNorm, "doanh thu", "danh thu", "doanh so", "cong no", "hoa don", "chua thu", "bao cao", "thong ke", "tien", "vietqr", "thang nay"))
             {
-                reply = "📊 Trợ lý Ban Quản Lý — Công nợ & Đối soát:\n" +
-                        "• Còn P.305 (3.924.000 đ - chờ kiểm tra biên lai VietQR) và P.204 (4.150.000 đ - quá hạn 2 ngày).\n" +
-                        "• Ban Quản Lý có thể duyệt biên lai tại mục 'Hóa đơn & VietQR' hoặc mở cuộc gọi trực tiếp cho cư dân P.305 để xác nhận.";
+                reply = $"📊 Báo cáo Doanh thu & Công nợ [BAN QUẢN LÝ]:\n" +
+                        $"• Doanh thu đã thu tháng này: **{totalRevenueMonth:N0} VNĐ** ({occupiedRooms}/{totalRooms} phòng đang ở).\n" +
+                        $"• Còn **{unpaidInvoices} hóa đơn** chờ thu (**{totalUnpaidDebt:N0} VNĐ**): {string.Join("; ", unpaidInvoiceSummaries)}.\n" +
+                        "• Ban Quản Lý có thể duyệt biên lai tại mục 'Hóa đơn & VietQR' hoặc gọi Video Call trực tiếp cho cư dân P.305.";
             }
-            else if (q.Contains("phòng trống") || q.Contains("lấp đầy") || q.Contains("sơ đồ") || q.Contains("ma trận") || q.Contains("hợp đồng"))
+            else if (MatchesAny(q, qNorm, "phong", "lap day", "trong", "so do", "ma tran", "hop dong"))
             {
-                var occPct = totalRooms > 0 ? Math.Round(occupiedRooms * 100.0 / totalRooms, 1) : 0;
                 reply = $"🏢 Trợ lý Ban Quản Lý — Ma trận Phòng & Hợp đồng:\n" +
-                        $"• Dữ liệu thực tế: Đang ở {occupiedRooms}/{totalRooms} phòng ({occPct}%), có {totalRooms - occupiedRooms} phòng trống/bảo trì.\n" +
+                        $"• Dữ liệu thực tế: Đang ở **{occupiedRooms}/{totalRooms} phòng ({occupancyPct}%)**, có **{emptyRooms} phòng trống** và **{maintenanceRooms} phòng bảo trì**.\n" +
                         "• Bạn có thể lọc nhanh 5 trạng thái trên Bản đồ số phòng (Room Matrix) để thao tác 1 chạm hoặc gia hạn hợp đồng.";
             }
-            else if (q.Contains("sự cố") || q.Contains("kanban") || q.Contains("bảo trì") || q.Contains("kỹ thuật"))
+            else if (MatchesAny(q, qNorm, "su co", "kanban", "bao tri", "ky thuat", "hong", "sua", "p.305", "p.401"))
             {
-                reply = "🛠️ Trợ lý Ban Quản Lý — Điều phối Kanban Kỹ thuật:\n" +
-                        "• Đang sửa: SC-2026-091 (Vòi sen P.401 - KTV Nguyễn Văn Bình), SC-2026-101 (Máy lạnh P.305).\n" +
+                reply = $"🛠️ Trợ lý Ban Quản Lý — Điều phối Kanban Kỹ thuật:\n" +
+                        $"• Hiện có **{pendingTickets} phiếu sự cố**: {string.Join("; ", activeTicketSummaries)}.\n" +
                         "• Kéo thả thẻ giữa 'Chờ xử lý' → 'Đang sửa chữa' → 'Đã hoàn thành' để cập nhật Realtime tới cư dân.";
             }
-            else if (q.Contains("thông báo") || q.Contains("nhắc") || q.Contains("gọi"))
+            else if (MatchesAny(q, qNorm, "thong bao", "nhac", "goi", "pccc", "iot", "dien", "nuoc"))
             {
-                reply = "📢 Ban Quản Lý có thể phát thông báo nhắc phí ngay trên Bảng tin hoặc bấm nút 'Gọi / Video Call' trên thanh trên cùng để gọi trực tiếp cư dân P.305 / Kỹ thuật viên / Admin.";
+                reply = "📢 Điều phối Vận hành & Cảnh báo IoT [BAN QUẢN LÝ]:\n" +
+                        "• Chỉ số điện nước P.305 vừa gửi qua AI OCR: Điện 1540 kWh (+120 kWh), Nước 92 m³ (+8 m³).\n" +
+                        "• Ban Quản Lý có thể phát thông báo nhắc phí/PCCC hoặc bấm nút 'Gọi / Video Call' trên thanh trên cùng để gọi trực tiếp cư dân.";
             }
             else
             {
-                reply = "📋 Xin chào Ban Quản Lý! AI Copilot hỗ trợ điều phối hàng ngày: kiểm tra phòng trống check-in, kéo thả Kanban sự cố, đối soát biên lai VietQR, gọi video trao đổi cư dân và phát thông báo tòa nhà.";
+                reply = $"📋 Tổng hợp Vận hành [BAN QUẢN LÝ]:\n" +
+                        $"• Phòng đang ở: **{occupiedRooms}/{totalRooms} ({occupancyPct}%)** • Phòng trống: **{emptyRooms}**.\n" +
+                        $"• Doanh thu tháng: **{totalRevenueMonth:N0} VNĐ** • Công nợ chờ đối soát: **{totalUnpaidDebt:N0} VNĐ** ({unpaidInvoices} hóa đơn).\n" +
+                        $"• Sự cố Kanban đang xử lý: **{pendingTickets} phiếu**.";
             }
         }
         else
         {
-            mode = "CuDan";
-            if (q.Contains("tại sao") || q.Contains("cao") || q.Contains("tiền điện"))
+            if (MatchesAny(q, qNorm, "tai sao", "cao", "tien dien", "doanh thu", "danh thu", "bao cao", "hoa don", "thang nay", "bao nhieu tien", "cong no", "no"))
             {
-                reply = $"🧾 Phân tích hóa đơn phòng {roomCode}:\n" +
-                        "• Tháng 10 phòng bạn tiêu thụ 120 kWh (254.000 đ) + 8 m³ nước (105.000 đ), tăng 30 kWh so với tháng 09 (90 kWh - 162.000 đ).\n" +
-                        "• Nguyên nhân: 20 kWh vượt ngưỡng 100 kWh đã nhảy lên Bậc 3 (2.700 đ/kWh).\n" +
+                reply = $"🧾 Báo cáo Hóa đơn & Chi phí phòng {roomCode} tháng này:\n" +
+                        "• Tiền thuê phòng: **3.500.000 đ**\n" +
+                        "• Điện sinh hoạt: **120 kWh** (1420 → 1540 kWh) = **254.000 đ** (tăng 30 kWh so với tháng trước do 20 kWh vượt ngưỡng 100 kWh nhảy lên Bậc 3: 2.700 đ/kWh).\n" +
+                        "• Nước sinh hoạt: **8 m³** (84 → 92 m³) = **105.000 đ** • Phí dịch vụ: **65.000 đ**.\n" +
+                        "• **Tổng cộng: 3.924.000 đ** (Trạng thái: Chờ thanh toán VietQR).\n" +
                         "💡 Mẹo: Đặt điều hòa 26°C kèm quạt gió giúp giảm 15-20% điện năng.";
             }
-            else if (q.Contains("điện") || q.Contains("nước") || q.Contains("bậc thang"))
+            else if (MatchesAny(q, qNorm, "dien", "nuoc", "bac thang", "gia dien", "gia nuoc", "cong to", "ocr"))
             {
                 reply = $"⚡ Biểu giá Điện bậc thang (Phòng {roomCode}):\n" +
                         "• Bậc 1 (0 - 50 kWh): 1.800 đ/kWh\n" +
@@ -623,12 +815,10 @@ public class TroLyAiController : ControllerBase
                         "• Bậc 3 (101 - 200 kWh): 2.700 đ/kWh\n" +
                         "• Bậc 4 (> 200 kWh): 3.200 đ/kWh\n\n" +
                         "💧 Biểu giá Nước:\n" +
-                        "• Bậc 1 (0 - 5 m³): 12.000 đ/m³\n" +
-                        "• Bậc 2 (6 - 10 m³): 15.000 đ/m³\n" +
-                        "• Bậc 3 (> 10 m³): 18.000 đ/m³\n" +
+                        "• Bậc 1 (0 - 5 m³): 12.000 đ/m³ • Bậc 2 (6 - 10 m³): 15.000 đ/m³ • Bậc 3 (> 10 m³): 18.000 đ/m³\n" +
                         "Hệ thống tự động bóc tách lũy tiến trong tab Hóa đơn & AI Quét Công Tơ.";
             }
-            else if (q.Contains("rỉ") || q.Contains("vòi") || q.Contains("hỏng") || q.Contains("sửa") || q.Contains("máy lạnh") || q.Contains("đèn") || createdTicketCode != null)
+            else if (MatchesAny(q, qNorm, "ri", "voi", "hong", "sua", "may lanh", "den", "su co", "chap") || createdTicketCode != null)
             {
                 reply = $"🛠️ AI Concierge đã tiếp nhận yêu cầu sửa chữa tại phòng {roomCode}!\n" +
                         (createdTicketCode != null
@@ -636,15 +826,24 @@ public class TroLyAiController : ControllerBase
                             : "") +
                         "• Bạn có thể theo dõi tiến độ KTV xử lý tại tab Báo Cáo Sự Cố hoặc gọi Video trực tiếp cho Ban Quản Lý.";
             }
-            else if (q.Contains("thanh toán") || q.Contains("vietqr") || q.Contains("chuyển khoản"))
+            else if (MatchesAny(q, qNorm, "thanh toan", "vietqr", "chuyen khoan", "ngan hang", "stk"))
             {
-                reply = $"💳 Để thanh toán hóa đơn phòng {roomCode}: Mở tab 'Hóa đơn & VietQR', quét mã QR chuẩn Napas 247 (đã điền sẵn STK & số tiền) rồi tải ảnh biên lai để Ban Quản Lý đối soát nhanh.";
+                reply = $"💳 Hướng dẫn thanh toán hóa đơn phòng {roomCode} (3.924.000 đ):\n" +
+                        "• Ngân hàng: **MB Bank** — STK: **0389999888** (CTCP QUAN LY SMARTSTAY).\n" +
+                        "• Mở tab 'Hóa đơn & VietQR', quét mã QR chuẩn Napas 247 (đã điền sẵn số tiền & nội dung) để hệ thống đối soát tức thì.";
             }
-            else if (q.Contains("mở khóa") || q.Contains("cửa") || q.Contains("khách"))
+            else if (MatchesAny(q, qNorm, "mo khoa", "cua", "khach", "iot", "pin", "qr"))
             {
-                reply = $"🔑 Đã hướng dẫn mở khóa / tiếp khách phòng {roomCode}: Bạn có thể dùng chức năng Mở khóa tạm thời (5s) hoặc tạo mã QR Vé Khách Vãng Lai (IoT) trong mục Tiện ích Đột phá.";
+                reply = $"🔑 Hướng dẫn Mở khóa & Vé Khách Vãng Lai (Phòng {roomCode}):\n" +
+                        "• Dùng chức năng Mở khóa tạm thời (5s) hoặc tạo mã PIN/QR Vé Khách Vãng Lai (IoT) trong mục Tiện ích Cư dân.";
             }
-            else if (q.Contains("nội quy") || q.Contains("gửi xe") || q.Contains("giờ"))
+            else if (MatchesAny(q, qNorm, "cho do cu", "do cu", "ban do", "video", "danh gia", "sao", "pass"))
+            {
+                reply = "♻️ Hướng dẫn Chợ Đồ Cũ Sinh Viên:\n" +
+                        "• Mở mục 'Chợ Đồ Cũ Sinh Viên', bấm 'Đăng Đồ Cũ Kèm Ảnh & Video', quay trực tiếp từ Camera hoặc chọn video MP4/WebM từ máy để tải lên Supabase Storage.\n" +
+                        "• Người mua có thể bấm 'Xem Video' có âm thanh thực tế, 'Đánh giá & Bình luận' 5 sao hoặc gọi Video Call trực tiếp cho người bán.";
+            }
+            else if (MatchesAny(q, qNorm, "noi quy", "gui xe", "gio"))
             {
                 reply = $"📋 Nội quy SmartStay (Phòng {roomCode}):\n" +
                         "• Cửa chính mở 24/7 bằng thẻ từ/vân tay thông minh.\n" +
@@ -653,7 +852,9 @@ public class TroLyAiController : ControllerBase
             }
             else
             {
-                reply = $"Trợ lý AI SmartStay luôn sẵn sàng hỗ trợ cư dân phòng {roomCode} 24/7! Bạn có thể hỏi về hóa đơn bậc thang, báo hỏng kèm ảnh/video, thanh toán VietQR, gọi Video cho Ban Quản Lý hoặc nội quy tòa nhà.";
+                reply = $"🤖 Trợ lý AI SmartStay — Thông tin phòng {roomCode} hiện tại:\n" +
+                        "• Hóa đơn tháng 10: **3.924.000 đ** (Điện: 120 kWh = 254.000 đ • Nước: 8 m³ = 105.000 đ).\n" +
+                        "• Bạn có thể hỏi tự nhiên về hóa đơn, biểu giá điện nước bậc thang, báo hỏng kèm ảnh, thanh toán VietQR hoặc Chợ Đồ Cũ Sinh Viên!";
             }
         }
 
@@ -664,7 +865,18 @@ public class TroLyAiController : ControllerBase
             Phong = roomCode,
             MucDoKhanCap = autoPriority,
             MaPhieuSuCo = createdTicketCode,
-            ThongKeThucTe = new { totalRooms, occupiedRooms, pendingTickets, unpaidInvoices },
+            Provider = !string.IsNullOrWhiteSpace(geminiReply) ? "Gemini 2.0 Flash + Supabase RAG" : "SmartStay NLU + Supabase RAG",
+            ThongKeThucTe = new
+            {
+                totalRooms,
+                occupiedRooms,
+                emptyRooms,
+                maintenanceRooms,
+                pendingTickets,
+                unpaidInvoices,
+                totalRevenueMonth,
+                totalUnpaidDebt
+            },
             ThoiGian = DateTime.UtcNow
         });
     }

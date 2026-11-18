@@ -101,7 +101,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       'Dùng được 4 tháng, chạy êm ru, có remote điều khiển. Pass lại do phòng đã có máy lạnh.',
       'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80',
       id: 'MKT-001',
-      videoUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+      videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
       rating: 5.0,
       reviews: [
         const _MarketReview(
@@ -146,7 +146,7 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
       'Đun sôi siêu nhanh trong 3 phút, tự ngắt điện an toàn khi sôi, còn nguyên hộp.',
       'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=600&q=80',
       id: 'MKT-003',
-      videoUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+      videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
       rating: 4.8,
       reviews: const [],
     ),
@@ -288,7 +288,11 @@ class _ResidentServicesScreenState extends State<ResidentServicesScreen>
           final badge = (raw['tinhTrang'] ?? raw['TinhTrang'] ?? 'Mới đăng').toString();
           final desc = (raw['moTa'] ?? raw['MoTa'] ?? '').toString();
           final imgUrl = (raw['hinhAnhUrl'] ?? raw['HinhAnhUrl'] ?? '').toString();
-          final vidUrl = (raw['videoUrl'] ?? raw['VideoUrl'] ?? '').toString();
+          final rawVidUrl = (raw['videoUrl'] ?? raw['VideoUrl'] ?? '').toString().trim();
+          final vidUrl = (rawVidUrl.startsWith('demo://') ||
+                  rawVidUrl.contains('interactive-examples.mdn.mozilla.net/media/cc0-videos/flower'))
+              ? 'https://www.w3schools.com/html/mov_bbb.mp4'
+              : rawVidUrl;
           final trangThai = (raw['trangThai'] ?? raw['TrangThai'] ?? 'Đang bán').toString();
           final rating = (raw['soSaoTrungBinh'] ?? raw['SoSaoTrungBinh'] ?? 5.0) as num;
           final rawReviews = raw['danhGias'] ?? raw['DanhGias'];

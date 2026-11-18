@@ -191,46 +191,79 @@ class AiChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  String _normalizeVi(String input) {
+    var s = input.toLowerCase().trim();
+    const map = <String, String>{
+      'á': 'a', 'à': 'a', 'ả': 'a', 'ã': 'a', 'ạ': 'a',
+      'ă': 'a', 'ắ': 'a', 'ằ': 'a', 'ẳ': 'a', 'ẵ': 'a', 'ặ': 'a',
+      'â': 'a', 'ấ': 'a', 'ầ': 'a', 'ẩ': 'a', 'ẫ': 'a', 'ậ': 'a',
+      'đ': 'd',
+      'é': 'e', 'è': 'e', 'ẻ': 'e', 'ẽ': 'e', 'ẹ': 'e',
+      'ê': 'e', 'ế': 'e', 'ề': 'e', 'ể': 'e', 'ễ': 'e', 'ệ': 'e',
+      'í': 'i', 'ì': 'i', 'ỉ': 'i', 'ĩ': 'i', 'ị': 'i',
+      'ó': 'o', 'ò': 'o', 'ỏ': 'o', 'õ': 'o', 'ọ': 'o',
+      'ô': 'o', 'ố': 'o', 'ồ': 'o', 'ổ': 'o', 'ỗ': 'o', 'ộ': 'o',
+      'ơ': 'o', 'ớ': 'o', 'ờ': 'o', 'ở': 'o', 'ỡ': 'o', 'ợ': 'o',
+      'ú': 'u', 'ù': 'u', 'ủ': 'u', 'ũ': 'u', 'ụ': 'u',
+      'ư': 'u', 'ứ': 'u', 'ừ': 'u', 'ử': 'u', 'ữ': 'u', 'ự': 'u',
+      'ý': 'y', 'ỳ': 'y', 'ỷ': 'y', 'ỹ': 'y', 'ỵ': 'y',
+    };
+    map.forEach((k, v) {
+      s = s.replaceAll(k, v);
+    });
+    return s;
+  }
+
+  bool _matchesAny(String raw, List<String> keywords) {
+    final q = raw.toLowerCase();
+    final qn = _normalizeVi(raw);
+    for (final kw in keywords) {
+      if (q.contains(kw.toLowerCase()) || qn.contains(_normalizeVi(kw))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   String _generateAdminResponse(String query, String adminName) {
-    final q = query.toLowerCase();
-    if (q.contains('doanh thu') ||
-        q.contains('công nợ') ||
-        q.contains('hóa đơn') ||
-        q.contains('tài chính') ||
-        q.contains('chưa thu')) {
+    if (_matchesAny(query, [
+      'doanh thu',
+      'danh thu',
+      'doanh số',
+      'công nợ',
+      'hóa đơn',
+      'tài chính',
+      'chưa thu',
+      'báo cáo',
+      'thống kê',
+      'tháng này',
+      'thu chi',
+    ])) {
       return '📊 Báo cáo Tài chính & Công nợ ($adminName):\n'
-          '• Doanh thu dự kiến kỳ hiện tại đạt ~126,5 triệu đ (tỷ lệ thu ~88%).\n'
-          '• Bạn có thể mở mục "Tài chính & Điện nước" để duyệt biên lai VietQR đang chờ đối soát hoặc ra lệnh cho AI phát thông báo nhắc phí tự động.';
+          '• Doanh thu thực tế kỳ hiện tại đạt 84.500.000 VNĐ (lấp đầy 16/20 phòng — 80%).\n'
+          '• Công nợ chờ đối soát: 8.074.000 VNĐ (2 hóa đơn: P.305 chờ duyệt biên lai VietQR, P.204 quá hạn 2 ngày).\n'
+          '• Bạn có thể mở mục "Tài chính & Điện nước" để duyệt biên lai VietQR hoặc ra lệnh cho AI phát thông báo nhắc phí tự động.';
     }
-    if (q.contains('phòng trống') ||
-        q.contains('lấp đầy') ||
-        q.contains('sơ đồ') ||
-        q.contains('ma trận') ||
-        q.contains('hợp đồng')) {
+    if (_matchesAny(query, ['phòng trống', 'lấp đầy', 'sơ đồ', 'ma trận', 'hợp đồng', 'phòng'])) {
       return '🏢 Báo cáo Ma trận Phòng & Hợp đồng:\n'
-          '• Hệ thống đang theo dõi toàn bộ phòng theo tầng (Studio, Co-Living, Penthouse).\n'
-          '• Bạn có thể bấm bộ lọc trạng thái trong "Ma Trận Phòng Trực Quan" để xem nhanh các phòng Trống sẵn sàng check-in hoặc các phòng Bảo trì.';
+          '• Tổng số 20 phòng: Đang ở 16 phòng (80%), Trống 3 phòng, Đang bảo trì 1 phòng.\n'
+          '• Bạn có thể bấm bộ lọc trạng thái trong "Ma Trận Phòng Trực Quan" để xem nhanh các phòng Trống sẵn sàng check-in.';
     }
-    if (q.contains('sự cố') ||
-        q.contains('kanban') ||
-        q.contains('bảo trì') ||
-        q.contains('kỹ thuật')) {
+    if (_matchesAny(query, ['sự cố', 'kanban', 'bảo trì', 'kỹ thuật', 'hỏng', 'sửa'])) {
       return '🛠️ Báo cáo Sự cố Kanban:\n'
-          '• Các phiếu sự cố ưu tiên Cao / Khẩn cấp được đồng bộ Realtime với Đội Kỹ thuật.\n'
+          '• Hiện có 3 phiếu sự cố ưu tiên Cao / Khẩn cấp được đồng bộ Realtime với Đội Kỹ thuật.\n'
           '• Bạn có thể kéo thả thẻ sang cột "Đang sửa chữa" hoặc "Đã hoàn thành" trực tiếp tại mục "Bảo Trì & Sự Cố (Kanban)".';
     }
-    if (q.contains('khóa') ||
-        q.contains('iot') ||
-        q.contains('mở cửa') ||
-        q.contains('pin')) {
-      return '🔐 Trạng thái Khóa Thông Minh & IoT:\n'
-          '• Gateway MQTT TLS hoạt động ổn định. Admin/Quản lý có thể gửi lệnh mở khóa tạm thời từ xa và theo dõi lịch sử truy cập tại mục "Khóa Thông Minh & IoT".';
+    if (_matchesAny(query, ['khóa', 'iot', 'mở cửa', 'pin', 'vietqr', 'ngân hàng'])) {
+      return '🔐 Trạng thái Khóa Thông Minh IoT & Cổng VietQR:\n'
+          '• Cổng VietQR Napas247 (MB Bank 0389999888) và Gateway MQTT TLS hoạt động ổn định 100%.';
     }
-    if (q.contains('thông báo') || q.contains('nhắc')) {
+    if (_matchesAny(query, ['thông báo', 'nhắc', 'pccc'])) {
       return '📢 Trợ lý AI có thể hỗ trợ phát thông báo nhắc phí hoặc bảo trì định kỳ lên Bảng tin cư dân ngay lập tức (nhấn chip "Phát thông báo nhắc đóng tiền").';
     }
-    return '🤖 SmartStay AI Copilot (Admin & Ban Quản Lý) sẵn sàng hỗ trợ $adminName!\n'
-        'Hãy hỏi về doanh thu, công nợ, phòng trống, tiến độ Kanban bảo trì, khóa IoT hoặc yêu cầu phát thông báo cư dân.';
+    return '🤖 Báo cáo nhanh từ SmartStay AI Copilot ($adminName):\n'
+        '• Lấp đầy: 16/20 phòng (80%) • Doanh thu tháng này: 84.500.000 VNĐ • Công nợ chờ thu: 8.074.000 VNĐ.\n'
+        'Hãy hỏi tự nhiên về doanh thu, công nợ, phòng trống, tiến độ Kanban bảo trì, khóa IoT hoặc yêu cầu phát thông báo cư dân.';
   }
 
   String _generateContextualResponse(String query, String roomCode, String residentName) {

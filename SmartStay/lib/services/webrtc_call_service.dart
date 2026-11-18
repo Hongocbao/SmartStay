@@ -31,15 +31,6 @@ class WebRtcCallService extends ChangeNotifier {
       },
       {
         'urls': [
-          'turn:openrelay.metered.ca:80',
-          'turn:openrelay.metered.ca:443',
-          'turn:openrelay.metered.ca:443?transport=tcp',
-        ],
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
-      {
-        'urls': [
           'turn:standard.relay.metered.ca:80',
           'turn:standard.relay.metered.ca:80?transport=tcp',
           'turn:standard.relay.metered.ca:443',
@@ -61,8 +52,10 @@ class WebRtcCallService extends ChangeNotifier {
 
   final List<RTCIceCandidate> _pendingRemoteCandidates = <RTCIceCandidate>[];
   final Set<int> _handledSignalSeqs = <int>{};
+  Future<void> _signalProcessingChain = Future<void>.value();
   bool _remoteDescriptionSet = false;
   bool _makingOffer = false;
+  bool _iceRestartedOnce = false;
 
   Map<String, dynamic>? _activeMeta;
   String iceConnectionStateLabel = 'new';
@@ -254,12 +247,12 @@ class WebRtcCallService extends ChangeNotifier {
           Helper.setSpeakerphoneOn(speakerphoneOn);
         }
       } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
-        debugPrint(
-          '[SmartStay WebRTC] ICE Connection failed - attempting restartIce()',
-        );
-        try {
-          pc.restartIce();
-        } catch (_) {}
+        if (!_iceRestartedOnce) {
+          _iceRestartedOnce = true;
+          try {
+            pc.restartIce();
+          } catch (_) {}
+        }
       }
       notifyListeners();
     };
@@ -384,29 +377,37 @@ class WebRtcCallService extends ChangeNotifier {
     }
   }
 
-  /// Xử lý tín hiệu WebRTC (`webrtc_offer`, `webrtc_answer`, `webrtc_ice`) theo đúng thứ tự.
-  /// Nếu ICE Candidate đến trước khi `setRemoteDescription` hoàn tất, hệ thống xếp vào hàng đợi `_pendingRemoteCandidates`.
-  Future<void> handleRemoteSignal(String packetJson) async {
+  /// Xử lý tín hiệu WebRTC (`webrtc_offer`, `webrtc_answer`, `webrtc_ice`) tuần tự theo đúng thứ tự.
+  Future<void> handleRemoteSignal(String packetJson) {
+    _signalProcessingChain = _signalProcessingChain.then(
+      (_) => _processRemoteSignalInternal(packetJson),
+    );
+    return _signalProcessingChain;
+  }
+
+  Future<void> _processRemoteSignalInternal(String packetJson) async {
     try {
       final pkt = jsonDecode(packetJson) as Map<String, dynamic>;
-      final seq = (pkt['seq'] as num?)?.toInt() ?? 0;
+      final seqRaw = pkt['seq'] ?? pkt['Seq'];
+      final seq = (seqRaw as num?)?.toInt() ?? 0;
       if (seq > 0 && !_handledSignalSeqs.add(seq)) return;
-      final sigType = (pkt['signalType'] ?? '').toString();
-      final callId = (pkt['callId'] ?? '').toString();
+      final sigType = (pkt['signalType'] ?? pkt['SignalType'] ?? '').toString();
+      final callId = (pkt['callId'] ?? pkt['CallId'] ?? '').toString();
       if (_activeMeta == null || callId.isEmpty) return;
       final activeCallId = (_activeMeta!['callId'] ?? '').toString();
       if (activeCallId != callId) return;
 
-      final fromClientId = (pkt['fromClientId'] ?? '').toString();
+      final fromClientId =
+          (pkt['fromClientId'] ?? pkt['FromClientId'] ?? '').toString();
       if (fromClientId.isNotEmpty) {
         _activeMeta!['peerClientId'] = fromClientId;
       }
-      final fromRole = (pkt['fromRole'] ?? '').toString();
+      final fromRole = (pkt['fromRole'] ?? pkt['FromRole'] ?? '').toString();
       if (fromRole.isNotEmpty) {
         _activeMeta!['peerRole'] = fromRole;
       }
 
-      final rawPayload = pkt['payload'];
+      final rawPayload = pkt['payload'] ?? pkt['Payload'];
       final payload = rawPayload is Map
           ? Map<String, dynamic>.from(rawPayload)
           : (rawPayload is String
@@ -546,6 +547,7 @@ class WebRtcCallService extends ChangeNotifier {
     _pendingRemoteCandidates.clear();
     _handledSignalSeqs.clear();
     _remoteDescriptionSet = false;
+    _iceRestartedOnce = false;
     final pc = _peerConnection;
     _peerConnection = null;
     if (pc != null) {

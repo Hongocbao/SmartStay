@@ -481,13 +481,41 @@
             position: relative;
             background: radial-gradient(circle at top right, #1E293B, #0F172A 65%, #020617);
             border-radius: 16px;
-            min-height: 260px;
+            min-height: 270px;
             overflow: hidden;
             color: #fff;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            transition: min-height 0.22s ease;
+        }
+        .ss-call-stage.ss-call-stage-expanded {
+            min-height: calc(100vh - 210px);
+        }
+        .ss-call-fullscreen-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 5;
+            min-height: 36px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            transition: background 0.18s ease, transform 0.18s ease;
+        }
+        .ss-call-fullscreen-btn:hover {
+            background: rgba(37, 99, 235, 0.88);
+            transform: scale(1.03);
         }
         .ss-call-video-el {
             position: absolute;
@@ -495,24 +523,31 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            opacity: 0.92;
+            opacity: 0.96;
+            z-index: 1;
         }
         .ss-call-pip {
             position: absolute;
             right: 12px;
             bottom: 12px;
-            width: 96px;
-            height: 68px;
+            width: 112px;
+            height: 80px;
             border-radius: 10px;
-            border: 2px solid rgba(255,255,255,0.65);
+            border: 2px solid rgba(255,255,255,0.75);
             background: linear-gradient(135deg, #334155, #1E293B);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             font-size: 10px;
-            z-index: 3;
+            z-index: 4;
             overflow: hidden;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+            transition: width 0.2s ease, height 0.2s ease;
+        }
+        .ss-call-stage.ss-call-stage-expanded .ss-call-pip {
+            width: 168px;
+            height: 120px;
         }
         .ss-call-avatar-ring {
             width: 78px;
@@ -766,19 +801,28 @@
 
     <!-- Modal Trung tâm Gọi Thoại & Video Call nội bộ -->
     <div class="modal fade" id="ssCallCenterModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-dialog modal-dialog-centered modal-lg" id="ssCallModalDialog">
             <div class="modal-content border-0 rounded-4 shadow-lg overflow-hidden">
                 <div class="modal-header bg-dark text-white border-0 py-3">
                     <div>
                         <h6 class="modal-title fw-bold mb-0"><i class="bi bi-telephone-outbound-fill text-info me-2"></i>Tổng Đài Thoại &amp; Video Call SmartStay</h6>
                         <small class="text-white-50">Kết nối trực tiếp Người dùng • Ban Quản lý • Admin • Kỹ thuật viên</small>
                     </div>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" id="ssCallHeaderFullscreenBtn" class="btn btn-sm btn-outline-light rounded-pill px-2 py-1" title="Phóng to / Thu nhỏ toàn màn hình">
+                            <i class="bi bi-arrows-fullscreen" id="ssCallHeaderFullscreenIcon"></i>
+                        </button>
+                        <button type="button" class="btn-close btn-close-white m-0" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                    </div>
                 </div>
                 <div class="modal-body p-3 p-md-4 bg-light">
                     <div class="row g-3">
-                        <div class="col-12 col-md-7">
-                            <div class="ss-call-stage p-3 mb-3">
+                        <div class="col-12 col-md-7" id="ssCallStageCol">
+                            <div class="ss-call-stage p-3 mb-3" id="ssCallStageBox">
+                                <button type="button" id="ssCallFullscreenBtn" class="ss-call-fullscreen-btn" title="Phóng to / Thu nhỏ toàn màn hình">
+                                    <i class="bi bi-arrows-fullscreen" id="ssCallFullscreenIcon"></i>
+                                    <span id="ssCallFullscreenText">Toàn màn hình</span>
+                                </button>
                                 <video id="ssCallRemoteVideo" class="ss-call-video-el d-none" autoplay playsinline></video>
                                 <audio id="ssCallRemoteAudio" autoplay></audio>
                                 <div id="ssCallAvatarRing" class="ss-call-avatar-ring mb-2">
@@ -1012,7 +1056,7 @@
                             extras.push('✅ Đã tự động đăng thông báo lên Bảng tin cư dân & Realtime Sync!');
                         }
                     } catch (_) { }
-                } else if ((activeMode === 'admin' || activeMode === 'manager') && (q.includes('doanh thu') || q.includes('phòng trống') || q.includes('sự cố') || q.includes('kanban') || q.includes('cuộc gọi') || q.includes('tổng hợp'))) {
+                } else if ((activeMode === 'admin' || activeMode === 'manager') && (q.includes('doanh thu') || q.includes('danh thu') || q.includes('báo cáo') || q.includes('bao cao') || q.includes('công nợ') || q.includes('cong no') || q.includes('phòng trống') || q.includes('sự cố') || q.includes('kanban') || q.includes('cuộc gọi') || q.includes('tổng hợp'))) {
                     try {
                         var snapRes = await fetch('/api/sync/snapshot');
                         if (snapRes.ok) {
@@ -1204,11 +1248,50 @@
                 }
                 pipPlaceholder.classList.remove('d-none');
                 ringEl.classList.remove('calling');
+                ringEl.classList.remove('d-none');
+                micBtn.innerHTML = '<i class="bi bi-mic-fill"></i> Mic Bật';
+                camBtn.innerHTML = '<i class="bi bi-camera-video"></i> Cam Bật';
                 micBtn.disabled = true;
                 camBtn.disabled = true;
                 endBtn.disabled = true;
                 startAudioBtn.disabled = false;
                 startVideoBtn.disabled = false;
+            }
+
+            var callModalDialog = document.getElementById('ssCallModalDialog');
+            var callStageBox = document.getElementById('ssCallStageBox');
+            var callFullscreenBtn = document.getElementById('ssCallFullscreenBtn');
+            var callFullscreenIcon = document.getElementById('ssCallFullscreenIcon');
+            var callFullscreenText = document.getElementById('ssCallFullscreenText');
+            var callHeaderFullscreenBtn = document.getElementById('ssCallHeaderFullscreenBtn');
+            var callHeaderFullscreenIcon = document.getElementById('ssCallHeaderFullscreenIcon');
+            var isCallModalExpanded = false;
+
+            function toggleCallFullscreen() {
+                isCallModalExpanded = !isCallModalExpanded;
+                if (callModalDialog) {
+                    callModalDialog.classList.toggle('modal-fullscreen', isCallModalExpanded);
+                    callModalDialog.classList.toggle('modal-lg', !isCallModalExpanded);
+                }
+                if (callStageBox) {
+                    callStageBox.classList.toggle('ss-call-stage-expanded', isCallModalExpanded);
+                }
+                if (callFullscreenIcon) {
+                    callFullscreenIcon.className = isCallModalExpanded ? 'bi bi-fullscreen-exit' : 'bi bi-arrows-fullscreen';
+                }
+                if (callFullscreenText) {
+                    callFullscreenText.innerText = isCallModalExpanded ? 'Thu nhỏ' : 'Toàn màn hình';
+                }
+                if (callHeaderFullscreenIcon) {
+                    callHeaderFullscreenIcon.className = isCallModalExpanded ? 'bi bi-fullscreen-exit' : 'bi bi-arrows-fullscreen';
+                }
+            }
+
+            if (callFullscreenBtn) {
+                callFullscreenBtn.addEventListener('click', toggleCallFullscreen);
+            }
+            if (callHeaderFullscreenBtn) {
+                callHeaderFullscreenBtn.addEventListener('click', toggleCallFullscreen);
             }
 
             function renderOnlinePeers(peers) {
@@ -1377,6 +1460,7 @@
                         remoteVideo.srcObject = stream;
                         if (callState.isVideo || (stream.getVideoTracks && stream.getVideoTracks().length > 0)) {
                             remoteVideo.classList.remove('d-none');
+                            ringEl.classList.add('d-none');
                         }
                         remoteVideo.muted = false;
                         remoteVideo.volume = 1.0;
@@ -1388,8 +1472,6 @@
                             timerText.innerText = 'Kết nối WebRTC Peer-to-Peer 2 chiều ổn định (' + (state || iceState) + ')';
                         } else if (state === 'checking' || iceState === 'checking') {
                             timerText.innerText = 'Đang đàm phán STUN/TURN ICE (' + (iceState || state) + ')...';
-                        } else if (state === 'failed' || iceState === 'failed') {
-                            timerText.innerText = 'Đang tự động khởi động lại ICE qua máy chủ TURN Relay...';
                         }
                     }
                 }
@@ -1415,7 +1497,10 @@
                 statusBadge.className = 'badge bg-warning text-dark rounded-pill px-3 py-1 mt-1';
                 statusBadge.innerText = 'Đang đổ chuông tới ' + callState.targetRole + '...';
                 timerText.innerText = 'Đang gửi tín hiệu chuông SignalR & khởi tạo Media...';
+                ringEl.classList.remove('d-none');
                 ringEl.classList.add('calling');
+                micBtn.innerHTML = '<i class="bi bi-mic-fill"></i> Mic Bật';
+                camBtn.innerHTML = callState.isVideo ? '<i class="bi bi-camera-video"></i> Cam Bật' : '<i class="bi bi-camera-video-off"></i> Cam Tắt';
                 micBtn.disabled = false;
                 camBtn.disabled = !callState.isVideo;
                 endBtn.disabled = false;
@@ -1432,12 +1517,14 @@
 
                 if (initRes.localStream && callState.isVideo) {
                     localVideo.srcObject = initRes.localStream;
+                    localVideo.muted = true;
                     localVideo.classList.remove('d-none');
                     pipPlaceholder.classList.add('d-none');
+                    localVideo.play().catch(function () { });
                 }
                 timerText.innerText = initRes.hardware
                     ? 'Đang đổ chuông • Mic/Camera thật đã sẵn sàng, chờ người nhận bấm Chấp nhận...'
-                    : 'Đang đổ chuông • Chờ người nhận bấm Chấp nhận (đang dùng luồng Media WebRTC dự phòng)...';
+                    : 'Đang đổ chuông • Đang kết nối kênh Media WebRTC 2 chiều...';
             }
 
             async function finishCall() {
@@ -1498,8 +1585,10 @@
                     var accRes = await rtcManager.acceptIncomingCall(pkt);
                     if (accRes.localStream && isVid) {
                         localVideo.srcObject = accRes.localStream;
+                        localVideo.muted = true;
                         localVideo.classList.remove('d-none');
                         pipPlaceholder.classList.add('d-none');
+                        localVideo.play().catch(function () { });
                     }
                     startCallTimer();
                     refreshCallHistory();

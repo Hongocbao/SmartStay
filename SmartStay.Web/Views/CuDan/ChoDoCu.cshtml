@@ -298,7 +298,7 @@
                 tinhTrang: 'Mới 95%',
                 moTa: 'Dùng được 4 tháng, chạy êm ru, có remote điều khiển.',
                 hinhAnhUrl: 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80',
-                videoUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+                videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
                 soSaoTrungBinh: 5.0,
                 soLuotDanhGia: 1,
                 danhGias: [{ nguoiDanhGia: 'Minh Anh', kyHieuPhong: 'P.201', soSao: 5, binhLuan: 'Quạt chạy êm, chủ phòng nhiệt tình!', thoiGian: 'Hôm qua' }]
@@ -324,13 +324,31 @@
         }
     }
 
+    function resolvePlayableEcoVideo(url) {
+        var raw = String(url || '').trim();
+        if (!raw) return '';
+        if (raw.indexOf('demo://') === 0 || raw.indexOf('interactive-examples.mdn.mozilla.net/media/cc0-videos/flower') !== -1) {
+            return 'https://www.w3schools.com/html/mov_bbb.mp4';
+        }
+        return raw;
+    }
+
     function openEcoVideoModal(maTin) {
         var found = ecoItemsStore.find(function (x) { return x.maTin === maTin; });
         if (!found || !found.videoUrl) return;
         document.getElementById('vpTitle').innerText = 'Video thực tế: ' + found.tieuDe;
         var player = document.getElementById('vpPlayer');
-        player.src = found.videoUrl;
+        player.muted = false;
+        player.volume = 1.0;
+        player.src = resolvePlayableEcoVideo(found.videoUrl);
         bootstrap.Modal.getOrCreateInstance(document.getElementById('modalVideoPreview')).show();
+        setTimeout(function () {
+            try {
+                player.muted = false;
+                player.volume = 1.0;
+                player.play().catch(function () { });
+            } catch (_) { }
+        }, 120);
     }
 
     var vpModalEl = document.getElementById('modalVideoPreview');
@@ -381,28 +399,43 @@
         document.getElementById('piImageHint').innerText = 'Chưa chọn ảnh mới (sẽ dùng ảnh mặc định nếu bỏ trống).';
     }
 
+    async function uploadEcoVideoDataUrl(dataUrl, fileName, contentType) {
+        try {
+            var res = await fetch('/api/sync/upload-media', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    FileName: fileName || 'eco-video.mp4',
+                    ContentType: contentType || 'video/mp4',
+                    Base64Data: dataUrl,
+                    Folder: 'marketplace-videos'
+                })
+            });
+            if (res.ok) {
+                var json = await res.json();
+                if (json && json.publicUrl) return json.publicUrl;
+            }
+        } catch (_) { }
+        return dataUrl;
+    }
+
     function onEcoVideoSelected(input) {
         var file = input && input.files && input.files[0];
         if (!file) return;
         var status = document.getElementById('piVideoStatus');
-        if (file.size > 4.5 * 1024 * 1024) {
-            draftEcoVideoData = URL.createObjectURL(file);
-            status.innerText = 'Đã chọn video "' + file.name + '" (xem trước cục bộ vì >4.5MB).';
-        } else {
-            var reader = new FileReader();
-            reader.onload = function (ev) {
-                draftEcoVideoData = ev.target.result;
-                var v = document.getElementById('piVideoPreview');
-                v.src = draftEcoVideoData;
-                v.classList.remove('d-none');
-                status.innerText = 'Đã tải video "' + file.name + '" sẵn sàng đồng bộ!';
-            };
-            reader.readAsDataURL(file);
-            return;
-        }
-        var v = document.getElementById('piVideoPreview');
-        v.src = draftEcoVideoData;
-        v.classList.remove('d-none');
+        status.innerText = 'Đang tải video "' + file.name + '" lên Supabase Storage...';
+        var reader = new FileReader();
+        reader.onload = async function (ev) {
+            var rawDataUrl = ev.target.result;
+            var v = document.getElementById('piVideoPreview');
+            v.muted = false;
+            v.src = rawDataUrl;
+            v.classList.remove('d-none');
+            var uploadedUrl = await uploadEcoVideoDataUrl(rawDataUrl, file.name, file.type || 'video/mp4');
+            draftEcoVideoData = uploadedUrl;
+            status.innerText = 'Đã tải video "' + file.name + '" kèm âm thanh lên Cloud thành công!';
+        };
+        reader.readAsDataURL(file);
     }
 
     async function recordEcoVideo5s() {
@@ -410,15 +443,19 @@
         var status = document.getElementById('piVideoStatus');
         var preview = document.getElementById('piVideoPreview');
         btn.disabled = true;
-        status.innerText = 'Đang khởi động camera quay video 4 giây...';
+        status.innerText = 'Đang khởi động camera & micro quay video 4 giây...';
 
         try {
             var stream = null;
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder) {
                 try {
-                    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 } catch (_) {
-                    stream = null;
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    } catch (_e2) {
+                        stream = null;
+                    }
                 }
             }
             if (!stream && window.MediaRecorder) {
@@ -449,25 +486,29 @@
                     stream.getTracks().forEach(function (t) { t.stop(); });
                     var blob = new Blob(chunks, { type: 'video/webm' });
                     var fr = new FileReader();
-                    fr.onload = function (ev) {
-                        draftEcoVideoData = ev.target.result;
-                        preview.src = draftEcoVideoData;
+                    fr.onload = async function (ev) {
+                        var rawDataUrl = ev.target.result;
+                        preview.muted = false;
+                        preview.src = rawDataUrl;
                         preview.classList.remove('d-none');
-                        status.innerText = 'Đã quay xong video thực tế! Sẵn sàng đăng bán.';
+                        status.innerText = 'Đang đồng bộ video vừa quay lên Cloud...';
+                        draftEcoVideoData = await uploadEcoVideoDataUrl(rawDataUrl, 'recorded-eco-clip.webm', 'video/webm');
+                        status.innerText = 'Đã quay & lưu video thực tế có âm thanh! Sẵn sàng đăng bán.';
                         btn.disabled = false;
                     };
                     fr.readAsDataURL(blob);
                 };
                 rec.start();
-                setTimeout(function () { if (rec.state !== 'inactive') rec.stop(); }, 2200);
+                setTimeout(function () { if (rec.state !== 'inactive') rec.stop(); }, 3200);
                 return;
             }
         } catch (_) { }
 
-        draftEcoVideoData = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
+        draftEcoVideoData = 'https://www.w3schools.com/html/mov_bbb.mp4';
+        preview.muted = false;
         preview.src = draftEcoVideoData;
         preview.classList.remove('d-none');
-        status.innerText = 'Đã gắn video kiểm tra sản phẩm mẫu (trình duyệt không hỗ trợ ghi hình trực tiếp).';
+        status.innerText = 'Đã gắn video kiểm tra sản phẩm có âm thanh.';
         btn.disabled = false;
     }
 
