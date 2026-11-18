@@ -695,19 +695,35 @@ public class TroLyAiController : ControllerBase
                     }
                 };
 
-                var endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(apiKey.Trim())}";
-                using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                using var resp = await _geminiHttp.PostAsync(endpoint, content);
-                if (resp.IsSuccessStatusCode)
+                var trimmedKey = apiKey.Trim();
+                var endpoints = trimmedKey.StartsWith("AQ.", StringComparison.OrdinalIgnoreCase)
+                    ? new[]
+                    {
+                        $"https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(trimmedKey)}",
+                        $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(trimmedKey)}"
+                    }
+                    : new[]
+                    {
+                        $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(trimmedKey)}",
+                        $"https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(trimmedKey)}"
+                    };
+
+                foreach (var endpoint in endpoints)
                 {
-                    var jsonStr = await resp.Content.ReadAsStringAsync();
-                    using var doc = JsonDocument.Parse(jsonStr);
-                    geminiReply = doc.RootElement
-                        .GetProperty("candidates")[0]
-                        .GetProperty("content")
-                        .GetProperty("parts")[0]
-                        .GetProperty("text")
-                        .GetString()?.Trim();
+                    using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                    using var resp = await _geminiHttp.PostAsync(endpoint, content);
+                    if (resp.IsSuccessStatusCode)
+                    {
+                        var jsonStr = await resp.Content.ReadAsStringAsync();
+                        using var doc = JsonDocument.Parse(jsonStr);
+                        geminiReply = doc.RootElement
+                            .GetProperty("candidates")[0]
+                            .GetProperty("content")
+                            .GetProperty("parts")[0]
+                            .GetProperty("text")
+                            .GetString()?.Trim();
+                        if (!string.IsNullOrWhiteSpace(geminiReply)) break;
+                    }
                 }
             }
             catch { }
@@ -984,12 +1000,34 @@ public class OcrApiController : ControllerBase
                 }
             };
 
-            var endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(apiKey.Trim())}";
-            using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-            using var response = await _http.PostAsync(endpoint, content);
-            var jsonStr = await response.Content.ReadAsStringAsync();
+            var trimmedKey = apiKey.Trim();
+            var endpoints = trimmedKey.StartsWith("AQ.", StringComparison.OrdinalIgnoreCase)
+                ? new[]
+                {
+                    $"https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(trimmedKey)}",
+                    $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(trimmedKey)}"
+                }
+                : new[]
+                {
+                    $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(trimmedKey)}",
+                    $"https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.0-flash:generateContent?key={Uri.EscapeDataString(trimmedKey)}"
+                };
 
-            if (!response.IsSuccessStatusCode)
+            string? jsonStr = null;
+            bool okResp = false;
+            foreach (var ep in endpoints)
+            {
+                using var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                using var response = await _http.PostAsync(ep, content);
+                if (response.IsSuccessStatusCode)
+                {
+                    jsonStr = await response.Content.ReadAsStringAsync();
+                    okResp = true;
+                    break;
+                }
+            }
+
+            if (!okResp || string.IsNullOrWhiteSpace(jsonStr))
             {
                 return Ok(new
                 {
