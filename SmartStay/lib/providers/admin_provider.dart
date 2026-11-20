@@ -551,6 +551,80 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
+  /// Cập nhật giá thuê, diện tích, sức chứa & trạng thái phòng từ Form quản lý Media & Video Tour
+  void updateRoomDetails({
+    required String roomCode,
+    double? rentPrice,
+    double? area,
+    int? capacity,
+    String? status,
+    String? roomType,
+  }) {
+    final index = _rooms.indexWhere(
+      (r) => r.roomCode.toUpperCase() == roomCode.trim().toUpperCase(),
+    );
+    if (index != -1) {
+      final current = _rooms[index];
+      _rooms[index] = current.copyWith(
+        rentPrice: rentPrice ?? current.rentPrice,
+        area: area ?? current.area,
+        capacity: capacity ?? current.capacity,
+        status: status ?? current.status,
+        roomType: roomType ?? current.roomType,
+      );
+      notifyListeners();
+    }
+  }
+
+  /// Tạo sẵn bản nháp hợp đồng & chuyển phòng sang 'Đã đặt' khi Admin duyệt phiếu đăng ký phòng
+  ManagedContractModel? createDraftContractFromBooking({
+    required String roomCode,
+    required String residentName,
+    required String residentPhone,
+    String? nationalId,
+    required DateTime startDate,
+    String? contractCode,
+  }) {
+    final index = _rooms.indexWhere(
+      (r) => r.roomCode.toUpperCase() == roomCode.trim().toUpperCase(),
+    );
+    if (index == -1) return null;
+
+    final room = _rooms[index];
+    final code = (contractCode != null && contractCode.isNotEmpty)
+        ? contractCode
+        : 'HD-NHAP-${startDate.year}-0${room.roomId}';
+    final endDate = DateTime(startDate.year + 1, startDate.month, startDate.day);
+
+    _rooms[index] = room.copyWith(
+      status: 'Đã đặt',
+      residentName: residentName.trim(),
+      residentPhone: residentPhone.trim(),
+      contractCode: code,
+      depositAmount: room.rentPrice * 2,
+    );
+
+    final draft = ManagedContractModel(
+      contractCode: code,
+      roomId: room.roomId,
+      roomCode: room.roomCode,
+      residentName: residentName.trim(),
+      residentPhone: residentPhone.trim(),
+      nationalId: (nationalId != null && nationalId.trim().isNotEmpty)
+          ? nationalId.trim()
+          : 'Đang bổ sung',
+      startDate: startDate,
+      endDate: endDate,
+      monthlyRent: room.rentPrice,
+      depositAmount: room.rentPrice * 2,
+      status: 'Bản nháp',
+      isSigned: false,
+    );
+    _contracts.insert(0, draft);
+    notifyListeners();
+    return draft;
+  }
+
   // Nhận phòng mới (Check-in)
   void checkInResident({
     required int roomId,

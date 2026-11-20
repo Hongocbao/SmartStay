@@ -7,6 +7,7 @@ import 'providers/ticket_provider.dart';
 import 'providers/community_provider.dart';
 import 'providers/ai_chat_provider.dart';
 import 'providers/admin_provider.dart';
+import 'providers/room_discovery_provider.dart';
 import 'screens/main_layout.dart';
 import 'screens/auth/login_screen.dart';
 
@@ -29,6 +30,7 @@ class SmartStayApp extends StatelessWidget {
         ChangeNotifierProvider<CommunityProvider>(create: (_) => CommunityProvider()),
         ChangeNotifierProvider<AiChatProvider>(create: (_) => AiChatProvider()),
         ChangeNotifierProvider<AdminProvider>(create: (_) => AdminProvider()),
+        ChangeNotifierProvider<RoomDiscoveryProvider>(create: (_) => RoomDiscoveryProvider()),
       ],
       child: Builder(
         builder: (context) {

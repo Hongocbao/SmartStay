@@ -1,6 +1,26 @@
 (function (global) {
     'use strict';
 
+    function showSmartStayWebToast(message) {
+        try {
+            if (typeof document === 'undefined' || !message) return;
+            var host = document.getElementById('ssRealtimeToastHost');
+            if (!host) {
+                host = document.createElement('div');
+                host.id = 'ssRealtimeToastHost';
+                host.style.cssText = 'position:fixed;top:78px;right:20px;z-index:1095;display:flex;flex-direction:column;gap:8px;max-width:360px;';
+                document.body.appendChild(host);
+            }
+            var toast = document.createElement('div');
+            toast.style.cssText = 'background:linear-gradient(135deg,#1E1B4B,#4F46E5);color:#fff;padding:11px 16px;border-radius:12px;font:600 12.5px/1.4 system-ui,sans-serif;box-shadow:0 12px 28px rgba(15,23,42,.28);border:1px solid rgba(255,255,255,.2);';
+            toast.textContent = message;
+            host.appendChild(toast);
+            setTimeout(function () {
+                if (toast && toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 4500);
+        } catch (_) { }
+    }
+
     function generateClientId(prefix) {
         var key = 'ss_rtc_client_id';
         try {
@@ -218,6 +238,15 @@
                     });
                     if (self.callbacks.onOnlinePeers) self.callbacks.onOnlinePeers(self.onlinePeers);
                 }
+            });
+            conn.on('RoomListingUpdated', function (evt) {
+                var msg = (evt && (evt.message || evt.Message)) || 'Thông tin phòng vừa được cập nhật Real-time';
+                showSmartStayWebToast('🔄 ' + msg);
+            });
+            conn.on('BookingRequestCreated', function (reg) {
+                var code = (reg && (reg.kyHieuPhong || reg.KyHieuPhong)) || '';
+                var name = (reg && (reg.hoTen || reg.HoTen)) || 'Cư dân';
+                showSmartStayWebToast('📋 Yêu cầu đăng ký phòng ' + code + ' mới từ ' + name);
             });
             conn.onreconnected(function () {
                 conn.invoke(

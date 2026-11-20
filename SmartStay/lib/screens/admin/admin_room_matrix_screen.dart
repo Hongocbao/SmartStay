@@ -4,10 +4,13 @@ import '../../widgets/smartstay_ui.dart';
 import '../../widgets/call_center_modal.dart';
 import '../../utils/provider_scope.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/room_discovery_provider.dart';
 import '../../models/admin_models.dart';
 import '../../utils/formatters.dart';
 import 'admin_finance_screen.dart';
 import 'admin_kanban_screen.dart';
+import 'widgets/admin_booking_approval_tab.dart';
+import 'widgets/admin_room_media_editor_dialog.dart';
 
 class AdminRoomMatrixScreen extends StatefulWidget {
   const AdminRoomMatrixScreen({super.key});
@@ -44,7 +47,9 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
   @override
   Widget build(BuildContext context) {
     final admin = context.watch<AdminProvider>();
+    final discovery = context.watch<RoomDiscoveryProvider>();
     final allRooms = admin.rooms;
+    final pendingBookings = discovery.pendingRegistrationsCount;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surfaceColor =
         isDark ? SmartStayColors.surfaceDark : SmartStayColors.surfaceLight;
@@ -60,146 +65,184 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
       return matchFloor && matchStatus;
     }).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Bản Đồ Số Phòng Trực Quan',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Đồng bộ sơ đồ từ Cloud',
-            icon: const Icon(Icons.sync_rounded, color: SmartStayColors.primary),
-            onPressed: () async {
-              final ok = await admin.syncWithCloudSupabase();
-              if (!context.mounted) return;
-              showSmartStayToast(
-                context,
-                ok ? 'Đã đồng bộ trạng thái phòng Real-time!' : 'Đang dùng dữ liệu cục bộ.',
-                isSuccess: ok,
-              );
-            },
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'Quản Lý Phòng, Media & Đăng Ký',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.add_home_work_rounded, size: 16, color: Colors.white),
-              label: const Text('Thêm phòng', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: SmartStayColors.primary,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () => _showAddRoomDialog(context, admin),
-            ),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Floor Filter Bar
-          Container(
-            color: surfaceColor,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFloorChip('Tất cả tầng', 0),
-                  const SizedBox(width: 8),
-                  _buildFloorChip('Tầng 1 (Studio)', 1),
-                  const SizedBox(width: 8),
-                  _buildFloorChip('Tầng 2 (Co-Living)', 2),
-                  const SizedBox(width: 8),
-                  _buildFloorChip('Tầng 3 (Co-Living)', 3),
-                  const SizedBox(width: 8),
-                  _buildFloorChip('Tầng 4 (Ban công)', 4),
-                  const SizedBox(width: 8),
-                  _buildFloorChip('Tầng 5 (Penthouse)', 5),
-                ],
-              ),
-            ),
-          ),
-
-          // Status Filter Bar (5 trạng thái trực quan)
-          Container(
-            color: surfaceColor,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildStatusChip('Tất cả', null),
-                  const SizedBox(width: 8),
-                  _buildStatusChip('Trống', const Color(0xFF10B981)),
-                  const SizedBox(width: 8),
-                  _buildStatusChip('Đang ở', const Color(0xFF2563EB)),
-                  const SizedBox(width: 8),
-                  _buildStatusChip('Sắp hết hạn HĐ', const Color(0xFFF59E0B)),
-                  const SizedBox(width: 8),
-                  _buildStatusChip('Quá hạn thanh toán', const Color(0xFF9333EA)),
-                  const SizedBox(width: 8),
-                  _buildStatusChip('Đang sửa chữa', const Color(0xFFEF4444)),
-                ],
-              ),
-            ),
-          ),
-
-          Divider(height: 1, color: borderColor),
-
-          // Rooms Grid
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                final ok = await admin.syncWithCloudSupabase();
+          actions: [
+            IconButton(
+              tooltip: 'Đồng bộ sơ đồ & đăng ký từ Cloud',
+              icon: const Icon(Icons.sync_rounded, color: SmartStayColors.primary),
+              onPressed: () async {
+                final results = await Future.wait([
+                  admin.syncWithCloudSupabase(),
+                  discovery.syncAll(silent: false, emitToasts: false),
+                ]);
+                final ok = results[0] || results[1];
                 if (!context.mounted) return;
                 showSmartStayToast(
                   context,
-                  ok ? 'Đã cập nhật bản đồ phòng!' : 'Không kết nối được Cloud.',
+                  ok ? 'Đã đồng bộ phòng, Media & phiếu đăng ký Real-time!' : 'Đang dùng dữ liệu cục bộ.',
                   isSuccess: ok,
                 );
               },
-              child: filteredRooms.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.add_home_work_rounded, size: 16, color: Colors.white),
+                label: const Text('Thêm phòng', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: SmartStayColors.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => _showAddRoomDialog(context, admin),
+              ),
+            ),
+          ],
+          bottom: TabBar(
+            indicatorColor: SmartStayColors.primary,
+            labelColor: SmartStayColors.primary,
+            unselectedLabelColor: isDark
+                ? SmartStayColors.textSecondaryDark
+                : SmartStayColors.textSecondaryLight,
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            tabs: [
+              const Tab(
+                icon: Icon(Icons.apartment_rounded, size: 18),
+                text: 'Sơ đồ phòng & Media Tour',
+              ),
+              Tab(
+                icon: Badge(
+                  isLabelVisible: pendingBookings > 0,
+                  label: Text('$pendingBookings'),
+                  backgroundColor: SmartStayColors.danger,
+                  child: const Icon(Icons.assignment_turned_in_rounded, size: 18),
+                ),
+                text: 'Duyệt đăng ký phòng',
+              ),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            // TAB 1: Sơ đồ phòng & quản lý ảnh / video tour
+            Column(
+              children: [
+                // Floor Filter Bar
+                Container(
+                  color: surfaceColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
                       children: [
-                        SmartStayEmptyState(
-                          icon: Icons.apartment_rounded,
-                          title: 'Không có phòng phù hợp',
-                          subtitle: 'Thử chọn tầng khác hoặc đặt lại bộ lọc trạng thái phòng.',
-                          actionLabel: 'Hiện tất cả',
-                          onAction: () => setState(() {
-                            _selectedFloor = 0;
-                            _selectedStatus = 'Tất cả';
-                          }),
-                        ),
+                        _buildFloorChip('Tất cả tầng', 0),
+                        const SizedBox(width: 8),
+                        _buildFloorChip('Tầng 1 (Studio)', 1),
+                        const SizedBox(width: 8),
+                        _buildFloorChip('Tầng 2 (Co-Living)', 2),
+                        const SizedBox(width: 8),
+                        _buildFloorChip('Tầng 3 (Co-Living)', 3),
+                        const SizedBox(width: 8),
+                        _buildFloorChip('Tầng 4 (Ban công)', 4),
+                        const SizedBox(width: 8),
+                        _buildFloorChip('Tầng 5 (Penthouse)', 5),
                       ],
-                    )
-                  : LayoutBuilder(
-                    builder: (context, constraints) {
-                      final width = constraints.maxWidth;
-                      final crossAxisCount = width >= 1050
-                          ? 5
-                          : (width >= 740 ? 4 : (width >= 520 ? 3 : 2));
-                      return GridView.builder(
-                        padding: const EdgeInsets.all(16),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          mainAxisExtent: 152,
-                        ),
-                        itemCount: filteredRooms.length,
-                        itemBuilder: (context, index) {
-                          final room = filteredRooms[index];
-                          return _buildRoomCard(room, admin);
-                        },
+                    ),
+                  ),
+                ),
+
+                // Status Filter Bar (5 trạng thái trực quan)
+                Container(
+                  color: surfaceColor,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildStatusChip('Tất cả', null),
+                        const SizedBox(width: 8),
+                        _buildStatusChip('Trống', const Color(0xFF10B981)),
+                        const SizedBox(width: 8),
+                        _buildStatusChip('Đang ở', const Color(0xFF2563EB)),
+                        const SizedBox(width: 8),
+                        _buildStatusChip('Sắp hết hạn HĐ', const Color(0xFFF59E0B)),
+                        const SizedBox(width: 8),
+                        _buildStatusChip('Quá hạn thanh toán', const Color(0xFF9333EA)),
+                        const SizedBox(width: 8),
+                        _buildStatusChip('Đang sửa chữa', const Color(0xFFEF4444)),
+                      ],
+                    ),
+                  ),
+                ),
+
+                Divider(height: 1, color: borderColor),
+
+                // Rooms Grid
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      final ok = await admin.syncWithCloudSupabase();
+                      if (!context.mounted) return;
+                      showSmartStayToast(
+                        context,
+                        ok ? 'Đã cập nhật bản đồ phòng!' : 'Không kết nối được Cloud.',
+                        isSuccess: ok,
                       );
                     },
+                    child: filteredRooms.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SmartStayEmptyState(
+                                icon: Icons.apartment_rounded,
+                                title: 'Không có phòng phù hợp',
+                                subtitle: 'Thử chọn tầng khác hoặc đặt lại bộ lọc trạng thái phòng.',
+                                actionLabel: 'Hiện tất cả',
+                                onAction: () => setState(() {
+                                  _selectedFloor = 0;
+                                  _selectedStatus = 'Tất cả';
+                                }),
+                              ),
+                            ],
+                          )
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final width = constraints.maxWidth;
+                              final crossAxisCount = width >= 1050
+                                  ? 5
+                                  : (width >= 740 ? 4 : (width >= 520 ? 3 : 2));
+                              return GridView.builder(
+                                padding: const EdgeInsets.all(16),
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: crossAxisCount,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  mainAxisExtent: 158,
+                                ),
+                                itemCount: filteredRooms.length,
+                                itemBuilder: (context, index) {
+                                  final room = filteredRooms[index];
+                                  return _buildRoomCard(room, admin);
+                                },
+                              );
+                            },
+                          ),
                   ),
+                ),
+              ],
             ),
-          ),
-        ],
+
+            // TAB 2: Duyệt yêu cầu đăng ký phòng (PhieuDangKyPhong)
+            const AdminBookingApprovalTab(),
+          ],
+        ),
       ),
     );
   }
@@ -325,6 +368,8 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
                     onSelected: (action) {
                       if (action == 'detail') {
                         _showRoomDetailsModal(context, room, admin);
+                      } else if (action == 'media') {
+                        showAdminRoomMediaEditorDialog(context, room: room);
                       } else if (action == 'call') {
                         showSmartStayCallModal(
                           context,
@@ -342,6 +387,7 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
                       }
                     },
                     itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'media', child: Text('Sửa giá, Ảnh & Video Tour')),
                       PopupMenuItem(value: 'detail', child: Text('Xem chi tiết phòng')),
                       PopupMenuItem(value: 'Đang ở', child: Text('Đặt: Đang ở')),
                       PopupMenuItem(value: 'Trống', child: Text('Đặt: Phòng trống')),
@@ -530,7 +576,29 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
                 _buildInfoRow('Chỉ số nước chốt giao:', '${room.lastWaterIndex} m³'),
               ],
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+
+              // Nút Quản lý Ảnh, Video Tour & Đăng tin cho thuê (Real-time Supabase)
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.photo_camera_front_rounded, color: Colors.white, size: 19),
+                  label: const Text(
+                    'Quản lý Giá, Ảnh & Video Tour (Supabase)',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: SmartStayColors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    showAdminRoomMediaEditorDialog(context, room: room);
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
 
               // Action Buttons
               if (room.status == 'Trống') ...[
@@ -1042,12 +1110,29 @@ class _AdminRoomMatrixScreenState extends State<AdminRoomMatrixScreen> {
                       capacity: selectedType.contains('2') ? 2 : 1,
                       rentPrice: double.tryParse(priceCtrl.text.replaceAll('.', '')) ?? 3500000,
                     );
+                    context.read<RoomDiscoveryProvider>().saveRoomListing(
+                          roomId: newRoom.roomId,
+                          roomCode: newRoom.roomCode,
+                          title: 'Căn hộ ${newRoom.roomCode} • ${newRoom.roomType}',
+                          roomType: newRoom.roomType,
+                          floor: newRoom.floor,
+                          area: newRoom.area,
+                          capacity: newRoom.capacity,
+                          rentPrice: newRoom.rentPrice,
+                          status: 'Trống',
+                          description: 'Phòng mới bổ sung chuẩn SmartStay, đầy đủ tiện nghi & khóa thông minh IoT.',
+                          amenities: const ['Khóa vân tay IoT', 'Máy lạnh Inverter', 'Wi-Fi 6 tốc độ cao'],
+                          isOpenForRent: true,
+                          imageUrls: const [
+                            'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=900&q=80',
+                          ],
+                          videoTourUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+                        );
                     Navigator.pop(dialogCtx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Đã thêm thành công căn hộ mới ${newRoom.roomCode} vào sơ đồ phòng Tầng $selectedFloor!'),
-                        backgroundColor: const Color(0xFF10B981),
-                      ),
+                    showSmartStayToast(
+                      context,
+                      'Đã thêm ${newRoom.roomCode} lên sơ đồ & mở cho thuê Real-time trên Supabase!',
+                      isSuccess: true,
                     );
                   },
                 ),

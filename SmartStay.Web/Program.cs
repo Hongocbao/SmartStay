@@ -219,7 +219,11 @@ _ = Task.Run(async () =>
             // Đảm bảo các bảng lưu trữ bền vững (Chợ đồ cũ, Vé khách, Chia tiền, OCR, Cuộc gọi) & Khóa ngoại FK + Storage bucket 'smartstay-media' tồn tại
             var persistPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "database", "supabase_persistence_and_storage.sql"));
             await ExecuteSqlFileSafeAsync(persistPath);
-            Console.WriteLine("[SmartStay] Đã chuẩn hóa toàn bộ bảng mở rộng, Foreign Keys & Supabase Storage!");
+
+            // Đảm bảo bảng PhongMedia & PhieuDangKyPhong (Khám phá phòng, Video Tour & Đăng ký thuê phòng trực tuyến) tồn tại
+            var discoveryPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "database", "supabase_room_discovery_migration.sql"));
+            await ExecuteSqlFileSafeAsync(discoveryPath);
+            Console.WriteLine("[SmartStay] Đã chuẩn hóa toàn bộ bảng mở rộng, PhongMedia, PhieuDangKyPhong, Foreign Keys & Supabase Storage!");
         }
     }
     catch (Exception ex)

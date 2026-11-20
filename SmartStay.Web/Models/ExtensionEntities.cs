@@ -131,3 +131,40 @@ public class NhatKyCuocGoi
     public virtual CuDan? MaCuDanNavigation { get; set; }
     public virtual Phong? MaPhongNavigation { get; set; }
 }
+
+public class PhongMedia
+{
+    public int Id { get; set; }
+    public int MaPhong { get; set; }
+    public string KyHieuPhong { get; set; } = string.Empty;
+    public string LoaiMedia { get; set; } = "Image"; // Image | Video
+    public string Url { get; set; } = string.Empty;
+    public string? MoTa { get; set; }
+    public int ThuTu { get; set; }
+    public DateTime TaoLuc { get; set; } = DateTime.UtcNow;
+
+    public virtual Phong MaPhongNavigation { get; set; } = null!;
+}
+
+public class PhieuDangKyPhong
+{
+    public string MaPhieu { get; set; } = string.Empty;
+    public int MaPhong { get; set; }
+    public string KyHieuPhong { get; set; } = string.Empty;
+    public int? MaCuDan { get; set; }
+    public string LoaiYeuCau { get; set; } = "ThueMoi"; // ThueMoi | ChuyenPhong
+    public string HoTen { get; set; } = string.Empty;
+    public string SoDienThoai { get; set; } = string.Empty;
+    public string? SoCanCuoc { get; set; }
+    public DateOnly NgayDuKienVaoO { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3));
+    public string? GhiChu { get; set; }
+    public string TrangThai { get; set; } = "ChoDuyet"; // ChoDuyet | DaDuyet | TuChoi
+    public string? LyDoTuChoi { get; set; }
+    public int? MaHopDongTao { get; set; }
+    public DateTime TaoLuc { get; set; } = DateTime.UtcNow;
+    public DateTime CapNhatLuc { get; set; } = DateTime.UtcNow;
+
+    public virtual Phong MaPhongNavigation { get; set; } = null!;
+    public virtual CuDan? MaCuDanNavigation { get; set; }
+    public virtual HopDong? MaHopDongTaoNavigation { get; set; }
+}

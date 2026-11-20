@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/api_transport.dart';
 import '../utils/provider_scope.dart';
+import '../theme/smartstay_theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/admin_provider.dart';
+import '../providers/room_discovery_provider.dart';
 import '../providers/ticket_provider.dart';
 import '../providers/community_provider.dart';
 import 'home/home_screen.dart';
@@ -14,6 +16,7 @@ import 'ticket/ticket_list_screen.dart';
 import 'community/community_screen.dart';
 import 'profile/profile_screen.dart';
 import 'resident_services/resident_services_screen.dart';
+import 'discovery/room_discovery_screen.dart';
 import 'ai_chat/ai_chat_screen.dart';
 import '../widgets/ai_floating_bubble.dart';
 import '../widgets/call_center_modal.dart';
@@ -302,11 +305,13 @@ class _MainLayoutState extends State<MainLayout> {
     _isSyncing = true;
     try {
       final adminProv = context.read<AdminProvider>();
+      final discoveryProv = context.read<RoomDiscoveryProvider>();
       final ticketProv = context.read<TicketProvider>();
       final commProv = context.read<CommunityProvider>();
 
       await Future.wait([
         adminProv.syncWithCloudSupabase(),
+        discoveryProv.syncAll(silent: true, emitToasts: true),
         ticketProv.syncTicketsFromCloud(),
         commProv.syncAnnouncementsFromCloud(),
       ]);
@@ -346,10 +351,16 @@ class _MainLayoutState extends State<MainLayout> {
           screenIndex: 0,
         ),
         _SidebarMenuItem(
-          title: 'Ma Trận Phòng Trực Quan',
+          title: 'Ma Trận Phòng & Duyệt ĐK',
           icon: Icons.apartment_rounded,
           iconColor: Color(0xFF38BDF8),
           screenIndex: 1,
+        ),
+        _SidebarMenuItem(
+          title: 'Khám Phá & Video Tour Phòng',
+          icon: Icons.travel_explore_rounded,
+          iconColor: Color(0xFF818CF8),
+          screenIndex: 9,
         ),
         _SidebarMenuItem(
           title: 'Bảo Trì & Sự Cố (Kanban)',
@@ -402,6 +413,12 @@ class _MainLayoutState extends State<MainLayout> {
           icon: Icons.home_rounded,
           iconColor: Color(0xFF94A3B8),
           screenIndex: 0,
+        ),
+        _SidebarMenuItem(
+          title: 'Khám Phá & Thuê Phòng',
+          icon: Icons.travel_explore_rounded,
+          iconColor: Color(0xFF818CF8),
+          screenIndex: 7,
         ),
         _SidebarMenuItem(
           title: 'Hóa Đơn & Mã VietQR',
@@ -664,6 +681,11 @@ class _MainLayoutState extends State<MainLayout> {
   }
 
   Widget _buildWebTopbar(BuildContext context, AuthProvider auth, int safeIndex, bool isDesktop) {
+    final themeCtrl = context.watch<ThemeController>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final topbarBg = isDark ? SmartStayColors.surfaceDark : Colors.white;
+    final topbarBorder = isDark ? SmartStayColors.borderDark : const Color(0xFFE2E8F0);
+    final titleColor = isDark ? SmartStayColors.textPrimaryDark : const Color(0xFF1E293B);
     final fullName = auth.user?.fullName ?? 'Hồ Ngọc Bảo';
     final initials = fullName.trim().isNotEmpty
         ? fullName.trim().split(' ').first.toUpperCase()
@@ -676,10 +698,10 @@ class _MainLayoutState extends State<MainLayout> {
     return Container(
       height: 64,
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: topbarBg,
         border: Border(
-          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: topbarBorder, width: 1),
         ),
       ),
       child: Row(
@@ -691,7 +713,7 @@ class _MainLayoutState extends State<MainLayout> {
               child: IconButton(
                 padding: EdgeInsets.zero,
                 onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                icon: const Icon(Icons.menu_rounded, color: Color(0xFF0F172A)),
+                icon: Icon(Icons.menu_rounded, color: titleColor),
                 tooltip: 'Mở danh mục tính năng',
               ),
             ),
@@ -703,12 +725,22 @@ class _MainLayoutState extends State<MainLayout> {
               style: TextStyle(
                 fontSize: isCompact ? 14 : 16,
                 fontWeight: FontWeight.w800,
-                color: const Color(0xFF1E293B),
+                color: titleColor,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          IconButton(
+            tooltip: themeCtrl.isDark ? 'Chuyển sang Giao diện Sáng' : 'Chuyển sang Giao diện Tối',
+            onPressed: themeCtrl.toggle,
+            icon: Icon(
+              themeCtrl.isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              color: themeCtrl.isDark ? const Color(0xFFFBBF24) : SmartStayColors.primary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 4),
           if (isDesktop) ...[
             InkWell(
               onTap: () => _triggerRealtimeSync(silent: false),
@@ -898,6 +930,7 @@ class _MainLayoutState extends State<MainLayout> {
         CommunityScreen(),
         AdminSystemConfigScreen(),
         AiChatScreen(),
+        RoomDiscoveryScreen(),
       ];
       navItems = const [
         BottomNavigationBarItem(
@@ -945,6 +978,11 @@ class _MainLayoutState extends State<MainLayout> {
           activeIcon: Icon(Icons.smart_toy_rounded),
           label: 'Trợ lý AI',
         ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.travel_explore_outlined),
+          activeIcon: Icon(Icons.travel_explore_rounded),
+          label: 'Khám phá',
+        ),
       ];
     } else {
       screens = [
@@ -955,6 +993,7 @@ class _MainLayoutState extends State<MainLayout> {
         const TicketListScreen(),
         const CommunityScreen(),
         const ProfileScreen(),
+        const RoomDiscoveryScreen(),
       ];
       navItems = const [
         BottomNavigationBarItem(
@@ -992,6 +1031,11 @@ class _MainLayoutState extends State<MainLayout> {
           activeIcon: Icon(Icons.person_rounded),
           label: 'Cá nhân',
         ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.travel_explore_outlined),
+          activeIcon: Icon(Icons.travel_explore_rounded),
+          label: 'Khám phá',
+        ),
       ];
     }
 
@@ -999,7 +1043,7 @@ class _MainLayoutState extends State<MainLayout> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth >= 900;
 
-    final List<int> mobileScreenMap = auth.isAdmin ? const [0, 1, 2, 4] : const [0, 1, 2, 3];
+    final List<int> mobileScreenMap = auth.isAdmin ? const [0, 1, 2, 9] : const [0, 7, 1, 2];
     final List<BottomNavigationBarItem> mobileNavItems = auth.isAdmin
         ? const [
             BottomNavigationBarItem(
@@ -1018,9 +1062,9 @@ class _MainLayoutState extends State<MainLayout> {
               label: 'Kanban',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.receipt_long_outlined),
-              activeIcon: Icon(Icons.receipt_long_rounded),
-              label: 'Tài chính',
+              icon: Icon(Icons.travel_explore_outlined),
+              activeIcon: Icon(Icons.travel_explore_rounded),
+              label: 'Khám phá',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.menu_open_rounded),
@@ -1035,6 +1079,11 @@ class _MainLayoutState extends State<MainLayout> {
               label: 'Trang chủ',
             ),
             BottomNavigationBarItem(
+              icon: Icon(Icons.travel_explore_outlined),
+              activeIcon: Icon(Icons.travel_explore_rounded),
+              label: 'Thuê phòng',
+            ),
+            BottomNavigationBarItem(
               icon: Icon(Icons.receipt_long_outlined),
               activeIcon: Icon(Icons.receipt_long_rounded),
               label: 'Hóa đơn',
@@ -1043,11 +1092,6 @@ class _MainLayoutState extends State<MainLayout> {
               icon: Icon(Icons.apps_outlined),
               activeIcon: Icon(Icons.apps_rounded),
               label: 'Tiện ích',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.smart_toy_outlined),
-              activeIcon: Icon(Icons.smart_toy_rounded),
-              label: 'Trợ lý AI',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.menu_open_rounded),
@@ -1106,10 +1150,12 @@ class _MainLayoutState extends State<MainLayout> {
           ? null
           : Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? SmartStayColors.surfaceDark
+                    : Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 10,
                     offset: const Offset(0, -3),
                   ),
@@ -1126,10 +1172,10 @@ class _MainLayoutState extends State<MainLayout> {
                     }
                   },
                   type: BottomNavigationBarType.fixed,
-                  backgroundColor: Colors.white,
-                  selectedItemColor: auth.isAdmin
-                      ? const Color(0xFF8B5CF6)
-                      : const Color(0xFF2563EB),
+                  backgroundColor: Theme.of(context).brightness == Brightness.dark
+                      ? SmartStayColors.surfaceDark
+                      : Colors.white,
+                  selectedItemColor: SmartStayColors.primary,
                   unselectedItemColor: const Color(0xFF94A3B8),
                   selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                   unselectedLabelStyle: const TextStyle(fontSize: 11),

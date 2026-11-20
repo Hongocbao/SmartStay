@@ -287,6 +287,19 @@ public class SmartStayHub : Hub
         await Clients.All.SendAsync("RoomStatusChanged", new { RoomId = roomId, Status = newStatus });
     }
 
+    // Real-time broadcast khi Admin cập nhật giá, ảnh/video tour hoặc trạng thái phòng cho thuê
+    public async Task BroadcastRoomListingUpdated(string roomCode, decimal rentPrice, string status, string message)
+    {
+        await Clients.All.SendAsync("RoomListingUpdated", new
+        {
+            RoomCode = roomCode,
+            RentPrice = rentPrice,
+            Status = status,
+            Message = message,
+            UpdatedAt = DateTime.UtcNow
+        });
+    }
+
     // Real-time broadcast cho bảng Kanban Sự cố
     public async Task BroadcastTicketUpdated(int ticketId, string newStatus, string? technicianName)
     {

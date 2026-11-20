@@ -11,6 +11,8 @@ public partial class SmartStayDbContext
     public virtual DbSet<ChiaTienPhong> ChiaTienPhongs { get; set; }
     public virtual DbSet<ChiSoTuKiemTra> ChiSoTuKiemTras { get; set; }
     public virtual DbSet<NhatKyCuocGoi> NhatKyCuocGois { get; set; }
+    public virtual DbSet<PhongMedia> PhongMedias { get; set; }
+    public virtual DbSet<PhieuDangKyPhong> PhieuDangKyPhongs { get; set; }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder)
     {
@@ -204,6 +206,50 @@ public partial class SmartStayDbContext
                 .HasForeignKey(d => d.MaHoaDonLienQuan)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("FK_LSVi_HoaDon");
+        });
+
+        modelBuilder.Entity<PhongMedia>(entity =>
+        {
+            entity.ToTable("PhongMedia");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.KyHieuPhong).HasMaxLength(32);
+            entity.Property(e => e.LoaiMedia).HasMaxLength(16);
+
+            entity.HasOne(d => d.MaPhongNavigation)
+                .WithMany()
+                .HasForeignKey(d => d.MaPhong)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PhongMedia_Phong");
+        });
+
+        modelBuilder.Entity<PhieuDangKyPhong>(entity =>
+        {
+            entity.ToTable("PhieuDangKyPhong");
+            entity.HasKey(e => e.MaPhieu);
+            entity.Property(e => e.MaPhieu).HasMaxLength(64);
+            entity.Property(e => e.KyHieuPhong).HasMaxLength(32);
+            entity.Property(e => e.LoaiYeuCau).HasMaxLength(32);
+            entity.Property(e => e.SoDienThoai).HasMaxLength(32);
+            entity.Property(e => e.SoCanCuoc).HasMaxLength(32);
+            entity.Property(e => e.TrangThai).HasMaxLength(32);
+
+            entity.HasOne(d => d.MaPhongNavigation)
+                .WithMany()
+                .HasForeignKey(d => d.MaPhong)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_PhieuDangKyPhong_Phong");
+
+            entity.HasOne(d => d.MaCuDanNavigation)
+                .WithMany()
+                .HasForeignKey(d => d.MaCuDan)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_PhieuDangKyPhong_CuDan");
+
+            entity.HasOne(d => d.MaHopDongTaoNavigation)
+                .WithMany()
+                .HasForeignKey(d => d.MaHopDongTao)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_PhieuDangKyPhong_HopDong");
         });
     }
 }
